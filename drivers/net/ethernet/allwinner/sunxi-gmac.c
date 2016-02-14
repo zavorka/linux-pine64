@@ -434,11 +434,9 @@ static void geth_adjust_link(struct net_device *ndev)
 			priv->link = phydev->link;
 		}
 
-#if 0
-		/* Fix the A version chip mode, it not work at 1000M mode */
-		if (sunxi_get_soc_ver() == SUN9IW1P1_REV_A
-				&& priv->speed == SPEED_1000
-				&& phydev->link == 1){
+#if 1
+		/* Disable 1000M as it does not work */
+		if (priv->speed == SPEED_1000 && phydev->link == 1) {
 			priv->speed = 0;
 			priv->link = 0;
 			priv->duplex = -1;
