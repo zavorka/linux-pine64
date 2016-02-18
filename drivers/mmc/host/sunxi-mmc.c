@@ -1230,6 +1230,10 @@ static void sunxi_mmc_request(struct mmc_host *mmc, struct mmc_request *mrq)
 
 	sunxi_mmc_parse_cmd(mmc , cmd , &cmd_val , &imask, &wait_dma);
 
+	// XXX(longsleep): mmc_send_status below triggers BUG, do nothing and pray!
+	goto out;
+
+	//claim host to not allow androd read/write during shutdown
 	dev_dbg(mmc_dev(mmc), "cmd %d(%08x) arg %x ie 0x%08x len %d\n",
 		cmd_val & 0x3f, cmd_val, cmd->arg, imask,
 		mrq->data ? mrq->data->blksz * mrq->data->blocks : 0);
