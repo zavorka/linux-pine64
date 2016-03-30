@@ -37,11 +37,14 @@ endif
 ifdef CONFIG_ARM64
 vfe_v4l2-y					+= lib/libisp_64
 endif
-endif
 
-$(obj)/lib/libisp.o:
+$(obj)/lib/libisp_32.o:
 	mkdir -p $(obj)/lib/
-	cp $(srctree)/drivers/media/platform/sunxi-vfe/lib/libisp $(obj)/lib/libisp.o
+	cp $(srctree)/drivers/media/platform/sunxi-vfe/lib/libisp_32 $(obj)/lib/libisp_32.o
+
+$(obj)/lib/libisp_64.o:
+	mkdir -p $(obj)/lib/
+	cp $(srctree)/drivers/media/platform/sunxi-vfe/lib/libisp_64 $(obj)/lib/libisp_64.o
 
 ifneq ($(strip $(CONFIG_ARCH_SUN9I)),)
 vfe_v4l2-y					+= lib/lib_mipicsi2_v2
