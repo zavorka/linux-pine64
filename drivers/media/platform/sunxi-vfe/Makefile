@@ -32,12 +32,20 @@ else ifneq ($(strip $(CONFIG_ARCH_SUN8IW11)),)
 vfe_v4l2-y					+= lib/bsp_isp_null.o
 else
 ifdef CONFIG_ARM
-vfe_v4l2-y					+= lib/libisp_32
+vfe_v4l2-y					+= lib/libisp_32.o
 endif
 ifdef CONFIG_ARM64
-vfe_v4l2-y					+= lib/libisp_64
+vfe_v4l2-y					+= lib/libisp_64.o
 endif
 endif
+
+$(obj)/lib/libisp_32.o:
+	mkdir -p $(obj)/lib/
+	cp $(srctree)/drivers/media/platform/sunxi-vfe/lib/libisp_32 $(obj)/lib/libisp_32.o
+
+$(obj)/lib/libisp_64.o:
+	mkdir -p $(obj)/lib/
+	cp $(srctree)/drivers/media/platform/sunxi-vfe/lib/libisp_64 $(obj)/lib/libisp_64.o
 
 ifneq ($(strip $(CONFIG_ARCH_SUN9I)),)
 vfe_v4l2-y					+= lib/lib_mipicsi2_v2
