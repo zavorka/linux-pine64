@@ -2276,7 +2276,7 @@ static int sunxi_internal_codec_probe(struct platform_device *pdev)
 
 	/*voltage*/
 	sunxi_internal_codec->vol_supply.cpvdd =  regulator_get(NULL, "vcc-cpvdd");
-	if (IS_ERR(sunxi_internal_codec->vol_supply.cpvdd)) {
+	if (!sunxi_internal_codec->vol_supply.cpvdd || IS_ERR(sunxi_internal_codec->vol_supply.cpvdd)) {
 		pr_err("get audio cpvdd failed\n");
 		ret = -EFAULT;
 		goto err1;
