@@ -752,6 +752,7 @@ static struct crypto_alg sunxi_ss_algs[] =
 		.finup		= ss_hash_finup, \
 		.digest		= ss_hash_digest, \
 		.halg.digestsize	= utype##_DIGEST_SIZE, \
+		.halg.statesize     = sizeof(struct ltype##_state), \
 		.halg.base	= { \
 			.cra_name		= #ltype, \
 			.cra_driver_name= "ss-"#ltype, \
@@ -768,8 +769,10 @@ static struct crypto_alg sunxi_ss_algs[] =
 static struct ahash_alg sunxi_ss_algs_hash[] = {
 	DECLARE_SS_AHASH_ALG(md5, MD5),
 	DECLARE_SS_AHASH_ALG(sha1, SHA1),
+#if 0
 #ifdef SS_SHA224_ENABLE
 	DECLARE_SS_AHASH_ALG(sha224, SHA224),
+#endif
 #endif
 #ifdef SS_SHA256_ENABLE
 	DECLARE_SS_AHASH_ALG(sha256, SHA256),
