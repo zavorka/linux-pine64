@@ -1,4 +1,5 @@
 obj-$(CONFIG_HDMI_DISP2_SUNXI) += hdmi.o
+obj-m += hdmi_cec.o
 
 hdmi-y := drv_hdmi.o hdmi_core.o hdmi_edid.o
 ifeq ($(CONFIG_ARM64),y)
