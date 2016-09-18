@@ -727,71 +727,71 @@ static void print_hex_array(char* name, u8 *addr, u8 n) {
 
 static void geth_chip_hwaddr(u8 *addr)
 {
-#define MD5_SIZE	CHIPID_SIZE
+  #define MD5_SIZE	CHIPID_SIZE
 
-	struct crypto_hash *tfm;
-	struct hash_desc desc;
-	struct scatterlist sg;
-	u8 result[MD5_SIZE];
-	int i = 0;
-	int ret = -1;
+  struct crypto_hash *tfm;
+  struct hash_desc desc;
+  struct scatterlist sg;
+  u8 result[MD5_SIZE];
+  int i = 0;
+  int ret = -1;
 
-    print_hex_array("chipid", chipid, CHIPID_SIZE);
-    if(chipid[CHIPID_VALID_INDEX] == 0) {
-        printk("chipid invalid!!!");
-	    memset(addr, 0, ETH_ALEN);
-        return;
-    }
+  print_hex_array("chipid", chipid, CHIPID_SIZE);
+  if(chipid[CHIPID_VALID_INDEX] == 0) {
+    printk("chipid invalid!!!");
+    memset(addr, 0, ETH_ALEN);
+    return;
+  }
 
-	//memset(chipid, 0, sizeof(chipid));
-	memset(result, 0, sizeof(result));
+  //memset(chipid, 0, sizeof(chipid));
+  memset(result, 0, sizeof(result));
 
-	tfm = crypto_alloc_hash("md5", 0, CRYPTO_ALG_ASYNC);
-	if (IS_ERR(tfm)) {
-		pr_err("Failed to alloc md5\n");
-		return;
-	}
-	desc.tfm = tfm;
-	desc.flags = 0;
+  tfm = crypto_alloc_hash("md5", 0, CRYPTO_ALG_ASYNC);
+  if (IS_ERR(tfm)) {
+    pr_err("Failed to alloc md5\n");
+    return;
+  }
+  desc.tfm = tfm;
+  desc.flags = 0;
 
-	ret = crypto_hash_init(&desc);
-	if (ret < 0) {
-		pr_err("crypto_hash_init() failed\n");
-		goto out;
-	}
+  ret = crypto_hash_init(&desc);
+  if (ret < 0) {
+    pr_err("crypto_hash_init() failed\n");
+    goto out;
+  }
 
-	sg_init_one(&sg, chipid, sizeof(chipid) - 1);
-	ret = crypto_hash_update(&desc, &sg, sizeof(chipid) - 1);
-	if (ret < 0) {
-		pr_err("crypto_hash_update() failed for id\n");
-		goto out;
-	}
+  sg_init_one(&sg, chipid, sizeof(chipid) - 1);
+  ret = crypto_hash_update(&desc, &sg, sizeof(chipid) - 1);
+  if (ret < 0) {
+    pr_err("crypto_hash_update() failed for id\n");
+    goto out;
+  }
 
-	crypto_hash_final(&desc, result);
-	if (ret < 0) {
-		pr_err("crypto_hash_final() failed for result\n");
-		goto out;
-	}
-    print_hex_array("result", result, MD5_SIZE);
+  crypto_hash_final(&desc, result);
+  if (ret < 0) {
+    pr_err("crypto_hash_final() failed for result\n");
+    goto out;
+  }
+  print_hex_array("result", result, MD5_SIZE);
 
-	/* Choose md5 result's [0][2][4][6][8][10] byte as mac address */
-	for (i = 0; i < ETH_ALEN; i++) {
-		addr[i] = result[i];
-	}
-	addr[0] &= 0xfe;     /* clear multicast bit */
-	addr[0] |= 0x02;     /* set local assignment bit (IEEE802) */
+  /* Choose md5 result's [0][2][4][6][8][10] byte as mac address */
+  for (i = 0; i < ETH_ALEN; i++) {
+    addr[i] = result[i];
+  }
+  addr[0] &= 0xfe;     /* clear multicast bit */
+  addr[0] |= 0x02;     /* set local assignment bit (IEEE802) */
 
-    //set as custom need
-    // 00:06:DC:80
-    addr[0] = 0x00;
-    addr[1] = 0x06;
-    addr[2] = 0xdc;
-    addr[3] |= 0x80;
+  //set as custom need
+  // 00:06:DC:80
+  addr[0] = 0x00;
+  addr[1] = 0x06;
+  addr[2] = 0xdc;
+  addr[3] |= 0x80;
 
-    print_hex_array("addr", addr, 6);
+  print_hex_array("addr", addr, 6);
 
 out:
-	crypto_free_hash(tfm);
+  crypto_free_hash(tfm);
 }
 
 static void geth_check_addr(struct net_device *ndev, unsigned char *mac)
