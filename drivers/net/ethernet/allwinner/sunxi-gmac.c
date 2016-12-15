@@ -470,9 +470,45 @@ static int geth_phy_init(struct net_device *ndev)
 		netdev_err(ndev, "Could not attach to PHY\n");
 		goto err;
 	} else {
-		netdev_info(ndev, "%s: Type(%d) PHY ID %08x at %d IRQ %s (%s)\n",
-				ndev->name, phydev->interface, phydev->phy_id,
-				phydev->addr, "poll", dev_name(&phydev->dev));
+		netdev_info(ndev, "%s: PHY ID %08x at %d IRQ %s (%s)\n",
+				ndev->name, phydev->phy_id, phydev->addr,
+				"poll", dev_name(&phydev->dev));
+#if defined(CONFIG_ARCH_SUN8IW8) || defined(CONFIG_ARCH_SUN8IW7)
+		if (priv->phy_ext == INT_PHY) {
+			phy_write(phydev, 0x1f, 0x013d);
+			phy_write(phydev, 0x10, 0x3ffe);
+			phy_write(phydev, 0x1f, 0x063d);
+			phy_write(phydev, 0x13, 0x8000);
+			phy_write(phydev, 0x1f, 0x023d);
+			phy_write(phydev, 0x18, 0x1000);
+			phy_write(phydev, 0x1f, 0x063d);
+			phy_write(phydev, 0x15, 0x132c);
+			phy_write(phydev, 0x1f, 0x013d);
+			phy_write(phydev, 0x13, 0xd602);
+			phy_write(phydev, 0x17, 0x003b);
+			phy_write(phydev, 0x1f, 0x063d);
+			phy_write(phydev, 0x14, 0x7088);
+			phy_write(phydev, 0x1f, 0x033d);
+			phy_write(phydev, 0x11, 0x8530);
+			phy_write(phydev, 0x1f, 0x003d);
+		}
+
+#endif
+#ifdef CONFIG_ARCH_SUN50IW1P1
+		//init ephy
+		printk("init ephy for pine64\n");
+		phy_write(phydev, 0x1f, 0x0007);//sel ext page
+		phy_write(phydev, 0x1e, 0x00a4);//sel page 164
+		phy_write(phydev, 0x1c, 0xb591);//only enable TX
+		phy_write(phydev, 0x1f, 0x0000);//sel page 0
+#endif
+
+		phy_write(phydev, MII_BMCR, BMCR_RESET);
+		while (BMCR_RESET & phy_read(phydev, MII_BMCR))
+			msleep(30);
+
+		value = phy_read(phydev, MII_BMCR);
+		phy_write(phydev, MII_BMCR, (value & ~BMCR_PDOWN));
 	}
 
 	phydev->supported &= PHY_GBIT_FEATURES;
