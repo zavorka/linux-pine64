@@ -744,17 +744,28 @@ const struct file_operations hdmi_cec_fops = {
 static int __init hdmi_cec_init(void)
 {
     int err = 0;
-    /* FIXME : get IRQ from resource */
-    u32 irqhdmi = 120;
+    int value = 0;
     struct device *temp_class;
 
-    if(!hdmi_base_addr) {
-        pr_err("hdmi_cec: unable to find hdmi_base_addr\n");
-        err = -EBUSY;
-        goto out;
+    if (!hdmi_base_addr) {
+      err = -EBUSY;
+      goto out;
     }
 
-    printk(KERN_INFO "HDMI CEC base address: %p\n", hdmi_base_addr);
+    err = disp_sys_script_get_item("hdmi", "hdmi_cec_support", &value, 1);
+    if (err != 1) {
+      err = -EBUSY;
+      goto out;
+    }
+
+    printk(KERN_INFO "HDMI base address: %p\n", hdmi_base_addr);
+    if (value != 2) {
+      printk(KERN_INFO "HDMI CEC experimental driver disabled (%d).\n", value);
+      err = -EBUSY;
+      goto out;
+    }
+
+    printk(KERN_INFO "HDMI CEC experimental driver enabled.\n");
 
     hdmi_writeb(0xFF, HDMI_IH_MUTE);
     hdmi_writeb(0xFF, HDMI_PHY_MASK0);
