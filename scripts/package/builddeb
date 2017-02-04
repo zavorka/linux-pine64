@@ -42,6 +42,8 @@ create_package() {
 		debarch=hppa ;;
 	mips*)
 		debarch=mips$(grep -q CPU_LITTLE_ENDIAN=y .config && echo el) ;;
+	arm64|aarch64)
+		debarch=arm64 ;;
 	arm*)
 		debarch=arm$(grep -q CONFIG_AEABI=y .config && echo el) ;;
 	*)
