@@ -1,3 +1,5 @@
+sub_dir = lowlevel_sun50iw1
+
 ifeq ($(CONFIG_ARCH_SUN50IW1P1),y)
 sub_dir = lowlevel_sun50iw1
 endif
