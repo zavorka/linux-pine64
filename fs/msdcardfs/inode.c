@@ -21,7 +21,7 @@
 #include "sdcardfs.h"
 
 /* Do not directly use this function. Use OVERRIDE_CRED() instead. */
-const struct cred * override_fsids(uid_t fsuid, gid_t fsgid)
+const struct cred * override_fsids(kuid_t fsuid, kgid_t fsgid)
 {
 	struct cred * cred; 
 	const struct cred * old_cred; 

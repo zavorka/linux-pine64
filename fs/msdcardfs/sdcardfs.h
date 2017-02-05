@@ -434,7 +434,7 @@ static inline void unlock_dir(struct dentry *dir)
 	dput(dir);
 }
 
-static inline int prepare_dir(const char *path_s, uid_t uid, gid_t gid, mode_t mode)
+static inline int prepare_dir(const char *path_s, kuid_t uid, kgid_t gid, mode_t mode)
 {
 	int err;
 	struct dentry *dent;
