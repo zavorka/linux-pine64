@@ -63,8 +63,11 @@
 
 #define circ_inc(n, s) (((n) + 1) % (s))
 
+#define CHIPID_SIZE	10
+#define CHIPID_VALID_INDEX CHIPID_SIZE
 #define GETH_MAC_ADDRESS "00:00:00:00:00:00"
 static char *mac_str = GETH_MAC_ADDRESS;
+static char chipid[CHIPID_SIZE+1] = {0,0,0,0,0,0,0,0,0,0,0};
 module_param(mac_str, charp, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(mac_str, "MAC Address String.(xx:xx:xx:xx:xx:xx)");
 
@@ -833,80 +836,104 @@ static const struct dev_pm_ops geth_pm_ops;
  *
  *
  ****************************************************************************/
-#define sunxi_get_soc_chipid(x) {}
+
+static void print_hex_array(char* name, u8 *addr, u8 n) {
+    int i;
+    printk("%s ", name);
+    for(i = 0; i < n; i++) {
+        printk("0x%x,", *addr++);
+    }
+    printk("\n");
+}
+
 static void geth_chip_hwaddr(u8 *addr)
 {
-#define MD5_SIZE	16
-#define CHIP_SIZE	16
+  #define MD5_SIZE	CHIPID_SIZE
 
-	struct crypto_hash *tfm;
-	struct hash_desc desc;
-	struct scatterlist sg;
-	u8 result[MD5_SIZE];
-	u8 chipid[CHIP_SIZE];
-	int i = 0;
-	int ret = -1;
+  struct crypto_hash *tfm;
+  struct hash_desc desc;
+  struct scatterlist sg;
+  u8 result[MD5_SIZE];
+  int i = 0;
+  int ret = -1;
 
-	memset(chipid, 0, sizeof(chipid));
-	memset(result, 0, sizeof(result));
+  print_hex_array("chipid", chipid, CHIPID_SIZE);
+  if(chipid[CHIPID_VALID_INDEX] == 0) {
+    printk("chipid invalid!!!");
+    memset(addr, 0, ETH_ALEN);
+    return;
+  }
 
-	sunxi_get_soc_chipid((u8 *)chipid);
+  //memset(chipid, 0, sizeof(chipid));
+  memset(result, 0, sizeof(result));
 
-	tfm = crypto_alloc_hash("md5", 0, CRYPTO_ALG_ASYNC);
-	if (IS_ERR(tfm)) {
-		pr_err("Failed to alloc md5\n");
-		return;
-	}
-	desc.tfm = tfm;
-	desc.flags = 0;
+  tfm = crypto_alloc_hash("md5", 0, CRYPTO_ALG_ASYNC);
+  if (IS_ERR(tfm)) {
+    pr_err("Failed to alloc md5\n");
+    return;
+  }
+  desc.tfm = tfm;
+  desc.flags = 0;
 
-	ret = crypto_hash_init(&desc);
-	if (ret < 0) {
-		pr_err("crypto_hash_init() failed\n");
-		goto out;
-	}
+  ret = crypto_hash_init(&desc);
+  if (ret < 0) {
+    pr_err("crypto_hash_init() failed\n");
+    goto out;
+  }
 
-	sg_init_one(&sg, chipid, sizeof(chipid) - 1);
-	ret = crypto_hash_update(&desc, &sg, sizeof(chipid) - 1);
-	if (ret < 0) {
-		pr_err("crypto_hash_update() failed for id\n");
-		goto out;
-	}
+  sg_init_one(&sg, chipid, sizeof(chipid) - 1);
+  ret = crypto_hash_update(&desc, &sg, sizeof(chipid) - 1);
+  if (ret < 0) {
+    pr_err("crypto_hash_update() failed for id\n");
+    goto out;
+  }
 
-	crypto_hash_final(&desc, result);
-	if (ret < 0) {
-		pr_err("crypto_hash_final() failed for result\n");
-		goto out;
-	}
+  crypto_hash_final(&desc, result);
+  if (ret < 0) {
+    pr_err("crypto_hash_final() failed for result\n");
+    goto out;
+  }
+  print_hex_array("result", result, MD5_SIZE);
 
-	/* Choose md5 result's [0][2][4][6][8][10] byte as mac address */
-	for (i = 0; i < ETH_ALEN; i++) {
-		addr[i] = result[2*i];
-	}
-	addr[0] &= 0xfe;     /* clear multicast bit */
-	addr[0] |= 0x02;     /* set local assignment bit (IEEE802) */
+  /* Choose md5 result's [0][2][4][6][8][10] byte as mac address */
+  for (i = 0; i < ETH_ALEN; i++) {
+    addr[i] = result[i];
+  }
+  addr[0] &= 0xfe;     /* clear multicast bit */
+  addr[0] |= 0x02;     /* set local assignment bit (IEEE802) */
+
+  //set as custom need
+  // 00:06:DC:80
+  addr[0] = 0x00;
+  addr[1] = 0x06;
+  addr[2] = 0xdc;
+  addr[3] |= 0x80;
+
+  print_hex_array("addr", addr, 6);
 
 out:
-	crypto_free_hash(tfm);
+  crypto_free_hash(tfm);
 }
 
 static void geth_check_addr(struct net_device *ndev, unsigned char *mac)
 {
 	int i;
 	char *p = mac;
-
+    printk("%s\n", __func__);
 	if (!is_valid_ether_addr(ndev->dev_addr)) {
+
+    printk("%s: try to use mac str, %s\n", __func__, mac);
 		for (i=0; i<ETH_ALEN; i++, p++)
 			ndev->dev_addr[i] = simple_strtoul(p, &p, 16);
 
-#if 0
 		if (!is_valid_ether_addr(ndev->dev_addr)) {
-			geth_chip_hwaddr(ndev->dev_addr);
+      geth_chip_hwaddr(ndev->dev_addr);
+      print_hex_array("try to use hwaddr", ndev->dev_addr, 6);
 		}
-#endif
 
 		if (!is_valid_ether_addr(ndev->dev_addr)) {
 			random_ether_addr(ndev->dev_addr);
+            print_hex_array("try to use random addr", ndev->dev_addr, 6);
 			printk(KERN_WARNING "%s: Use random mac address\n", ndev->name);
 		}
 	}
@@ -1511,6 +1538,7 @@ static int geth_set_mac_address(struct net_device *ndev, void *p)
 	struct geth_priv *priv = netdev_priv(ndev);
 	struct sockaddr *addr = p;
 
+    printk("%s: set mac address, %s\n", __func__, addr->sa_data);
 	if (!is_valid_ether_addr(addr->sa_data))
 		return -EADDRNOTAVAIL;
 
@@ -2094,6 +2122,25 @@ static int __init set_mac_addr(char *str)
 	return 0;
 }
 __setup("mac_addr=", set_mac_addr);
+
+static int __init set_chipid(char *str)
+{
+    //there are 20 chars in str, present 10 bytes chipid
+    int i;
+    u8 num, valid = 0;
+    char num_str[3];
+
+    num_str[2] = 0;
+    for(i = 0; i < CHIPID_SIZE; i++) {
+        memcpy(num_str, str + (i << 1), 2);
+        num = simple_strtoul(num_str, NULL, 16);
+        chipid[i] = num;
+        valid = (valid==1 || num !=0);
+    }
+    chipid[CHIPID_VALID_INDEX] = valid;
+	return 0;
+}
+__setup("androidboot.serialno=", set_chipid);
 #endif
 
 MODULE_DESCRIPTION("Allwinner Gigabit Ethernet driver");

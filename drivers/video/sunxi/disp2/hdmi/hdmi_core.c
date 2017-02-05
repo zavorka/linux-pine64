@@ -1,4 +1,5 @@
 #include "hdmi_core.h"
+#include "drv_hdmi_i.h"
 
 static s32		hdmi_state = HDMI_State_Idle;
 static u32		video_on = 0;
@@ -22,6 +23,9 @@ u32 hdmi_hpd_mask = 0x00;//0x10: force unplug; 0x11: force plug; 0x1xx: unreport
 static u32 hdmi_detect_time = 200;//ms
 
 static s32 video_config(u32 vic);
+
+uintptr_t hdmi_base_addr;
+EXPORT_SYMBOL(hdmi_base_addr);
 
 struct disp_video_timings video_timing[] =
 {
@@ -91,6 +95,7 @@ s32 hdmi_core_initial(bool sw_only)
 			if (0 == (hdmi_hpd_mask & 0x100))
 				hdmi_hpd_event();
 		}
+		sunxi_hdmi_notifier_call_chain(hdmi_state);
 	} else {
 		bsp_hdmi_init();
 	}
@@ -105,7 +110,9 @@ void hdmi_core_exit(void)
 
 void hdmi_core_set_base_addr(uintptr_t base_addr)
 {
+    printk(KERN_INFO "HDMI base address: %p\n", base_addr);
 	bsp_hdmi_set_addr(base_addr);
+	hdmi_base_addr = base_addr;
 }
 
 static s32 main_Hpd_Check(void)
@@ -152,6 +159,7 @@ s32 hdmi_core_loop(void)
 			audio_on = 0;
 			if (0 == (hdmi_hpd_mask & 0x100))
 				hdmi_hpd_event();
+			sunxi_hdmi_notifier_call_chain(hdmi_state);
 		}
 
 		if ((times++) >= 10) {
@@ -168,11 +176,14 @@ s32 hdmi_core_loop(void)
 			bsp_hdmi_standby();
 
 			hdmi_state = HDMI_State_Wait_Hpd;
+			sunxi_hdmi_notifier_call_chain(hdmi_state);
 		case HDMI_State_Wait_Hpd:
 			__inf("HDMI_State_Wait_Hpd\n");
 			if (HPD) {
 				hdmi_state = HDMI_State_EDID_Parse;
 				__inf("plugin\n");
+				sunxi_hdmi_notifier_call_chain(hdmi_state);
+
 			} else {
 				return 0;
 			}
@@ -190,7 +201,7 @@ s32 hdmi_core_loop(void)
 
 			if (video_enable)
 				hdmi_core_set_video_enable(true);
-
+			sunxi_hdmi_notifier_call_chain(hdmi_state);
 		case HDMI_State_HPD_Done:
 			if (video_on && hdcp_enable)
 				bsp_hdmi_hdl();
@@ -198,6 +209,7 @@ s32 hdmi_core_loop(void)
 		default:
 			__wrn(" unkonwn hdmi state, set to idle\n");
 			hdmi_state = HDMI_State_Idle;
+			sunxi_hdmi_notifier_call_chain(hdmi_state);
 			return 0;
 	}
 }
@@ -549,7 +561,6 @@ s32 hdmi_core_enter_lp(void)
 s32 hdmi_core_exit_lp(void)
 {
 	bsp_hdmi_init();
-
 	return 0;
 }
 
