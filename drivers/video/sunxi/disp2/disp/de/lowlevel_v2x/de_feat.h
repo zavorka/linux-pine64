@@ -65,7 +65,7 @@
 #define DE_WB_RESET_SHARE
 /* #define LVDS_REVERT */
 
-#elif defined(CONFIG_ARCH_SUN50IW1)
+#elif defined(CONFIG_ARCH_SUN50IW1) || defined(CONFIG_ARCH_SUN50IW1P1)
 
 /* features for sun50iw1 */
 

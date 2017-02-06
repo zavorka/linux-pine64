@@ -567,7 +567,7 @@ int de_feat_init(void)
 {
 #if defined(CONFIG_ARCH_SUN50IW2)
 	de_cur_features = &sun50iw2_de_features;
-#elif defined(CONFIG_ARCH_SUN50IW1)
+#elif defined(CONFIG_ARCH_SUN50IW1) || defined(CONFIG_ARCH_SUN50IW1P1)
 	de_cur_features = &sun50iw1_de_features;
 #elif defined(CONFIG_ARCH_SUN8IW11)
 	de_cur_features = &sun8iw11_de_features;
