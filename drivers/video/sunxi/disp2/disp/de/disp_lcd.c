@@ -1115,6 +1115,9 @@ static s32 disp_lcd_backlight_enable(struct disp_device *lcd)
 		return -EBUSY;
 	}
 
+  if (lcdp->backlight) {
+    lcdp->backlight->props.power = FB_BLANK_UNBLANK;
+  }
 	lcdp->bl_need_enabled = 1;
 	lcdp->bl_enabled = true;
 	spin_unlock_irqrestore(&lcd_data_lock, flags);
@@ -1154,6 +1157,9 @@ static s32 disp_lcd_backlight_disable(struct disp_device *lcd)
 		return -EBUSY;
 	}
 
+  if (lcdp->backlight) {
+    lcdp->backlight->props.power = FB_BLANK_POWERDOWN;
+  }
 	lcdp->bl_enabled = false;
 	spin_unlock_irqrestore(&lcd_data_lock, flags);
 
@@ -2141,11 +2147,18 @@ static int sunxi_update_bl(struct backlight_device *bdev)
 	struct disp_device *disp = bl_get_data(bdev);
 	int brightness = bdev->props.brightness;
 
-	if (bdev->props.power != FB_BLANK_UNBLANK ||
-	    bdev->props.state & (BL_CORE_SUSPENDED | BL_CORE_FBBLANK))
-		brightness = 0;
+  if (bdev->props.power != FB_BLANK_UNBLANK ||
+    bdev->props.state & (BL_CORE_SUSPENDED | BL_CORE_FBBLANK))
+    brightness = 0;
 
-  return disp_lcd_set_bright(disp, brightness);
+  int ret = disp_lcd_set_bright(disp, brightness);
+
+  if (bdev->props.power != FB_BLANK_UNBLANK)
+    disp_lcd_backlight_disable(disp);
+  else
+    disp_lcd_backlight_enable(disp);
+
+  return ret;
 }
 
 static int sunxi_get_brightness(struct backlight_device *bdev)
@@ -2158,7 +2171,7 @@ static int sunxi_check_fb(struct backlight_device *bdev,
 				   struct fb_info *info)
 {
 	// return (info->bl_dev == bdev);
-  return 0;
+  return 1;
 }
 
 static struct backlight_ops sunxi_bl_ops = {
