@@ -35,7 +35,6 @@ static struct cdev *my_cdev;
 static dev_t devid ;
 static struct class *hdmi_class;
 hdmi_info_t ghdmi;
-
 static BLOCKING_NOTIFIER_HEAD(sunxi_hdmi_notifier_list);
 
 int register_sunxi_hdmi_notifier(struct notifier_block *nb)
@@ -1041,7 +1040,7 @@ static ssize_t hdmi_hdcp_enable_store(struct device *dev,
 
 static DEVICE_ATTR(hdcp_enable, S_IRUGO|S_IWUSR|S_IWGRP,hdmi_hdcp_enable_show, hdmi_hdcp_enable_store);
 
-static int __init hdmi_probe(struct platform_device *pdev)
+static int hdmi_probe(struct platform_device *pdev)
 {
 	__inf("hdmi_probe call\n");
 	memset(&ghdmi, 0, sizeof(hdmi_info_t));

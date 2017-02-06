@@ -14,6 +14,7 @@ extern __lcd_panel_t mb709_mipi_panel;
 extern __lcd_panel_t anx9804_panel;
 
 __lcd_panel_t* panel_array[] = {
+	&default_eink,
 	&default_panel,
 	&lt070me05000_panel,
 	&wtq05027d01_panel,
@@ -22,6 +23,7 @@ __lcd_panel_t* panel_array[] = {
 	&tft720x1280_panel,
 	&S6D7AA0X01_panel,
 	&inet_dsi_panel,
+	&gg1p4062utsw_panel,
 	/* add new panel below */
 	&mb709_mipi_panel,
 	&anx9804_panel,
