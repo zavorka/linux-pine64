@@ -2039,6 +2039,7 @@ struct gain_config {
 	u32 earpiecevol;
 	u32 maingain;
 	u32 headsetmicgain;
+	u32 dac_digital_vol;
 };
 struct codec_hw_config {
 	u32 adcagc_cfg:1;
@@ -2059,6 +2060,7 @@ struct sunxi_codec {
 	void __iomem *codec_dbase;
 	void __iomem *codec_abase;
 	struct clk *srcclk;
+	struct clk *hp_en;
 
 	struct pinctrl *pinctrl;
 	struct pinctrl_state  *aif2_pinstate;
@@ -2085,6 +2087,7 @@ struct sunxi_codec {
 	u32 aif1_lrlk_div;
 	u32 aif2_lrlk_div;
 	u32 pa_sleep_time;
+
 	bool spkenable;
 	//u8 sysconfig:1;
 };

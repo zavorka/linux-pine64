@@ -70,6 +70,7 @@ static void sunxi_clkevt_mode(enum clock_event_mode mode,
 	case CLOCK_EVT_MODE_SHUTDOWN:
 	default:
 		writel(u & ~(TIMER_CTL_ENABLE), timer_base + TIMER_CTL_REG(timer_nr));
+		udelay(2);
 		break;
 	}
 }
@@ -84,26 +85,26 @@ static int sunxi_clkevt_next_event(unsigned long evt,
 
 		/*disable timer*/
 		ctrl = readl(timer_base + TIMER_CTL_REG(timer_nr));
-		ctrl &=(~TIMER_IRQ_EN(timer_nr));
-		writel(ctrl,(timer_base + TIMER_CTL_REG(timer_nr)));
+		ctrl &= ~(TIMER_CTL_ENABLE);
+		writel(ctrl, (timer_base + TIMER_CTL_REG(timer_nr)));
 		udelay(1);
 
 		/* set timer intervalue */
-		writel(evt,(timer_base + TIMER_INTVAL_REG(timer_nr)));
+		writel(evt, (timer_base + TIMER_INTVAL_REG(timer_nr)));
 		udelay(1);
 
 		/*reload the timer intervalue*/
 		ctrl = readl(timer_base + TIMER_CTL_REG(timer_nr));
 		ctrl |= TIMER_CTL_AUTORELOAD;
-		writel(ctrl,(timer_base + TIMER_CTL_REG(timer_nr)));
-		while(readl(timer_base + TIMER_CTL_REG(timer_nr)) & TIMER_CTL_AUTORELOAD)
+		writel(ctrl, (timer_base + TIMER_CTL_REG(timer_nr)));
+		while (readl(timer_base + TIMER_CTL_REG(timer_nr)) & TIMER_CTL_AUTORELOAD)
 			;
 
 		/*enable timer*/
 		ctrl = readl(timer_base + TIMER_CTL_REG(timer_nr));
-		ctrl |= TIMER_IRQ_EN(timer_nr);
-		writel(ctrl,(timer_base + TIMER_CTL_REG(timer_nr)));
-		spin_unlock_irqrestore(&timer_spin_lock,flags);
+		ctrl |= TIMER_CTL_ENABLE;
+		writel(ctrl, (timer_base + TIMER_CTL_REG(timer_nr)));
+		spin_unlock_irqrestore(&timer_spin_lock, flags);
 
 	}else{
 		pr_warn("[%s][line-%d]set next event error!\n",__func__,__LINE__);
@@ -150,7 +151,7 @@ static void __init sunxi_timer_init(struct device_node *node)
 
 	timer_nr = of_alias_get_id(node, "global_timer");
 	if (timer_nr < 0) {
-		pr_err("[%s][line-%d] get soc_timer number error! timer_nr:%d\n",__func__,__LINE__, timer_nr);
+		pr_err("[%s][line-%d] get soc_timer number error! timer_nr:%d\n", __func__, __LINE__, timer_nr);
 		return;
 	}
 
@@ -178,6 +179,7 @@ static void __init sunxi_timer_init(struct device_node *node)
 #ifndef CONFIG_EVB_PLATFORM
 	rate = 32000;
 	prescale  = 1;
+	irq = 38;
 #endif
 
 	writel(rate / (prescale * HZ),

@@ -485,7 +485,7 @@ static const struct of_device_id sunxi_i2s_of_match[] = {
 	{ .compatible = "allwinner,sunxi-internal-i2s", },
 	{},
 };
-static int __init sunxi_internal_i2s_platform_probe(struct platform_device *pdev)
+static int sunxi_internal_i2s_platform_probe(struct platform_device *pdev)
 {
 	s32 ret = 0;
 	const struct of_device_id *device;
@@ -525,7 +525,6 @@ static int __init sunxi_internal_i2s_platform_probe(struct platform_device *pdev
 		return -ENOMEM;
 	} else {
 		sunxi_i2s->sunxi_i2s_membase = sunxi_i2s_membase;
-		//pr_debug("%s,line:%d,res.start:0x%llx,sunxi_i2s_membase:0x%llu\n",__func__,__LINE__,res.start,sunxi_i2s_membase);
 	}
 	sunxi_i2s->pllclk = of_clk_get(node, 0);
 	sunxi_i2s->moduleclk= of_clk_get(node, 1);
@@ -578,7 +577,7 @@ err0:
 
 }
 
-static int sunxi_internal_i2s_platform_remove(struct platform_device *pdev)
+static int __exit sunxi_internal_i2s_platform_remove(struct platform_device *pdev)
 {
 	snd_soc_unregister_component(&pdev->dev);
 	platform_set_drvdata(pdev, NULL);
@@ -593,7 +592,7 @@ static struct platform_driver sunxi_internal_i2s_driver = {
 		.of_match_table = sunxi_i2s_of_match,
 	},
 	.probe = sunxi_internal_i2s_platform_probe,
-	.remove = sunxi_internal_i2s_platform_remove,
+	.remove = __exit_p(sunxi_internal_i2s_platform_remove),
 };
 module_platform_driver(sunxi_internal_i2s_driver);
 module_param_named(i2s_suspend, i2s_suspend, bool, S_IRUGO | S_IWUSR);

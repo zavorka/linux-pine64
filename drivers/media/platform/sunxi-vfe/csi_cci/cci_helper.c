@@ -20,6 +20,8 @@
 #include "bsp_cci.h"
 #include "../vfe_os.h"
 #include "../platform_cfg.h"
+#include "../device/sensor_helper.h"
+
 int cci_dbg_en = 0;
 int cci_dbg_lv = 1;
 #ifdef USE_SPECIFIC_CCI
@@ -94,7 +96,9 @@ static ssize_t cci_sys_store(struct device *dev,
 	struct cci_driver *cci_drv = dev_get_drvdata(dev); 
 	struct v4l2_subdev *sd = cci_drv->sd;
 	val = simple_strtoul(buf, NULL, 16);
+#ifdef USE_SPECIFIC_CCI
 	csi_cci_init_helper(cci_drv->cci_id);
+#endif
 	reg = (val >> 16) & 0xFFFF;
 	value =  val & 0xFFFF;
 	if(0 == cci_drv->read_flag)
@@ -339,6 +343,7 @@ int cci_dev_probe_helper(struct v4l2_subdev *sd, struct i2c_client *client,
 	{
 		v4l2_i2c_subdev_init(sd, client, sensor_ops);
 		cci_drv->sd = sd;
+		v4l2_set_subdev_hostdata(sd, cci_drv);
 	}
 	else
 	{
@@ -379,8 +384,7 @@ int cci_read_a8_d8(struct v4l2_subdev *sd, unsigned char addr,
     unsigned char *value)
 {
 #ifdef USE_SPECIFIC_CCI
-	struct cci_driver *cci_drv;
-	cci_drv = v4l2_get_subdevdata(sd);
+	struct cci_driver *cci_drv = v4l2_get_subdevdata(sd);
 	return cci_rd_8_8(cci_drv->cci_id, addr, value, cci_drv->cci_saddr);
 #else
   unsigned char data[2];
@@ -421,8 +425,7 @@ int cci_write_a8_d8(struct v4l2_subdev *sd, unsigned char addr,
     unsigned char value)
 {
 #ifdef USE_SPECIFIC_CCI
-	struct cci_driver *cci_drv;
-	cci_drv = v4l2_get_subdevdata(sd);
+	struct cci_driver *cci_drv = v4l2_get_subdevdata(sd);
 	return cci_wr_8_8(cci_drv->cci_id, addr, value, cci_drv->cci_saddr);
 #else
   struct i2c_msg msg;
@@ -453,8 +456,7 @@ int cci_read_a8_d16(struct v4l2_subdev *sd, unsigned char addr,
     unsigned short *value)
 {
 #ifdef USE_SPECIFIC_CCI
-	struct cci_driver *cci_drv;
-	cci_drv = v4l2_get_subdevdata(sd);
+	struct cci_driver *cci_drv = v4l2_get_subdevdata(sd);
 	return cci_rd_8_16(cci_drv->cci_id, addr, value, cci_drv->cci_saddr);
 #else
 
@@ -497,8 +499,7 @@ int cci_write_a8_d16(struct v4l2_subdev *sd, unsigned char addr,
     unsigned short value)
 {
 #ifdef USE_SPECIFIC_CCI
-	struct cci_driver *cci_drv;
-	cci_drv = v4l2_get_subdevdata(sd);
+	struct cci_driver *cci_drv = v4l2_get_subdevdata(sd);
 	return cci_wr_8_16(cci_drv->cci_id, addr, value, cci_drv->cci_saddr);
 #else
 
@@ -530,8 +531,7 @@ int cci_read_a16_d8(struct v4l2_subdev *sd, unsigned short addr,
     unsigned char *value)
 {
 #ifdef USE_SPECIFIC_CCI
-	struct cci_driver *cci_drv;
-	cci_drv = v4l2_get_subdevdata(sd);
+	struct cci_driver *cci_drv = v4l2_get_subdevdata(sd);
 	return cci_rd_16_8(cci_drv->cci_id, addr, value, cci_drv->cci_saddr);
 #else  
   int ret;
@@ -577,8 +577,7 @@ int cci_write_a16_d8(struct v4l2_subdev *sd, unsigned short addr,
     unsigned char value)
 {
 #ifdef USE_SPECIFIC_CCI
-	struct cci_driver *cci_drv;
-	cci_drv = v4l2_get_subdevdata(sd);
+	struct cci_driver *cci_drv = v4l2_get_subdevdata(sd);
 	return cci_wr_16_8(cci_drv->cci_id, addr, value, cci_drv->cci_saddr);
 #else
 	int ret = 0;
@@ -611,8 +610,7 @@ int cci_read_a16_d16(struct v4l2_subdev *sd, unsigned short addr,
     unsigned short *value)
 {
 #ifdef USE_SPECIFIC_CCI
-	struct cci_driver *cci_drv;
-	cci_drv = v4l2_get_subdevdata(sd);
+	struct cci_driver *cci_drv = v4l2_get_subdevdata(sd);
 	return cci_rd_16_16(cci_drv->cci_id, addr, value, cci_drv->cci_saddr);
 #else
 
@@ -656,8 +654,7 @@ int cci_write_a16_d16(struct v4l2_subdev *sd, unsigned short addr,
     unsigned short value)
 {
 #ifdef USE_SPECIFIC_CCI
-	struct cci_driver *cci_drv;
-	cci_drv = v4l2_get_subdevdata(sd);
+	struct cci_driver *cci_drv = v4l2_get_subdevdata(sd);
 	return cci_wr_16_16(cci_drv->cci_id, addr, value, cci_drv->cci_saddr);
 #else
 
@@ -691,8 +688,7 @@ EXPORT_SYMBOL_GPL(cci_write_a16_d16);
 int cci_read_a0_d16(struct v4l2_subdev *sd, unsigned short *value)
 {
 #ifdef USE_SPECIFIC_CCI
-	struct cci_driver *cci_drv;
-	cci_drv = v4l2_get_subdevdata(sd);
+	struct cci_driver *cci_drv = v4l2_get_subdevdata(sd);
 	return cci_rd_0_16(cci_drv->cci_id, value, cci_drv->cci_saddr);
 #else
 
@@ -725,8 +721,7 @@ EXPORT_SYMBOL_GPL(cci_read_a0_d16);
 int cci_write_a0_d16(struct v4l2_subdev *sd, unsigned short value)
 {
 #ifdef USE_SPECIFIC_CCI
-	struct cci_driver *cci_drv;
-	cci_drv = v4l2_get_subdevdata(sd);
+	struct cci_driver *cci_drv = v4l2_get_subdevdata(sd);
 	return cci_wr_0_16(cci_drv->cci_id, value, cci_drv->cci_saddr);
 #else
 
@@ -759,8 +754,7 @@ EXPORT_SYMBOL_GPL(cci_write_a0_d16);
 int cci_write_a16_d8_continuous_helper(struct v4l2_subdev *sd, unsigned short addr, unsigned char *vals , uint size)
 {
 #ifdef USE_SPECIFIC_CCI
-	struct cci_driver *cci_drv;
-	cci_drv = v4l2_get_subdevdata(sd);
+	struct cci_driver *cci_drv = v4l2_get_subdevdata(sd);
 	return cci_wr_a16_d8_continuous(cci_drv->cci_id, addr, vals, cci_drv->cci_saddr,size);
 #else
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
@@ -799,7 +793,11 @@ EXPORT_SYMBOL_GPL(cci_write_a16_d8_continuous_helper);
 
 int cci_write(struct v4l2_subdev *sd, addr_type addr, data_type value)
 {
+#ifdef USE_SPECIFIC_CCI
 	struct cci_driver *cci_drv = v4l2_get_subdevdata(sd);
+#else
+	struct cci_driver *cci_drv = v4l2_get_subdev_hostdata(sd);
+#endif
 	int addr_width = cci_drv->addr_width;
 	int data_width = cci_drv->data_width;
 
@@ -833,7 +831,11 @@ EXPORT_SYMBOL_GPL(cci_write);
 
 int cci_read(struct v4l2_subdev *sd, addr_type addr, data_type *value)
 {
+#ifdef USE_SPECIFIC_CCI
 	struct cci_driver *cci_drv = v4l2_get_subdevdata(sd);
+#else
+	struct cci_driver *cci_drv = v4l2_get_subdev_hostdata(sd);
+#endif
 	int addr_width = cci_drv->addr_width;
 	int data_width = cci_drv->data_width;
 	*value = 0;
@@ -864,3 +866,82 @@ int cci_read(struct v4l2_subdev *sd, addr_type addr, data_type *value)
 	}
 }
 EXPORT_SYMBOL_GPL(cci_read);
+
+/*
+ * On most platforms, we'd rather do straight i2c I/O.
+ */
+int sensor_read(struct v4l2_subdev *sd, addr_type reg, data_type *value)
+{
+	int ret=0, cnt=0;
+#ifdef USE_SPECIFIC_CCI
+	struct cci_driver *cci_drv = v4l2_get_subdevdata(sd);
+#else
+	struct cci_driver *cci_drv = v4l2_get_subdev_hostdata(sd);
+#endif
+	
+	ret = cci_read(sd,reg,value);
+	while((ret != 0) && (cnt < 2))
+	{
+		ret = cci_read(sd,reg,value);
+		cnt++;
+	}
+	if(cnt > 0)
+		printk("%s sensor read retry=%d\n",cci_drv->name, cnt);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(sensor_read);
+
+int sensor_write(struct v4l2_subdev *sd, addr_type reg, data_type value)
+{
+	int ret=0, cnt=0;
+#ifdef USE_SPECIFIC_CCI
+	struct cci_driver *cci_drv = v4l2_get_subdevdata(sd);
+#else
+	struct cci_driver *cci_drv = v4l2_get_subdev_hostdata(sd);
+#endif
+
+	ret = cci_write(sd,reg,value);
+	while((ret != 0) && (cnt < 2))
+	{
+		ret = cci_write(sd,reg,value);
+		cnt++;
+	}	
+	if(cnt > 0)
+		printk("%s sensor write retry=%d\n",cci_drv->name, cnt);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(sensor_write);
+
+/*
+ * Write a list of register settings;
+ */
+int sensor_write_array(struct v4l2_subdev *sd, struct regval_list *regs, int array_size)
+{
+	int ret = 0, i = 0;
+#ifdef USE_SPECIFIC_CCI
+	struct cci_driver *cci_drv = v4l2_get_subdevdata(sd);
+#else
+	struct cci_driver *cci_drv = v4l2_get_subdev_hostdata(sd);
+#endif
+
+	if(!regs)
+		return -EINVAL;
+
+	while(i < array_size)
+	{
+		if(regs->addr == REG_DLY) {
+			msleep(regs->data);
+		} else {  
+			ret = sensor_write(sd, regs->addr, regs->data);
+			if(ret < 0)
+				printk("%s sensor write array error!!\n",cci_drv->name);
+		}
+		i++;
+		regs++;
+	}
+	return 0;
+}
+EXPORT_SYMBOL_GPL(sensor_write_array);
+

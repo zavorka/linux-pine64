@@ -6,6 +6,8 @@ u32 is_exp = 0;
 u32 rgb_only = 0;
 static u8 EDID_Buf[HDMI_EDID_LEN];
 u8 Device_Support_VIC[512];
+__u32		cec_phy_addr;
+EXPORT_SYMBOL(cec_phy_addr);
 
 static u8 exp0[16] =
 {
@@ -220,6 +222,9 @@ static s32 edid_parse_vsdb(u8 * pbuf,u8 size)
 		return 0;
 	}
 
+	/* set cec phy addr */
+	cec_phy_addr = (((__u32)pbuf[3]) << 8) | pbuf[4];
+
 	if (size <=8)
 		return 0;
 
@@ -236,8 +241,6 @@ static s32 edid_parse_vsdb(u8 * pbuf,u8 size)
 		Device_Support_VIC[HDMI720P_50_3D_FP] = 1;
 		Device_Support_VIC[HDMI720P_60_3D_FP] = 1;
 		__inf("3D_present\n");
-	} else {
-		return 0;
 	}
 
 	if ( ((pbuf[index]&0x60) ==1) || ((pbuf[index]&0x60) ==2) )
