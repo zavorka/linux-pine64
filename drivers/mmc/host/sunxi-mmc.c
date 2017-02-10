@@ -522,9 +522,9 @@ static int sunxi_check_r1_ready_may_sleep(struct sunxi_mmc_host *smc_host)
 
 	if ((mmc_readl(smc_host, REG_STAS) & SDXC_CARD_DATA_BUSY)) {
 		dev_err(mmc_dev(smc_host->mmc), \
-				"Wait r1 rdy %d ms timeout\n", ms);
+				"Wait r1 rdy %d ms timeout\n", cnt);
 		return -1;
-	} else {
+	} else{
 		dev_dbg(mmc_dev(smc_host->mmc), \
 			"*All wait r1 rdy %d ms*\n", cnt);
 		return 0;
@@ -542,7 +542,7 @@ static int sunxi_check_r1_ready_may_sleep(struct sunxi_mmc_host *smc_host)
 			}
 			if (i ? cnt / 5000 : cnt / 500000) {
 				//print to tell that we are waiting busy
-				dev_info(mmc_dev(smc_host->mmc),
+				dev_dbg(mmc_dev(smc_host->mmc),
 					 "Has wait r1 rdy c%d i%d\n", cnt, i);
 			}
 			i ? usleep_range(1000, 1200) : usleep_range(10, 20);
