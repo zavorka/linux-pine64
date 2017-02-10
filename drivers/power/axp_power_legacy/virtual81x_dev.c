@@ -7,7 +7,7 @@
 #include <linux/mfd/axp-mfd.h>
 #include <linux/module.h>
 
-#include "../axp-cfg.h"
+#include "axp-cfg.h"
 
 static struct platform_device virt[] = {
 	{
@@ -199,4 +199,3 @@ module_exit(virtual_exit);
 MODULE_DESCRIPTION("X-POWERS axp regulator test");
 MODULE_AUTHOR("Weijin Zhong");
 MODULE_LICENSE("GPL");
-

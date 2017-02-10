@@ -1,5 +1,5 @@
-#include "../axp-rw.h"
-#include "../axp-cfg.h"
+#include "axp-rw.h"
+#include "axp-cfg.h"
 
 static u8 axp_reg_addr;
 
@@ -212,4 +212,3 @@ static struct device_attribute axp81x_mfd_attrs[] = {
 	AXP_MFD_ATTR(axp81x_reg),
 	AXP_MFD_ATTR(axp81x_regs),
 };
-

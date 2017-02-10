@@ -9,7 +9,7 @@
  * published by the Free Software Foundation.
  */
 #include <linux/reboot.h>
-#include "../axp-cfg.h"
+#include "axp-cfg.h"
 #include "axp81x-sply.h"
 
 void axp81x_power_off(void)
@@ -575,4 +575,3 @@ void axp81x_exit(struct axp_charger *charger)
 {
 	return;
 }
-

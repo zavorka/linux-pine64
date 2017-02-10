@@ -13,8 +13,8 @@
 #include "axp-cfg.h"
 #include <linux/mfd/axp-mfd.h>
 #ifdef CONFIG_AW_AXP81X
-#include "axp81x/axp81x-sply.h"
-#include "axp81x/axp81x-common.h"
+#include "axp81x-sply.h"
+#include "axp81x-common.h"
 static const struct axp_config_info *axp_config = &axp81x_config;
 #endif
 
@@ -324,4 +324,3 @@ void axp_chg_exit(struct axp_charger *charger)
 		del_timer_sync(&(charger->usb_status_timer));
 	}
 }
-
