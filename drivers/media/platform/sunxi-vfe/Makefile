@@ -32,10 +32,10 @@ else ifneq ($(strip $(CONFIG_ARCH_SUN8IW11)),)
 vfe_v4l2-y					+= lib/bsp_isp_null.o
 else
 ifdef CONFIG_ARM
-vfe_v4l2-y					+= lib/libisp_32
+vfe_v4l2-y					+= lib/libisp_32.o
 endif
 ifdef CONFIG_ARM64
-vfe_v4l2-y					+= lib/libisp_64
+vfe_v4l2-y					+= lib/libisp_64.o
 endif
 endif
 
