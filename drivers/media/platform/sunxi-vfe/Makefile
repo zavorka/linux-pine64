@@ -37,6 +37,7 @@ endif
 ifdef CONFIG_ARM64
 vfe_v4l2-y					+= lib/libisp_64
 endif
+endif
 
 $(obj)/lib/libisp_32.o:
 	mkdir -p $(obj)/lib/
