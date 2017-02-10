@@ -565,7 +565,6 @@ resume:
 		phy_write(phydev, 0x17 , phy_read(phydev, 0x17) & (~(1<<3)));
 		phy_write(phydev, 0x1f , 0x0000); /* switch to page 0 */
 	}
-#endif
 #ifdef CONFIG_ARCH_SUN50IW1P1
 	//init ephy
 	printk("init ephy for pine64\n");
