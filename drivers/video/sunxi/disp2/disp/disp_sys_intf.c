@@ -243,10 +243,8 @@ int disp_sys_gpio_request(disp_gpio_set_t *gpio_list, u32 group_count_max)
 	char   pin_name[32];
 	u32 config;
 
-	if (gpio_list == NULL) {
-		__wrn("%s: gpio list is null\n", __func__);
+	if (gpio_list == NULL)
 		return 0;
-	}
 
 	pin_cfg.gpio = gpio_list->gpio;
 	pin_cfg.mul_sel = gpio_list->mul_sel;
@@ -430,6 +428,7 @@ int disp_sys_pin_set_state(char *dev_name, char *name)
 		goto exit;
 	}
 	ret = 0;
+
 exit:
 	return ret;
 }
@@ -494,11 +493,10 @@ exit:
 }
 EXPORT_SYMBOL(disp_sys_power_disable);
 
-#if defined(CONFIG_PWM_SUNXI) || defined(CONFIG_PWM_SUNXI_NEW)
 uintptr_t disp_sys_pwm_request(u32 pwm_id)
 {
 	uintptr_t ret = 0;
-
+#ifdef CONFIG_PWM_SUNXI
 	struct pwm_device *pwm_dev;
 
 	pwm_dev = pwm_request(pwm_id, "lcd");
@@ -509,13 +507,14 @@ uintptr_t disp_sys_pwm_request(u32 pwm_id)
 		__inf("disp_sys_pwm_request pwm %d success!\n", pwm_id);
 	}
 	ret = (uintptr_t)pwm_dev;
-
+#endif
 	return ret;
 }
 
 int disp_sys_pwm_free(uintptr_t p_handler)
 {
 	int ret = 0;
+#ifdef CONFIG_PWM_SUNXI
 	struct pwm_device *pwm_dev;
 
 	pwm_dev = (struct pwm_device *)p_handler;
@@ -526,13 +525,14 @@ int disp_sys_pwm_free(uintptr_t p_handler)
 		pwm_free(pwm_dev);
 		__inf("disp_sys_pwm_free pwm %d \n", pwm_dev->pwm);
 	}
-
+#endif
 	return ret;
 }
 
 int disp_sys_pwm_enable(uintptr_t p_handler)
 {
 	int ret = 0;
+#ifdef CONFIG_PWM_SUNXI
 	struct pwm_device *pwm_dev;
 
 	pwm_dev = (struct pwm_device *)p_handler;
@@ -543,13 +543,14 @@ int disp_sys_pwm_enable(uintptr_t p_handler)
 		ret = pwm_enable(pwm_dev);
 		__inf("disp_sys_pwm_Enable pwm %d \n", pwm_dev->pwm);
 	}
-
+#endif
 	return ret;
 }
 
 int disp_sys_pwm_disable(uintptr_t p_handler)
 {
 	int ret = 0;
+#ifdef CONFIG_PWM_SUNXI
 	struct pwm_device *pwm_dev;
 
 	pwm_dev = (struct pwm_device *)p_handler;
@@ -560,13 +561,14 @@ int disp_sys_pwm_disable(uintptr_t p_handler)
 		pwm_disable(pwm_dev);
 		__inf("disp_sys_pwm_Disable pwm %d \n", pwm_dev->pwm);
 	}
-
+#endif
 	return ret;
 }
 
 int disp_sys_pwm_config(uintptr_t p_handler, int duty_ns, int period_ns)
 {
 	int ret = 0;
+#ifdef CONFIG_PWM_SUNXI
 	struct pwm_device *pwm_dev;
 
 	pwm_dev = (struct pwm_device *)p_handler;
@@ -574,18 +576,17 @@ int disp_sys_pwm_config(uintptr_t p_handler, int duty_ns, int period_ns)
 		__wrn("disp_sys_pwm_Config, handle is NULL!\n");
 		ret = -1;
 	} else {
-        
-	    ret = pwm_config(pwm_dev, duty_ns, period_ns);
-        printk("disp_sys_pwm_config  ret: %d",ret);
+		ret = pwm_config(pwm_dev, duty_ns, period_ns);
 		__debug("disp_sys_pwm_Config pwm %d, <%d / %d> \n", pwm_dev->pwm, duty_ns, period_ns);
 	}
-    
+#endif
 	return ret;
 }
 
 int disp_sys_pwm_set_polarity(uintptr_t p_handler, int polarity)
 {
 	int ret = 0;
+#ifdef CONFIG_PWM_SUNXI
 	struct pwm_device *pwm_dev;
 
 	pwm_dev = (struct pwm_device *)p_handler;
@@ -596,53 +597,9 @@ int disp_sys_pwm_set_polarity(uintptr_t p_handler, int polarity)
 		ret = pwm_set_polarity(pwm_dev, polarity);
 		__inf("disp_sys_pwm_Set_Polarity pwm %d, active %s\n", pwm_dev->pwm, (polarity==0)? "high":"low");
 	}
-
-	return ret;
-}
-#else
-uintptr_t disp_sys_pwm_request(u32 pwm_id)
-{
-	uintptr_t ret = 0;
-
-	return ret;
-}
-
-int disp_sys_pwm_free(uintptr_t p_handler)
-{
-	int ret = 0;
-
-	return ret;
-}
-
-int disp_sys_pwm_enable(uintptr_t p_handler)
-{
-	int ret = 0;
-
-	return ret;
-}
-
-int disp_sys_pwm_disable(uintptr_t p_handler)
-{
-	int ret = 0;
-
-	return ret;
-}
-
-int disp_sys_pwm_config(uintptr_t p_handler, int duty_ns, int period_ns)
-{
-	int ret = 0;
-
-	return ret;
-}
-
-int disp_sys_pwm_set_polarity(uintptr_t p_handler, int polarity)
-{
-	int ret = 0;
-
-	return ret;
-}
-
 #endif
+	return ret;
+}
 
 int disp_sys_clk_set_rate(const char *id, unsigned long rate)
 {
