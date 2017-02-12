@@ -14,6 +14,8 @@ __lcd_panel_t* panel_array[] = {
 	&inet_dsi_panel,
 	&gg1p4062utsw_panel,
 	/* add new panel below */
+	&mb709_mipi_panel,
+	&anx9804_panel,
 
 	NULL,
 };
