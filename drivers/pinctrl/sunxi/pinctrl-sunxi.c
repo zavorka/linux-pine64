@@ -715,13 +715,22 @@ static int sunxi_pinctrl_gpio_direction_output(struct gpio_chip *chip,
 static int sunxi_pinctrl_gpio_set_debounce(struct gpio_chip *chip,
 					unsigned offset, unsigned value)
 {
-	int			reg_val;
-	unsigned int 		val_clk_per_scale;
-	unsigned int		val_clk_select;
+	struct sunxi_pinctrl *pctl = dev_get_drvdata(chip->dev);
+	unsigned pinnum = pctl->desc->pin_base + offset;
+	struct sunxi_desc_function *desc;
+	u32 reg, reg_val;
+	unsigned int val_clk_per_scale;
+	unsigned int val_clk_select;
 	unsigned long flags;
 
-	struct sunxi_pinctrl  *pctl = dev_get_drvdata(chip->dev);
-	u32 reg = sunxi_irq_debounce_reg(offset);
+	if (offset >= chip->ngpio)
+		return -ENXIO;
+
+	desc = sunxi_pinctrl_desc_find_function_by_pin(pctl, pinnum, "irq");
+	if (!desc)
+		return -EINVAL;
+
+	reg = sunxi_irq_debounce_reg_from_bank(desc->irqbank);
 
 	spin_lock_irqsave(&pctl->lock, flags);
 	reg_val = readl(pctl->membase + reg);
@@ -730,7 +739,7 @@ static int sunxi_pinctrl_gpio_set_debounce(struct gpio_chip *chip,
 
 	/*set debounce pio interrupt clock select */
 	reg_val &= ~(1 << 0);
-	reg_val |= val_clk_select ;
+	reg_val |= val_clk_select;
 
 	/* set debounce clock pre scale */
 	reg_val &= ~(7 << 4);
@@ -1155,12 +1164,11 @@ static int sunxi_pin_configure_show(struct seq_file *s, void *d)
 {
 	int pin;
 	unsigned long config;
-	char *dev_name="sunxi-pinctrl";
 	struct pinctrl_dev *pctldev;
 	struct sunxi_pinctrl *pctl;
 
 	/* get pinctrl device */
-	pctldev = get_pinctrl_dev_from_devname(dev_name);
+	pctldev = get_pinctrl_dev_from_devname(SUNXI_PINCTRL);
 	if (!pctldev) {
 		seq_printf(s, "cannot get pinctrl device from devname\n");
 		return -EINVAL;
@@ -1211,7 +1219,6 @@ static ssize_t sunxi_pin_configure_write(struct file *file,	const char __user *u
 	unsigned int pull;
 	unsigned int dlevel;
 	unsigned long config;
-	char *dev_name = "sunxi-pinctrl";
 	struct pinctrl_dev *pctldev;
 	struct sunxi_pinctrl *pctl;
 
@@ -1244,7 +1251,7 @@ static ssize_t sunxi_pin_configure_write(struct file *file,	const char __user *u
 	}
 	sunxi_dbg_level = dlevel;
 
-	pctldev = get_pinctrl_dev_from_devname(dev_name);
+	pctldev = get_pinctrl_dev_from_devname(SUNXI_PINCTRL);
 	if (!pctldev) {
 		return -EINVAL;
 	}
@@ -1449,8 +1456,12 @@ static int sunxi_platform_show(struct seq_file *s, void *d)
 	seq_printf(s, "SUN50IW1P1\n");
 #elif defined(CONFIG_ARCH_SUN50IW2P1)
 	seq_printf(s, "SUN50IW2P1\n");
+#elif defined(CONFIG_ARCH_SUN50IW3P1)
+	seq_printf(s, "SUN50IW3P1\n");
+#elif defined(CONFIG_ARCH_SUN50IW6P1)
+	seq_printf(s, "SUN50IW6P1\n");
 #else
-	seq_printf(s, "NOT MATCH\n");
+	seq_printf(s, "NOMATCH\n");
 #endif
 	return 0;
 }
@@ -1634,14 +1645,18 @@ int sunxi_pinctrl_init(struct platform_device *pdev,
 
 	for (i = 0; i < pctl->desc->npins; i++)
 		pins[i] = pctl->desc->pins[i].pin;
-	
+
 	pctrl_desc = devm_kzalloc(&pdev->dev,
 				  sizeof(*pctrl_desc),
 				  GFP_KERNEL);
 	if (!pctrl_desc)
 		return -ENOMEM;
 
-	pctrl_desc->name = dev_name(&pdev->dev);
+	if (pctl->desc->pin_base < PL_BASE)
+		pctrl_desc->name = SUNXI_PINCTRL;
+	else
+		pctrl_desc->name = SUNXI_R_PINCTRL;
+
 	pctrl_desc->owner = THIS_MODULE;
 	pctrl_desc->pins = pins;
 	pctrl_desc->npins = pctl->desc->npins;
@@ -1695,11 +1710,14 @@ int sunxi_pinctrl_init(struct platform_device *pdev,
 			goto gpiochip_error;
 	}
 
+#ifdef CONFIG_EVB_PLATFORM
 	clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(clk)) {
+		dev_err(&pdev->dev, "get clk failed\n");
 		ret = PTR_ERR(clk);
 		goto gpiochip_error;
 	}
+#endif
 
 	ret = clk_prepare_enable(clk);
 	if (ret)

@@ -25,6 +25,9 @@ static int axp_powerkey_probe(struct platform_device *pdev)
 	struct axp_regmap *map = axp_dev->regmap;
 	u8 val;
 
+	if (axp_dev->is_slave)
+		return -ENODEV;
+
 	if (pdev->dev.of_node) {
 		/* get dt and sysconfig */
 		ret = axp_powerkey_dt_parse(pdev->dev.of_node, &axp15_config);
@@ -177,7 +180,7 @@ static int axp_powerkey_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id axp_powerkey_dt_ids[] = {
-	{ .compatible = "axp15-powerkey", },
+	{ .compatible = "axp157-powerkey", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, axp_powerkey_dt_ids);

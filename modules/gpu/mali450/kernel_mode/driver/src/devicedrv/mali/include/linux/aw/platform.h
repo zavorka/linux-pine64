@@ -26,55 +26,52 @@
 #include <linux/delay.h>
 #include <linux/workqueue.h>
 #include <linux/regulator/consumer.h>
-#ifdef CONFIG_OF
+#ifdef CONFIG_MALI_DT
 #include <linux/of_device.h>
 #include <linux/of_irq.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
-#else
+#else /* CONFIG_MALI_DT */
 #include <linux/clk/sunxi_name.h>
 #include <mach/irqs.h>
 #include <mach/sys_config.h>
 #include <mach/platform.h>
-#endif /* CONFIG_OF */
+#endif /* CONFIG_MALI_DT */
 #include "mali_kernel_common.h"
-
-#ifdef CONFIG_CPU_BUDGET_THERMAL
-#include <linux/export.h>
-#include <linux/cpu_budget_cooling.h>
-#endif /* CONFIG_CPU_BUDGET_THERMAL */
 
 typedef struct {
 	const char   *clk_name;    /* Clock name */
-#ifndef CONFIG_OF
+#ifndef CONFIG_MALI_DT
 	const char   *clk_id;      /* Clock ID, which is in the system configuration header file */
-#endif
+#endif /* CONFIG_MALI_DT */
 
 	struct clk   *clk_handle;
 
-	u32 freq; /* MHz */
+	int freq; /* MHz */
 
 	bool         clk_status;
 } aw_clk_data;
 
 typedef struct {
-	u32 vol;  /* mV */
-	u32 freq; /* MHz */
+	int vol;  /* mV */
+	int freq; /* MHz */
 } vf_table_data;
 
 typedef struct {
 	struct regulator *regulator;
 	char   *regulator_id;
+	int    current_vol;
 	aw_clk_data clk[2];
 	struct mutex dvfs_lock;
 	bool   dvfs_status;
 	vf_table_data vf_table[4];
 	struct work_struct dvfs_work;
-	u32    cool_freq;
-	u8     current_level;
-	u8     max_available_level;
-	u8     max_level;
-	u8     scene_ctrl_cmd; /* 1 means GPU should provide the highest performance */
+	int    cool_freq;
+	int    begin_level;
+	int    current_level;
+	int    max_available_level;
+	int    max_level;
+	int    scene_ctrl_cmd; /* 1 means GPU should provide the highest performance */
 	bool   scene_ctrl_status;
 	bool   independent_pow;
 	bool   dvm;
@@ -86,7 +83,7 @@ typedef struct {
 } aw_utilization_data;
 
 typedef struct {
-	bool   tempctrl_status;
+	bool temp_ctrl_status;
 } aw_tempctrl_data;
 
 typedef struct {
@@ -102,7 +99,7 @@ typedef struct {
 typedef struct {
 #ifdef CONFIG_MALI_DT
 	struct device_node *np_gpu;
-#endif
+#endif /* CONFIG_MALI_DT */
 
 	aw_tempctrl_data tempctrl;
 
@@ -113,4 +110,4 @@ typedef struct {
 	aw_debug debug;
 } aw_private_data;
 
-#endif
+#endif /* _PLATFORM_H_ */

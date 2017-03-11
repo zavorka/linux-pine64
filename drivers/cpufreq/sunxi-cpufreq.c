@@ -195,9 +195,6 @@ static int sunxi_cpufreq_target(struct cpufreq_policy *policy,
 #ifdef CONFIG_DEBUG_FS
 	ktime_t calltime;
 #endif
-#ifdef CONFIG_SMP
-	int i;
-#endif
 #ifdef CONFIG_CPU_VOLTAGE_SCALING
 unsigned int new_vdd;
 #endif
@@ -237,15 +234,7 @@ unsigned int new_vdd;
 		freqs.old = sunxi_cpufreq.last_freq;
 		freqs.new = freq;
 
-#ifdef CONFIG_SMP
-		/* notifiers */
-		for_each_cpu(i, policy->cpus) {
-			freqs.cpu = i;
-			cpufreq_notify_transition(policy, &freqs, CPUFREQ_PRECHANGE);
-		}
-#else
 		cpufreq_notify_transition(policy, &freqs, CPUFREQ_PRECHANGE);
-#endif
 	}
 
 #ifdef CONFIG_CPU_VOLTAGE_SCALING
@@ -262,15 +251,7 @@ unsigned int new_vdd;
 				freqs.cpu = policy->cpu;;
 				freqs.old = freqs.new;
 				freqs.new = sunxi_cpufreq.last_freq;
-#ifdef CONFIG_SMP
-				/* notifiers */
-				for_each_cpu(i, policy->cpus) {
-					freqs.cpu = i;
-					cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
-				}
-#else
 				cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
-#endif
 			}
 			return -EINVAL;
 		}
@@ -306,15 +287,7 @@ unsigned int new_vdd;
 			freqs.old = freqs.new;
 			freqs.new = sunxi_cpufreq.last_freq;
 
-#ifdef CONFIG_SMP
-			/* notifiers */
-			for_each_cpu(i, policy->cpus) {
-				freqs.cpu = i;
-				cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
-			}
-#else
 			cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
-#endif
 		}
 
 		ret = -EINVAL;
@@ -339,14 +312,7 @@ unsigned int new_vdd;
 
 	/* notify that cpu clock will be adjust if needed */
 	if (policy) {
-#ifdef CONFIG_SMP
-		for_each_cpu(i, policy->cpus) {
-			freqs.cpu = i;
-			cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
-		}
-#else
 		cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
-#endif
 	}
 
 	sunxi_cpufreq.last_freq = freq;

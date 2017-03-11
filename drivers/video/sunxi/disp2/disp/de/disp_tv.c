@@ -131,24 +131,30 @@ static s32 tv_calc_judge_line(struct disp_device *ptv)
 	struct disp_device_private_data *ptvp = disp_tv_get_priv(ptv);
 	int start_delay, usec_start_delay;
 	int usec_judge_point;
+	int pixel_clk;
 
 	if (!ptv || !ptvp) {
 		DE_WRN("tv init null hdl!\n");
 		return DIS_FAIL;
 	}
 
+	pixel_clk = ptvp->video_info->pixel_clk;
+#if defined(TV_UGLY_CLK_RATE)
+	pixel_clk = (pixel_clk == TV_UGLY_CLK_RATE) ?
+	    TV_COMPOSITE_CLK_RATE : pixel_clk;
+#endif
 	/*
 	 * usec_per_line = 1 / fps / vt * 1000000
 	 *               = 1 / (pixel_clk / vt / ht) / vt * 1000000
 	 *               = ht / pixel_clk * 1000000
 	 */
-	ptvp->frame_per_sec = ptvp->video_info->pixel_clk
+	ptvp->frame_per_sec = pixel_clk
 	    / ptvp->video_info->hor_total_time
 	    / ptvp->video_info->ver_total_time
 	    * (ptvp->video_info->b_interlace + 1)
 	    / (ptvp->video_info->trd_mode + 1);
 	ptvp->usec_per_line = ptvp->video_info->hor_total_time
-	    * 1000000 / ptvp->video_info->pixel_clk;
+	    * 1000000 / pixel_clk;
 
 	start_delay =
 	    disp_al_device_get_start_delay(ptv->hwdev_index);
@@ -497,7 +503,7 @@ s32 disp_tv_set_func(struct disp_device*  ptv, struct disp_tv_func * func)
 {
 	struct disp_device_private_data *ptvp = disp_tv_get_priv(ptv);
 
-	if ((NULL == ptv) || (NULL == ptvp)) {
+	if ((NULL == ptv) || (NULL == ptvp) || (NULL == func)) {
 		DE_WRN("tv set func null  hdl!\n");
 		DE_WRN("in  disp_set_tv_func,point  ptv = %p, point  ptvp = %p\n", ptv, ptvp);
 		return DIS_FAIL;
@@ -526,8 +532,9 @@ s32 disp_tv_check_support_mode(struct disp_device*  ptv, enum disp_output_type t
 		DE_WRN("tv set func null  hdl!\n");
 		return DIS_FAIL;
 	}
-	if (ptvp->tv_func.tv_get_input_csc == NULL)
-		return DIS_FAIL;
+	if (!ptvp->tv_func.tv_mode_support)
+		return 0;
+
 	return ptvp->tv_func.tv_mode_support(ptv->disp, tv_mode);
 }
 
@@ -579,7 +586,7 @@ s32 disp_set_enhance_mode(struct disp_device *ptv, u32 mode)
 		return DIS_FAIL;
 	}
 
-	if (ptvp->tv_func.tv_hot_plugging_detect== NULL) {
+	if (!ptvp->tv_func.tv_set_enhance_mode) {
 		DE_WRN("tv set_enhance_mode is null!\n");
 		return DIS_FAIL;
 	}

@@ -34,6 +34,8 @@
 #include <asm/irq.h>
 #include <linux/io.h>
 #include <linux/slab.h>
+#include <linux/poll.h>
+#include <linux/sched.h>
 #include "sunxi-scr.h"
 
 /* ====================  For debug  =============================== */
@@ -48,14 +50,13 @@ static struct sunxi_scr *pscr;
 static int sunxi_scr_major;
 static struct class *scr_dev_class;
 static struct device *scr_device;
-static uint8_t scr_buf_tx[SCR_FIFO_RX_SIZE] = { 0 };
 
-struct scr_data_rx {
-	uint8_t buf_rx[SCR_FIFO_RX_SIZE];
-	uint16_t rx_cnt;  /* valid count of data */
+struct scr_data {
+	uint8_t buf[SCR_BUF_SIZE];
+	uint16_t cnt;  /* valid count of data */
 };
 
-static struct scr_data_rx scr_buf_rx;
+static struct scr_data scr_buf_rx, scr_buf_tx;
 
 
 static void sunxi_scr_do_atr(struct sunxi_scr *pscr);
@@ -540,20 +541,28 @@ static irqreturn_t sunxi_scr_interrupt(int irqno, void *dev_id)
 	if (irq_status & SCR_INTSTA_INS) {
 		SCR_DBG("SmartCard Inserted!!\n");
 		scr_set_activation(pscr->reg_base);
+		pscr->card_in = true;
+		/* avoid error multi trigger */
+		mod_timer(&pscr->poll_timer, jiffies + HZ/100); /* 10ms */
 	}
 
 	if (irq_status & SCR_INTSTA_REM) {
 		SCR_DBG("SmartCard Removed!!\n\n");
 		scr_set_deactivation(pscr->reg_base);
+		pscr->card_in = false;
+		/* avoid error multi trigger */
+		mod_timer(&pscr->poll_timer, jiffies + HZ/100); /* 10ms */
 	}
 
 	if (irq_status & SCR_INTSTA_ACT) {
 		SCR_DBG("SmartCard Activated!!\n");
-		memset(&scr_buf_rx, 0, sizeof(struct scr_data_rx));
+		memset(&scr_buf_rx, 0, sizeof(struct scr_data));
+		pscr->card_in = true;
 	}
 
 	if (irq_status & SCR_INTSTA_DEACT) {
 		SCR_DBG("SmartCard Deactivated!!\n");
+		pscr->card_in = false;
 	}
 
 	if ((irq_status & SCR_INTSTA_RXDONE) ||
@@ -562,14 +571,14 @@ static irqreturn_t sunxi_scr_interrupt(int irqno, void *dev_id)
 		SCR_DBG("SmartCard Rx interrupt!!\n");
 		rx_cnt = scr_get_rxfifo_count(pscr->reg_base);
 		SCR_DBG("rx_cnt=%d\n", rx_cnt);
-		if (rx_cnt > (SCR_FIFO_RX_SIZE - scr_buf_rx.rx_cnt)) {
+		if (rx_cnt > (SCR_BUF_SIZE - scr_buf_rx.cnt)) {
 			SCR_ERR("There are not more space filled in RX buffer");
 		} else {
 			spin_lock(&pscr->rx_lock);
 			for (i = 0; i < rx_cnt; i++) {
-				scr_buf_rx.buf_rx[scr_buf_rx.rx_cnt] =
+				scr_buf_rx.buf[scr_buf_rx.cnt] =
 					scr_read_fifo(pscr->reg_base);
-				scr_buf_rx.rx_cnt++;
+				scr_buf_rx.cnt++;
 			}
 			spin_unlock(&pscr->rx_lock);
 		}
@@ -588,15 +597,15 @@ static irqreturn_t sunxi_scr_interrupt(int irqno, void *dev_id)
 
 	if (irq_status & SCR_INTSTA_ATRDONE) {
 		SCR_DBG("SmartCard ATR Done!!\n");
-		memcpy(pscr->scr_atr_des.atr_data, scr_buf_rx.buf_rx, scr_buf_rx.rx_cnt);
-		pscr->scr_atr_des.atr_len = scr_buf_rx.rx_cnt;
+		memcpy(pscr->scr_atr_des.atr_data, scr_buf_rx.buf, scr_buf_rx.cnt);
+		pscr->scr_atr_des.atr_len = scr_buf_rx.cnt;
 		pscr->atr_resp = SCR_ATR_RESP_OK;
 		/* parse ATR data to reconfig smart card */
 		sunxi_scr_do_atr(pscr);
 	}
 	if (irq_status & SCR_INTSTA_CHTO) {
-		SCR_DBG("character timeout/ transmit finish!!\n");
-		pscr->rx_transmit_status = SCR_RX_TRANSMIT_DONE;
+		SCR_DBG("character timeout!!\n");
+		pscr->rx_transmit_status = SCR_RX_TRANSMIT_TMOUT;
 	}
 
 	if (irq_status & SCR_INTSTA_TXFEMPTY) {
@@ -870,13 +879,11 @@ static int sunxi_scr_open(struct inode *inode, struct file *file)
 		return 0;
 	}
 
-	if (SCR_CARD_IN == scr_get_det_status(pscr->reg_base)) {
-		sunxi_scr_param_init(pscr);
+	sunxi_scr_param_init(pscr);
+	pscr->card_in = scr_get_det_status(pscr->reg_base) ? true : false;
+	pscr->card_last = pscr->card_in;
+	if (true == pscr->card_in)
 		scr_set_activation(pscr->reg_base);
-	} else {
-		SCR_ERR("There is not smart card insert!\n");
-		return -ENODEV;
-	}
 
 	pscr->open_cnt++;
 
@@ -912,30 +919,22 @@ sunxi_scr_read(struct file *file, char __user *buf, size_t size, loff_t *ppos)
 		return -EAGAIN;
 	}
 
-	rx_size = scr_buf_rx.rx_cnt;
+	rx_size = scr_buf_rx.cnt;
 	if (rx_size > size)
 		rx_size = size;
 
-	if (copy_to_user(buf, scr_buf_rx.buf_rx, rx_size))
+	if (copy_to_user(buf, scr_buf_rx.buf, rx_size))
 		return -EFAULT;
 	scr_flush_rxfifo(pscr->reg_base);
 
 	return rx_size;
 }
 
-static ssize_t
-sunxi_scr_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos)
+static int scr_write(struct sunxi_scr *pscr, char *buf, int size)
 {
-	struct sunxi_scr *pscr = file->private_data;
 	int try_num = 100;
 	int i;
 
-	if (copy_from_user(scr_buf_tx, buf, size))
-		return -EFAULT;
-
-	scr_flush_txfifo(pscr->reg_base);
-	memset(&scr_buf_rx, 0, sizeof(struct scr_data_rx));
-	pscr->rx_transmit_status = SCR_RX_TRANSMIT_NOYET;
 	for (i = 0; i < size; i++) {
 		while (scr_txfifo_is_full(pscr->reg_base) && try_num--) {
 			msleep(50);
@@ -944,18 +943,61 @@ sunxi_scr_write(struct file *file, const char __user *buf, size_t size, loff_t *
 			SCR_ERR("TX FIFO full, write timeout\n");
 			break;
 		}
-		scr_write_fifo(pscr->reg_base, scr_buf_tx[i]);
+		scr_write_fifo(pscr->reg_base, buf[i]);
 		try_num = 100;
 	}
 	SCR_DBG("writed %d byte\n", i);
+
 	return i;
+}
+
+static ssize_t
+sunxi_scr_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos)
+{
+	struct sunxi_scr *pscr = file->private_data;
+
+	if (copy_from_user(scr_buf_tx.buf, buf, size))
+		return -EFAULT;
+
+	scr_flush_txfifo(pscr->reg_base);
+	memset(&scr_buf_rx, 0, sizeof(struct scr_data));
+	pscr->rx_transmit_status = SCR_RX_TRANSMIT_NOYET;
+
+	return scr_write(pscr, (char *)buf, size);
+}
+
+static void scr_timer_handler(unsigned long data)
+{
+	(void)data;
+	wake_up(&pscr->scr_poll);
+}
+
+unsigned int sunxi_scr_poll(struct file *file, struct poll_table_struct *wait)
+{
+	struct sunxi_scr *pscr = file->private_data;
+	unsigned int mask = 0;
+
+	/* add wait_queue to poll_table */
+	poll_wait(file, &pscr->scr_poll,  wait);
+
+	/* using Edge Triggered instand of Level Triggered */
+	if (pscr->card_last^pscr->card_in) {
+		if (pscr->card_in)
+			mask |= POLLIN;
+		else
+			mask |= POLLOUT;
+
+		pscr->card_last = pscr->card_in;
+	}
+
+	return mask;
 }
 
 static long sunxi_scr_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
 {
 	struct sunxi_scr *pscr = file->private_data;
 	uint32_t tmp = 0, ret = 0;
-	int try_num;
+	int try_num = 300;
 
 	SCR_ENTER();
 
@@ -974,9 +1016,8 @@ static long sunxi_scr_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
 
 	/* get ATR data, the arg type is struct scr_atr */
 	case SCR_IOCGATR:
-		try_num = 10;
 		while (SCR_ATR_RESP_OK != pscr->atr_resp && try_num--) {
-			msleep(50);
+			msleep(10);
 		};
 		if (try_num < 0) {
 			SCR_ERR("SCR_IOCGATR timeout!\n");
@@ -1021,6 +1062,119 @@ static long sunxi_scr_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
 				   sizeof(struct smc_pps_para)) ? -EFAULT : 0;
 		break;
 
+	/* write cmd and read data immediately */
+	case SCR_IOCWRDATA: {
+		int rtn_data_len;
+		struct scr_wr_data wr_data;
+		if (copy_from_user(&wr_data, (void __user *)arg,
+				   sizeof(struct scr_wr_data))) {
+			SCR_ERR("get wr_data from user error!\n");
+			ret = -EFAULT;
+			break;
+		}
+		if (copy_from_user(scr_buf_tx.buf, (void __user *)wr_data.cmd_buf, wr_data.cmd_len)) {
+			SCR_ERR("get wr_data cmd_buf from user error!\n");
+			ret = -EFAULT;
+			break;
+		}
+		scr_buf_tx.cnt = wr_data.cmd_len;
+
+		scr_flush_txfifo(pscr->reg_base);
+		scr_flush_rxfifo(pscr->reg_base);
+		memset(&scr_buf_rx, 0, sizeof(struct scr_data));
+
+		/* APDU, smart card cammand format */
+		/* type1: CLS + INS + P1 + P2 + le  -> only read, le=read size*/
+		if (5 == scr_buf_tx.cnt) {
+			scr_write(pscr, scr_buf_tx.buf, 5);
+			/* respond: INS(=buf[1]) + valid_data(=buf[4]) + SW1 + SW2 */
+			rtn_data_len = scr_buf_tx.buf[4] + 3;
+			while ((rtn_data_len > scr_buf_rx.cnt) && try_num--) {
+				msleep(10);
+			};
+
+			if (try_num < 0) {
+				SCR_ERR("read timeout\n");
+				ret = -EFAULT;
+				break;
+			}
+			ret = copy_to_user((void __user *)wr_data.rtn_data, &scr_buf_rx.buf[1], scr_buf_tx.buf[4]) ? -EFAULT : 0;
+			put_user(scr_buf_tx.buf[4], wr_data.rtn_len);
+			put_user(scr_buf_rx.buf[rtn_data_len - 2], wr_data.psw1);
+			put_user(scr_buf_rx.buf[rtn_data_len - 1], wr_data.psw2);
+
+		/* type2: CLS + INS + P1 + P2 + lc + data -> only lc, write data, lc=data size */
+		} else if (scr_buf_tx.buf[4]+5 == scr_buf_tx.cnt) {
+			scr_write(pscr, scr_buf_tx.buf, 5);
+			while ((0 == scr_buf_rx.cnt) && try_num--) {
+				msleep(10);
+			};
+			if (try_num < 0) {
+				SCR_ERR("timeout: there is not any data\n");
+				ret = -EFAULT;
+				break;
+			}
+			if (scr_buf_rx.buf[0] != scr_buf_tx.buf[1]) {
+				SCR_ERR("do not support this instruction\n");
+				ret = -EFAULT;
+				break;
+			}
+			scr_write(pscr, &scr_buf_tx.buf[5], scr_buf_tx.buf[4]);
+			try_num = 300;
+			while ((scr_buf_rx.cnt < 3) && try_num--) {
+				msleep(10);
+			};
+			if (try_num < 0) {
+				SCR_ERR("timeout: get sw1,sw2 fail\n");
+				ret = -EFAULT;
+				break;
+			}
+			put_user(scr_buf_rx.buf[1], wr_data.psw1);
+			put_user(scr_buf_rx.buf[2], wr_data.psw2);
+
+		/* type3: CLS + INS + P1 + P2 + lc + data +le -> le+lc  */
+		} else if (scr_buf_tx.buf[4]+6 == scr_buf_tx.cnt) {
+			scr_write(pscr, scr_buf_tx.buf, 5);
+			while ((0 == scr_buf_rx.cnt) && try_num--) {
+				msleep(10);
+			};
+			if (try_num < 0) {
+				SCR_ERR("timeout: there is not any data\n");
+				ret = -EFAULT;
+				break;
+			}
+			if (scr_buf_rx.buf[0] != scr_buf_tx.buf[1]) {
+				SCR_ERR("do not support this instruction\n");
+				ret = -EFAULT;
+				break;
+			}
+			scr_write(pscr, &scr_buf_tx.buf[5], scr_buf_tx.buf[4]+1);
+			try_num = 300;
+			/* respond: INS + valid_data + SW1 + SW2 */
+			rtn_data_len = scr_buf_tx.buf[scr_buf_tx.cnt-1] + 3;
+			while ((rtn_data_len > scr_buf_rx.cnt) && try_num--) {
+				msleep(10);
+			};
+
+			if (try_num < 0) {
+				SCR_ERR("read timeout\n");
+				ret = -EFAULT;
+				break;
+			}
+
+			ret = copy_to_user((void __user *)wr_data.rtn_data, &scr_buf_rx.buf[1], scr_buf_tx.buf[scr_buf_tx.cnt-1]) ? -EFAULT : 0;
+			put_user(scr_buf_tx.buf[scr_buf_tx.cnt-1], wr_data.rtn_len);
+			put_user(scr_buf_rx.buf[rtn_data_len - 2], wr_data.psw1);
+			put_user(scr_buf_rx.buf[rtn_data_len - 1], wr_data.psw2);
+
+		} else {
+			SCR_ERR("invalid command format\n");
+			ret = -EFAULT;
+			break;
+		}
+		break;
+		}
+
 	default:
 		SCR_ERR("Invalid iocontrol command!\n");
 		break;
@@ -1036,6 +1190,7 @@ static const struct file_operations sunxi_scr_fops = {
 	.unlocked_ioctl = sunxi_scr_ioctl,
 	.open = sunxi_scr_open,
 	.release = sunxi_scr_release,
+	.poll = sunxi_scr_poll,
 };
 
 static int sunxi_scr_probe(struct platform_device *pdev)
@@ -1109,6 +1264,11 @@ static int sunxi_scr_probe(struct platform_device *pdev)
 
 	spin_lock_init(&pscr->rx_lock);
 	sunxi_scr_param_init(pscr);
+	init_waitqueue_head(&pscr->scr_poll);
+	pscr->poll_timer.expires = jiffies + HZ/100; /* 10ms */
+	pscr->poll_timer.function = scr_timer_handler;
+	init_timer(&pscr->poll_timer);
+	add_timer(&pscr->poll_timer);
 
 	/* creat character device */
 	sunxi_scr_major = register_chrdev(0, SCR_MODULE_NAME, &sunxi_scr_fops);
@@ -1174,6 +1334,8 @@ static int sunxi_scr_remove(struct platform_device *pdev)
 	scr_release_gpio(pscr);
 	sunxi_scr_clk_exit(pscr);
 
+	del_timer(&pscr->poll_timer);
+
 	SCR_EXIT();
 
 	return 0;
@@ -1184,6 +1346,7 @@ static int sunxi_scr_suspend(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct sunxi_scr *pscr = platform_get_drvdata(pdev);
+	struct pinctrl_state *pctrl_state = NULL;
 
 	pscr->suspended = true;
 
@@ -1192,7 +1355,20 @@ static int sunxi_scr_suspend(struct device *dev)
 		pscr->suspended = false;
 		return -1;
 	}
-	scr_release_gpio(pscr);
+
+	if (!IS_ERR_OR_NULL(pscr->scr_pinctrl)) {
+		pctrl_state = pinctrl_lookup_state(pscr->scr_pinctrl, PINCTRL_STATE_SLEEP);
+		if (IS_ERR(pctrl_state)) {
+			SCR_ERR("SCR pinctrl lookup sleep fail\n");
+			return -1;
+		}
+
+		if (pinctrl_select_state(pscr->scr_pinctrl, pctrl_state) < 0) {
+			SCR_ERR("SCR pinctrl select sleep fail\n");
+			return -1;
+		}
+	}
+
 	disable_irq_nosync(pscr->irq_no);
 
 	SCR_DBG("SCR suspend okay\n");
@@ -1203,6 +1379,7 @@ static int sunxi_scr_resume(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct sunxi_scr *pscr = platform_get_drvdata(pdev);
+	struct pinctrl_state *pctrl_state = NULL;
 
 
 	pscr->suspended = false;
@@ -1211,7 +1388,20 @@ static int sunxi_scr_resume(struct device *dev)
 		SCR_ERR("SCR resume failed !\n");
 		return -1;
 	}
-	scr_request_gpio(pscr);
+
+	if (!IS_ERR_OR_NULL(pscr->scr_pinctrl)) {
+		pctrl_state = pinctrl_lookup_state(pscr->scr_pinctrl, PINCTRL_STATE_DEFAULT);
+		if (IS_ERR(pctrl_state)) {
+			SCR_ERR("SCR pinctrl lookup default fail\n");
+			return -1;
+		}
+
+		if (pinctrl_select_state(pscr->scr_pinctrl, pctrl_state) < 0) {
+			SCR_ERR("SCR pinctrl select default fail\n");
+			return -1;
+		}
+	}
+
 	enable_irq(pscr->irq_no);
 
 	SCR_DBG("SCR resume okay\n");

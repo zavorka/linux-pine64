@@ -805,4 +805,5 @@ void sunxi_mmc_init_priv_v4p5x(struct sunxi_mmc_host *host,
 		host->sunxi_mmc_shutdown = sunxi_mmc_do_shutdown_com;
 	}
 
+	host->sunxi_mmc_oclk_en = sunxi_mmc_oclk_onoff;
 }

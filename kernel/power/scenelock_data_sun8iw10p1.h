@@ -560,6 +560,54 @@ scene_extended_standby_t extended_standby[] = {
 				0x00070700},
 	},
 
+	{
+		.scene_type                 = SCENE_WLAN_STANDBY,
+		.name                       = "wlan_standby",
+		.soc_pwr_dep.id             = WLAN_STANDBY_FLAG,
+		/* mean dram, cpus,dram_pll,vcc_pl, vcc_io, vcc_ldoin is on.
+		 * note: vcc_pm is marked on, just for cross-platform reason.
+		 * at a83: with the sys_mask's help, we know
+		 * we do not need care about vcc_pm state. */
+		.soc_pwr_dep.soc_pwr_dm_state.state
+			= BITMAP(VCC_DRAM_BIT) |
+				BITMAP(VDD_CPUS_BIT) |
+				BITMAP(VCC_LPDDR_BIT) |
+				BITMAP(VCC_PL_BIT) |
+				BITMAP(VDD_SYS_BIT) |
+				BITMAP(VDD_CPUA_BIT) |
+				BITMAP(VCC_IO_BIT) |
+				BITMAP(VCC_PLL_BIT),
+		/* mean care about cpua, dram, sys, cpus, dram_pll,
+		 * vdd_adc, vcc_pl, vcc_io, vcc_cpvdd,
+		 * vcc_ldoin, vcc_pll*/
+		/* mean: donot need care about the voltage.*/
+		.soc_pwr_dep.soc_pwr_dm_state.volt[VDD_SYS_BIT]      = 1000000,
+		.soc_pwr_dep.soc_pwr_dm_state.volt[VDD_CPUA_BIT]      = 1000000,
+		/*  mean all osc is off.*/
+		.soc_pwr_dep.cpux_clk_state.osc_en
+				= BITMAP(OSC_LOSC_BIT) |
+					BITMAP(OSC_HOSC_BIT) |
+					BITMAP(OSC_LDO1_BIT) |
+					BITMAP(OSC_LDO0_BIT),
+		/* mean pll5 is shutdowned & open by dram driver.*/
+		.soc_pwr_dep.cpux_clk_state.init_pll_dis
+			= BITMAP(PM_PLL_DRAM),
+		.soc_pwr_dep.cpux_clk_state.exit_pll_en    = 0x0,
+		.soc_pwr_dep.cpux_clk_state.pll_change     = 0x0,
+		.soc_pwr_dep.cpux_clk_state.bus_change     = 0x0,
+		.soc_pwr_dep.soc_dram_state.selfresh_flag     = 0x1,
+		.soc_pwr_dep.soc_io_state.hold_flag     = 0x1,
+		/* for pf port: set the io to disable state.;*/
+		.soc_pwr_dep.soc_io_state.io_state[0]
+			= {0x01c208b4,
+				0x00f0f0ff,
+				0x00707077},
+		.soc_pwr_dep.soc_io_state.io_state[1]
+			= {0x01c208b4,
+				0x000f0f00,
+				0x00070700},
+	},
+
 };
 
 #endif

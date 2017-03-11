@@ -177,7 +177,8 @@ __s32 standby_clk_plldisable(void)
 	tmp &= (~(0x80000000));
 	writel(tmp, &(CmuReg->Pll7Ctl));
 #endif
-#if 0
+
+#ifdef CONFIG_ARCH_SUN8IW10P1
 	/*pll2: for audio */
 	tmp = readl(&(CmuReg->Pll2Ctl));
 	tmp &= (~(0x80000000));
@@ -188,6 +189,12 @@ __s32 standby_clk_plldisable(void)
 	tmp &= (~(0x80000000));
 	writel(tmp, &(CmuReg->Pll3Ctl));
 
+	/*pll10: for de */
+	tmp = readl(&(CmuReg->Pll10Ctl));
+	tmp &= (~(0x80000000));
+	writel(tmp, &(CmuReg->Pll10Ctl));
+
+#else
 	/*pll4: for ve */
 	tmp = readl(&(CmuReg->Pll4Ctl));
 	tmp &= (~(0x80000000));
@@ -198,10 +205,6 @@ __s32 standby_clk_plldisable(void)
 	tmp &= (~(0x80000000));
 	writel(tmp, &(CmuReg->Pll5Ctl));
 
-	/*pll7: for isp */
-	tmp = readl(&(CmuReg->PllIspCtl));
-	tmp &= (~(0x80000000));
-	writel(tmp, &(CmuReg->PllIspCtl));
 #endif
 
 	return 0;
@@ -241,6 +244,11 @@ __s32 standby_clk_pllenable(void)
 	tmp = readl(&(CmuReg->Pll9Ctl));
 	tmp |= ((0x80000000));
 	writel(tmp, &(CmuReg->Pll9Ctl));
+
+	/*pll10: de */
+	tmp = readl(&(CmuReg->Pll10Ctl));
+	tmp |= ((0x80000000));
+	writel(tmp, &(CmuReg->Pll10Ctl));
 #else
 	/*pll9: periph 1 */
 	tmp = readl(&(CmuReg->Pll7Ctl));
@@ -299,6 +307,44 @@ __s32 standby_clk_pll1enable(void)
 #endif
 
 /*
+* standby_clk_set_keyfield
+*
+* Description: set keyfield for modify ldo enable bit.
+*
+* Arguments  : none
+*
+* Returns    : 0;
+*/
+void standby_clk_set_keyfield(void)
+{
+	unsigned int tmp;
+	/*keyfield set to: 0xa7 */
+	tmp = readl((void *)(0xf1c00000 + 0xf4));
+	tmp &= (~(0xff000000));
+	tmp |= ((0xa7000000));
+	writel(tmp, (0xf1c00000 + 0xf4));
+}
+
+/*
+* standby_clk_unset_keyfield
+*
+* Description: unset keyfield for disable modify ldo enable bit.
+*
+* Arguments  : none
+*
+* Returns    : 0;
+*/
+void standby_clk_unset_keyfield(void)
+{
+	unsigned int tmp;
+	/*keyfield set to: 0 */
+	tmp = readl((0xf1c00000 + 0xf4));
+	tmp &= (~(0xff000000));
+	writel(tmp, (0xf1c00000 + 0xf4));
+
+}
+
+/*
 *********************************************************************************************************
 *                                     standby_clk_hoscdisable
 *
@@ -327,12 +373,6 @@ __s32 standby_clk_hoscdisable(void)
 	/*bit2: hosc; */
 	/*bit1: ldo for analog; */
 	/*bit0: ldo for digital */
-
-	/*keyfield set to: 0xa7 */
-	tmp = readl((void *)(0xf1c00000 + 0xf4));
-	tmp &= (~(0xff000000));
-	tmp |= ((0xa7000000));
-	writel(tmp, (0xf1c00000 + 0xf4));
 
 	/*disable hosc */
 	tmp = readl((0xf1c00000 + 0xf4));
@@ -364,11 +404,6 @@ __s32 standby_clk_hoscenable(void)
 	/*enable hosc */
 	tmp = readl((0xf1c00000 + 0xf4));
 	tmp |= ((0x00000004));
-	writel(tmp, (0xf1c00000 + 0xf4));
-
-	/*keyfield set to: 0 */
-	tmp = readl((0xf1c00000 + 0xf4));
-	tmp &= (~(0xff000000));
 	writel(tmp, (0xf1c00000 + 0xf4));
 
 	/*enable dcxo */

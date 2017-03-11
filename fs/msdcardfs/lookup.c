@@ -251,7 +251,7 @@ static struct dentry *__sdcardfs_lookup(struct dentry *dentry,
 			 * and the base obbpath will be copyed to the lower_path variable.
 			 * if an error returned, there's no change in the lower_path 
 			 * 		returns: -ERRNO if error (0: no error) */
-			err = 0;/*setup_obb_dentry(dentry, &lower_path);*/
+			err = setup_obb_dentry(dentry, &lower_path);
 
 			if(err) { 
 				/* if the sbi->obbpath is not available, we can optionally

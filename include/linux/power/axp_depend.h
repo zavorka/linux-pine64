@@ -25,6 +25,8 @@ typedef enum AW_POWER_ID
 	AXP_803_ID,
 	AXP_813_ID,
 	AXP_152_ID,
+	AXP_259_ID,
+	AXP_DUMMY0_ID = 0x1 << 7,
 } aw_pm_id_e;
 
 typedef enum AXP19X_POWER_LDO
@@ -222,15 +224,16 @@ typedef struct {
 #define AXP_GPIO_IRQF_TRIGGER_RISING	0x00000001
 #define AXP_GPIO_IRQF_TRIGGER_FALLING	0x00000002
 
-extern int axp_gpio_irq_request(int gpio_no,
+extern int axp_gpio_irq_request(int pmu_num, int gpio_no,
 		u32 (*handler)(int, void *), void *data);
-extern int axp_gpio_irq_enable(int gpio_no);
-extern int axp_gpio_irq_disable(int gpio_no);
-extern int axp_gpio_irq_set_type(int gpio_no, unsigned long type);
-extern int axp_gpio_irq_free(int gpio_no);
+extern int axp_gpio_irq_enable(int pmu_num, int gpio_no);
+extern int axp_gpio_irq_disable(int pmu_num, int gpio_no);
+extern int axp_gpio_irq_set_type(int pmu_num, int gpio_no, unsigned long type);
+extern int axp_gpio_irq_free(int pmu_num, int gpio_no);
 
 extern const bitmap_name_mapping_t pwr_dm_bitmap_name_mapping[VCC_MAX_INDEX];
 extern signed int pwr_dm_bitmap_name_mapping_cnt;
+extern int axp_dev_register_count;
 
 /* internal interface*/
 void set_pwr_regu_tree(unsigned int value, unsigned int bitmap);

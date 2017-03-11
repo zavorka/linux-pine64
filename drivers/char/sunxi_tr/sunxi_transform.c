@@ -11,14 +11,16 @@
 */
 
 #include "transform.h"
-
-#define TR_CHAN 1
+#include <linux/compat.h>
+#include <linux/idr.h>
+#define TR_CHAN_MAX 32
 //#define TR_POLL
 //#define TR_CHECK_THREAD
 
 struct sunxi_transform
 {
 	int id; /* chan id */
+	struct rb_node node;
 	struct list_head list;
 	bool requested; /* indicate if have request */
 	bool busy; /* at busy state when transforming */
@@ -41,6 +43,9 @@ struct sunxi_trdev
 	struct sunxi_transform *cur_tr; /* curent transform channel processing */
 	bool busy;
 	struct task_struct *task;
+	struct idr idr;
+	struct rb_node node;
+	struct rb_root handles;
 };
 
 static struct sunxi_trdev *gsunxi_dev = NULL;
@@ -50,6 +55,7 @@ static dev_t devid ;
 static struct class *tr_class;
 static struct device *tr_dev;
 static bool dev_init = false;
+static struct mutex id_lock;
 
 //#define struct sunxi_trdev *to_sunxi_trdev(dev) container_of(dev, struct sunxi_trdev, dev)
 static int sunxi_tr_finish_procss(void);
@@ -152,11 +158,12 @@ static int tr_process_next_proper_task(u32 from)
 {
 	unsigned long flags;
 	struct sunxi_transform *tr = NULL;
+	int ret = -1;
 
 	spin_lock_irqsave(&gsunxi_dev->slock, flags);
 	if(gsunxi_dev->busy) {
 		spin_unlock_irqrestore(&gsunxi_dev->slock, flags);
-		return 0;
+		return -1;
 	}
 
 	/* find a tr which has request */
@@ -174,9 +181,9 @@ static int tr_process_next_proper_task(u32 from)
 	spin_unlock_irqrestore(&gsunxi_dev->slock, flags);
 
 	if(NULL != tr)
-		de_tr_set_cfg(&tr->info);
+		ret = de_tr_set_cfg(&tr->info);
 
-	return 0;
+	return ret;
 }
 
 static int sunxi_tr_finish_procss(void)
@@ -197,27 +204,72 @@ static int sunxi_tr_finish_procss(void)
 	return 0;
 }
 
+static struct sunxi_transform *tr_get_by_id(int id)
+{
+	 struct sunxi_transform *tr;
+
+	 mutex_lock(&gsunxi_dev->mlock);
+	 tr = idr_find(&gsunxi_dev->idr, id);
+	 mutex_unlock(&gsunxi_dev->mlock);
+
+	 return tr ? tr : ERR_PTR(-EINVAL);
+}
+
 /*
  * sunxi_tr_request - request transform channel
  * On success, returns transform handle.  On failure, returns 0.
  */
-unsigned long sunxi_tr_request(void)
+
+unsigned int sunxi_tr_request(void)
 {
 	struct sunxi_transform* tr = NULL;
 	unsigned long flags;
 	unsigned int count = 0;
+	struct rb_node **p = &gsunxi_dev->handles.rb_node;
+	struct rb_node *parent = NULL;
+	struct sunxi_transform *entry;
+	int id;
+
+	if (gsunxi_dev->count > TR_CHAN_MAX) {
+		pr_warn("%s(), user number have exceed max number %d\n",
+		    __func__, TR_CHAN_MAX);
+		return 0;
+	}
 
 	tr = kzalloc(sizeof(struct sunxi_transform), GFP_KERNEL);
 	if (!tr) {
 		pr_warn("alloc fail\n");
-    return 0;
+		return 0;
 	}
 
+	RB_CLEAR_NODE(&tr->node);
 	tr->requested = false;
 	tr->busy = false;
 	tr->error = false;
 	tr->timeout = 50; //default 50ms timeout
 	tr->start_time = jiffies;
+	id = idr_alloc(&gsunxi_dev->idr, tr, 1, 0, GFP_KERNEL);
+	if (id < 0)
+		return 0;
+	tr->id = id;
+
+	mutex_lock(&gsunxi_dev->mlock);
+	while (*p) {
+		parent = *p;
+		entry = rb_entry(parent, struct sunxi_transform, node);
+
+		if (tr < entry)
+			p = &(*p)->rb_left;
+
+		else if (tr > entry)
+			p = &(*p)->rb_right;
+		else
+			pr_warn("%s: tr already found.\n", __func__);
+	}
+	rb_link_node(&tr->node, parent, p);
+	rb_insert_color(&tr->node, &gsunxi_dev->handles);
+	mutex_unlock(&gsunxi_dev->mlock);
+
 	spin_lock_irqsave(&gsunxi_dev->slock, flags);
 	list_add_tail(&tr->list, &gsunxi_dev->trs);
 	gsunxi_dev->count ++;
@@ -242,7 +294,7 @@ unsigned long sunxi_tr_request(void)
 	mutex_unlock(&gsunxi_dev->mlock);
 	pr_info("%s, count=%d\n", __func__, count);
 
-	return (unsigned long)tr;
+	return id;
 }
 EXPORT_SYMBOL_GPL(sunxi_tr_request);
 /*
@@ -250,16 +302,23 @@ EXPORT_SYMBOL_GPL(sunxi_tr_request);
  * @hdl: transform handle which return by sunxi_tr_request
  * On success, returns 0. On failure, returns ERR_PTR(-errno).
  */
-int sunxi_tr_release(unsigned long hdl)
+int sunxi_tr_release(unsigned int id)
 {
-	struct sunxi_transform* tr = (struct sunxi_transform*)hdl;
+	struct sunxi_transform *tr = tr_get_by_id(id);
 	unsigned long flags;
 	unsigned int count = 0;
 
-	if(NULL == tr) {
-		pr_warn("%s, hdl is NULL!\n", __func__);
+	if (IS_ERR_OR_NULL(tr)) {
+		pr_warn("%s, hdl is invalid!\n", __func__);
 		return -EINVAL;
 	}
+
+
+	mutex_lock(&gsunxi_dev->mlock);
+	idr_remove(&gsunxi_dev->idr, tr->id);
+	if (!RB_EMPTY_NODE(&tr->node))
+		rb_erase(&tr->node, &gsunxi_dev->handles);
+	mutex_unlock(&gsunxi_dev->mlock);
 
 	spin_lock_irqsave(&gsunxi_dev->slock, flags);
 	list_del(&tr->list);
@@ -287,15 +346,15 @@ EXPORT_SYMBOL_GPL(sunxi_tr_release);
 /*
  * sunxi_tr_commit - commit an transform request
  * @hdl: transform handle which return by sunxi_tr_request
- * On success, returns fd. On failure, returns ERR_PTR(-errno).
+ * On success, returns 0. On failure, returns ERR_PTR(-errno).
  */
-int sunxi_tr_commit(unsigned long hdl, tr_info *info)
+int sunxi_tr_commit(unsigned int id, tr_info *info)
 {
-	struct sunxi_transform* tr = (struct sunxi_transform*)hdl;
-	int fd = 0;
+	int ret = 0;
+	struct sunxi_transform *tr = tr_get_by_id(id);
 
-	if(NULL == tr) {
-		pr_warn("%s, hdl is NULL\n", __func__);
+	if (IS_ERR_OR_NULL(tr)) {
+		pr_warn("%s, hdl is invalid\n", __func__);
 		return -EINVAL;
 	}
 
@@ -312,7 +371,7 @@ int sunxi_tr_commit(unsigned long hdl, tr_info *info)
 		memcpy(&tr->info, info, sizeof(tr_info));
 		tr->requested = true;
 
-		tr_process_next_proper_task(1);
+		ret = tr_process_next_proper_task(1);
 	}
 
 #if defined(TR_POLL)
@@ -329,7 +388,7 @@ int sunxi_tr_commit(unsigned long hdl, tr_info *info)
 }
 #endif
 
-	return fd;
+	return ret;
 }
 EXPORT_SYMBOL_GPL(sunxi_tr_commit);
 /*
@@ -338,14 +397,14 @@ EXPORT_SYMBOL_GPL(sunxi_tr_commit);
  * On finish, returns 0. On failure, returns ERR_PTR(-errno).
  * On busy,returns 1.
  */
-int sunxi_tr_query(unsigned long hdl)
+int sunxi_tr_query(unsigned int id)
 {
-	struct sunxi_transform* tr = (struct sunxi_transform*)hdl;
 	int status = 0;
+	struct sunxi_transform *tr = tr_get_by_id(id);
 
-	if(NULL == tr) {
-		pr_warn("%s, hdl is NULL!\n", __func__);
-		return -EINVAL;
+	if (IS_ERR_OR_NULL(tr)) {
+		pr_warn("%s, hdl is invalid!\n", __func__);
+		return 0;
 	}
 #if !defined(TR_CHECK_THREAD)
 	tr_check_timeout();
@@ -379,12 +438,12 @@ EXPORT_SYMBOL_GPL(sunxi_tr_query);
  * @timeout: time(ms)
  * On success, returns 0.  On failure, returns ERR_PTR(-errno).
  */
-int sunxi_tr_set_timeout(unsigned long hdl, unsigned long timeout /* ms */)
+int sunxi_tr_set_timeout(unsigned int id, unsigned long timeout /* ms */)
 {
-	struct sunxi_transform* tr = (struct sunxi_transform*)hdl;
+	struct sunxi_transform *tr = tr_get_by_id(id);
 
-	if(NULL == tr) {
-		pr_warn("%s, hdl is NULL!\n", __func__);
+	if (IS_ERR_OR_NULL(tr)) {
+		pr_warn("%s, hdl is invalid!\n", __func__);
 		return -EINVAL;
 	}
 
@@ -475,6 +534,7 @@ static int tr_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "irq_of_parse_and_map irq fail for transform\n");
 	}
 #endif
+	sunxi_dev->irq = irq;
 	ret = request_irq(irq, sunxi_tr_interrupt, IRQF_SHARED,
 					dev_name(&pdev->dev), sunxi_dev);
 	if (ret) {
@@ -493,8 +553,10 @@ static int tr_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&sunxi_dev->trs);
 	spin_lock_init(&sunxi_dev->slock);
 	mutex_init(&sunxi_dev->mlock);
+	mutex_init(&id_lock);
+	idr_init(&sunxi_dev->idr);
 	sunxi_dev->dev = &pdev->dev;
-
+	sunxi_dev->handles = RB_ROOT;
 	dev_init = true;
 	/* init hw */
 	de_tr_set_base((uintptr_t)sunxi_dev->base);
@@ -512,11 +574,41 @@ io_err:
 
 static int tr_remove(struct platform_device *pdev)
 {
-	pr_info("tr_remove call\n");
+	struct sunxi_trdev *sunxi_dev = NULL;
 
-	platform_set_drvdata(pdev, NULL);
+	pr_info("tr_remove enter\n");
 
-	return 0;
+	sunxi_dev = (struct sunxi_trdev *)platform_get_drvdata(pdev);
+	if (sunxi_dev && (sunxi_dev->count != 0)) {
+		struct sunxi_transform *tr = NULL, *tr_tmp = NULL;
+		unsigned long flags;
+
+		pr_warn("%s(), there are still %d t'users, force release them\n",
+		    __func__, sunxi_dev->count);
+		spin_lock_irqsave(&sunxi_dev->slock, flags);
+		list_for_each_entry_safe(tr, tr_tmp, &sunxi_dev->trs, list) {
+			list_del(&tr->list);
+			sunxi_dev->count--;
+			kfree((void *)tr);
+		}
+		spin_unlock_irqrestore(&sunxi_dev->slock, flags);
+		if (sunxi_dev->clk)
+			clk_disable(sunxi_dev->clk);
+	}
+	if (sunxi_dev) {
+		dev_init = false;
+		free_irq(sunxi_dev->irq, sunxi_dev);
+		clk_put(sunxi_dev->clk);
+#if defined(CONFIG_OF)
+		iounmap(sunxi_dev->base);
+#endif
+		kfree(sunxi_dev);
+		platform_set_drvdata(pdev, NULL);
+
+		return 0;
+	}
+
+	return -1;
 }
 
 static int tr_suspend(struct platform_device *pdev, pm_message_t state)
@@ -566,15 +658,14 @@ static long tr_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case TR_REQUEST:
 	{
 		/* request a chan */
-		struct sunxi_transform* tr = NULL;
-
-		tr = (struct sunxi_transform*)sunxi_tr_request();
-		if (copy_to_user((void __user *)ubuffer[0],&tr, sizeof(struct sunxi_transform*))) {
-			pr_warn("copy_from_user fail\n");
-			return  -EFAULT;
+		unsigned int id;
+		id = sunxi_tr_request();
+		if (put_user(id, (unsigned int __user *)ubuffer[0])) {
+			pr_err("%s: put_user fail\n", __func__);
+			return -EFAULT;
 		}
 
-		if(NULL == tr)
+		if (0 == id)
 			ret = -EFAULT;
 		else
 			ret = 0;
@@ -622,6 +713,102 @@ static long tr_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
   return ret;
 }
 
+#ifdef CONFIG_COMPAT
+static long tr_compat_ioctl32(struct file *file, unsigned int cmd,
+				unsigned long arg)
+{
+	compat_uptr_t karg[4];
+	unsigned long __user *ubuffer;
+	int ret = 0;
+
+	if (copy_from_user((void *)karg, (void __user *)arg,
+		4 * sizeof(compat_uptr_t))) {
+		pr_err("copy_from_user fail\n");
+		return -EFAULT;
+	}
+
+	ubuffer = compat_alloc_user_space(4 * sizeof(unsigned long));
+	if (!access_ok(VERIFY_WRITE, ubuffer, 4 * sizeof(unsigned long)))
+		return -EFAULT;
+
+	if (put_user(karg[0], &ubuffer[0])
+			|| put_user(karg[1], &ubuffer[1])
+			|| put_user(karg[2], &ubuffer[2])
+			|| put_user(karg[3], &ubuffer[3])) {
+		pr_err("put_user fail\n");
+		return -EFAULT;
+	}
+
+	switch (cmd) {
+	case TR_REQUEST:
+	{
+		/* request a chan */
+		compat_uint_t id = 0;
+		id = sunxi_tr_request();
+
+		if (put_user(id, (compat_uint_t __user *)ubuffer[0])) {
+			pr_err("%s, put tr user failed.", __func__);
+			ret = -EFAULT;
+		} else {
+			ret = 0;
+		}
+
+		break;
+	}
+
+	case TR_COMMIT:
+	{
+		tr_info info;
+		compat_uint_t id = karg[0];
+
+		ret = copy_from_user(&info, (void __user *)ubuffer[1],
+					sizeof(tr_info));
+		if (ret) {
+			pr_warn("%s, tr copy_from_user fail\n", __func__);
+			return  -EFAULT;
+		}
+
+		ret = sunxi_tr_commit(id, &info);
+
+		break;
+	}
+
+	case TR_RELEASE:
+	{
+		/* release a chan */
+		compat_uint_t id = karg[0];
+
+		ret = sunxi_tr_release(id);
+		break;
+	}
+
+	case TR_QUERY:
+	{
+		/* query status */
+		compat_uint_t id = karg[0];
+
+		ret = sunxi_tr_query((unsigned long)id);
+		break;
+	}
+
+	case TR_SET_TIMEOUT:
+	{
+		/* set timeout */
+		compat_uint_t id = karg[0];
+		compat_uptr_t timeout = karg[1];
+
+		ret = sunxi_tr_set_timeout(id, (unsigned long)timeout);
+		break;
+	}
+
+	default:
+		break;
+	}
+
+	return ret;
+}
+#endif
+
 static const struct file_operations tr_fops = {
 	.owner    = THIS_MODULE,
 	.open     = tr_open,
@@ -629,6 +816,10 @@ static const struct file_operations tr_fops = {
 	.write    = tr_write,
 	.read     = tr_read,
 	.unlocked_ioctl = tr_ioctl,
+
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = tr_compat_ioctl32,
+#endif
 };
 
 #if !defined(CONFIG_OF)
@@ -714,5 +905,4 @@ MODULE_AUTHOR("tyle");
 MODULE_DESCRIPTION("transform driver");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:transform");
-
 

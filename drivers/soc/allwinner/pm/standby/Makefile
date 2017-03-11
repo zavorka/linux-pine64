@@ -48,6 +48,10 @@ ifneq ($(strip $(CONFIG_ARCH_SUN8IW10)),)
 standby-y += dram/sun8iw10p1/mctl_standby-sun8iw10.o
 endif
 
+ifneq ($(strip $(CONFIG_DUAL_AXP_USED))$(strip $(CONFIG_AW_AXP259)),)
+standby-y += power/axp259_power.o
+endif
+
 standby-y := $(addprefix $(obj)/,$(standby-y))
 
 $(obj)/standby.code: $(obj)/standby.elf FORCE

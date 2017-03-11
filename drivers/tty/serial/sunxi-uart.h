@@ -171,7 +171,9 @@ struct sw_uart_port {
 #if defined(CONFIG_ARCH_SUN8IW10) || defined(CONFIG_ARCH_SUN50IW1)
 #define SUNXI_UART_NUM			6
 #endif
-#if defined(CONFIG_ARCH_SUN50IW2)
+#if defined(CONFIG_ARCH_SUN50IW2) \
+	|| defined(CONFIG_ARCH_SUN50IW3) \
+	|| defined(CONFIG_ARCH_SUN50IW6)
 #define SUNXI_UART_NUM			4
 #endif
 
@@ -184,6 +186,13 @@ struct sw_uart_port {
 #ifndef CONFIG_EVB_PLATFORM
 #undef SUNXI_UART_NUM
 #define SUNXI_UART_NUM			1
+#endif
+
+#if defined(CONFIG_ARCH_SUN50IW3) \
+	|| defined(CONFIG_ARCH_SUN50IW6)
+#define SUNXI_UART_FIFO_SIZE		256
+#else
+#define SUNXI_UART_FIFO_SIZE		64
 #endif
 
 #define SUNXI_UART_DEV_NAME			"uart"

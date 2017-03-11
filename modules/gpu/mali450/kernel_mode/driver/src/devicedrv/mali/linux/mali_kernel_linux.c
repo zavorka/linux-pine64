@@ -179,6 +179,7 @@ extern int mali_platform_device_unregister(void);
 #ifdef CONFIG_SUNXI_GPU_COOLING
 extern int gpu_thermal_cool(int freq /* MHz */);
 extern int gpu_thermal_cool_register(int (*cool) (int));
+extern int gpu_thermal_cool_unregister(void);
 #endif /* CONFIG_SUNXI_GPU_COOLING */
 
 /* Linux power management operations provided by the Mali device driver */
@@ -443,6 +444,10 @@ void mali_module_exit(void)
 	MALI_DEBUG_PRINT(2, ("Unloading Mali v%d device driver.\n", _MALI_API_VERSION));
 
 	MALI_DEBUG_PRINT(2, ("mali_module_exit() unregistering driver\n"));
+
+#ifdef CONFIG_SUNXI_GPU_COOLING
+	gpu_thermal_cool_unregister();
+#endif /* CONFIG_SUNXI_GPU_COOLING */
 
 	platform_driver_unregister(&mali_platform_driver);
 

@@ -183,7 +183,7 @@ static int axp80_powerkey_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id axp80_powerkey_dt_ids[] = {
-	{ .compatible = "axp80-powerkey", },
+	{ .compatible = "axp806-powerkey", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, axp80_powerkey_dt_ids);

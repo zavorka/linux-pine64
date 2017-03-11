@@ -19,6 +19,7 @@
 static struct axp_dev *axp20_pm_power;
 struct axp_config_info axp20_config;
 struct wakeup_source *axp20_ws;
+static int axp20_pmu_num;
 
 static struct axp_regmap_irq_chip axp20_regmap_irq_chip = {
 	.name           = "axp20_irq_chip",
@@ -50,21 +51,17 @@ static struct mfd_cell axp20_cells[] = {
 		.name          = "axp20-powerkey",
 		.num_resources = ARRAY_SIZE(axp20_pek_resources),
 		.resources     = axp20_pek_resources,
-		.of_compatible = "axp20-powerkey",
 	},
 	{
 		.name          = "axp20-regulator",
-		.of_compatible = "axp20-regulator",
 	},
 	{
 		.name          = "axp20-charger",
 		.num_resources = ARRAY_SIZE(axp20_charger_resources),
 		.resources     = axp20_charger_resources,
-		.of_compatible = "axp20-charger",
 	},
 	{
 		.name          = "axp20-gpio",
-		.of_compatible = "axp20-gpio",
 	},
 };
 
@@ -135,29 +132,34 @@ static int axp20_init_chip(struct axp_dev *axp20)
 
 	err = axp_regmap_read(axp20->regmap, AXP20_IC_TYPE, &chip_id);
 	if (err) {
-		pr_err("[AXP20-MFD] try to read chip id failed!\n");
+		pr_err("[%s] try to read chip id failed!\n",
+				axp_name[axp20_pmu_num]);
 		return err;
 	}
 
 	if ((chip_id & 0x0f) == 0x1)
-		pr_info("[AXP20] chip id detect 0x%x !\n", chip_id);
+		pr_info("[%s] chip id detect 0x%x !\n",
+				axp_name[axp20_pmu_num], chip_id);
 	else
-		pr_info("[AXP20] chip id not detect 0x%x !\n", chip_id);
+		pr_info("[%s] chip id not detect 0x%x !\n",
+				axp_name[axp20_pmu_num], chip_id);
 
 	/* enable dcdc2 dvm */
 	err = axp_regmap_read(axp20->regmap, AXP20_LDO3_DC2_DVM, &dcdc2_ctl);
 	if (err) {
-		pr_err("[AXP20] try to read dcdc2 dvm failed!\n");
+		pr_err("[%s] try to read dcdc2 dvm failed!\n",
+				axp_name[axp20_pmu_num]);
 		return err;
 	}
 
 	dcdc2_ctl |= (0x1<<2);
 	err = axp_regmap_write(axp20->regmap, AXP20_LDO3_DC2_DVM, dcdc2_ctl);
 	if (err) {
-		pr_err("[AXP20] try to enable dcdc2 dvm failed!\n");
+		pr_err("[%s] try to enable dcdc2 dvm failed!\n",
+				axp_name[axp20_pmu_num]);
 		return err;
 	}
-	pr_info("[AXP20] enable dcdc2 dvm.\n");
+	pr_info("[%s] enable dcdc2 dvm.\n", axp_name[axp20_pmu_num]);
 
 	/*init 16's reset pmu en */
 	if (axp20_config.pmu_reset)
@@ -228,9 +230,9 @@ static int axp20_cfg_pmux_para(int num, struct aw_pm_info *api, int *pmu_id)
 	return 0;
 }
 
-static char *axp20_get_pmu_name(void)
+static const char *axp20_get_pmu_name(void)
 {
-	return AXP_NAME;
+	return axp_name[axp20_pmu_num];
 }
 
 static struct axp_dev *axp20_get_pmu_dev(void)
@@ -244,7 +246,30 @@ struct axp_platform_ops axp20_plat_ops = {
 	.cfg_pmux_para = axp20_cfg_pmux_para,
 	.get_pmu_name = axp20_get_pmu_name,
 	.get_pmu_dev  = axp20_get_pmu_dev,
+	.powerkey_name = {
+		"axp209-powerkey"
+	},
+	.charger_name = {
+		"axp209-charger"
+	},
+	.regulator_name = {
+		"axp209-regulator"
+	},
+	.gpio_name = {
+		"axp209-gpio"
+	},
 };
+
+static const struct i2c_device_id axp20_id_table[] = {
+	{ "axp209", 0 },
+	{}
+};
+
+static const struct of_device_id axp20_dt_ids[] = {
+	{ .compatible = "axp209", },
+	{},
+};
+MODULE_DEVICE_TABLE(of, axp20_dt_ids);
 
 static int axp20_probe(struct i2c_client *client,
 				const struct i2c_device_id *id)
@@ -252,6 +277,12 @@ static int axp20_probe(struct i2c_client *client,
 	int ret;
 	struct axp_dev *axp20;
 	struct device_node *node = client->dev.of_node;
+
+	axp20_pmu_num = axp_get_pmu_num(axp20_dt_ids, ARRAY_SIZE(axp20_dt_ids));
+	if (axp20_pmu_num < 0) {
+		pr_err("%s get pmu num failed\n", __func__);
+		return axp20_pmu_num;
+	}
 
 	if (node) {
 		/* get dt and sysconfig */
@@ -262,7 +293,7 @@ static int axp20_probe(struct i2c_client *client,
 			return -EPERM;
 		} else {
 			axp20_config.pmu_used = 1;
-			ret = axp_dt_parse(node, &axp20_config);
+			ret = axp_dt_parse(node, axp20_pmu_num, &axp20_config);
 			if (ret) {
 				pr_err("%s parse device tree err\n", __func__);
 				return -EINVAL;
@@ -280,6 +311,13 @@ static int axp20_probe(struct i2c_client *client,
 	axp20->dev = &client->dev;
 	axp20->nr_cells = ARRAY_SIZE(axp20_cells);
 	axp20->cells = axp20_cells;
+	axp20->pmu_num = axp20_pmu_num;
+
+	ret = axp_mfd_cell_name_init(&axp20_plat_ops,
+				ARRAY_SIZE(axp20_dt_ids), axp20->pmu_num,
+				axp20->nr_cells, axp20->cells);
+	if (ret)
+		return ret;
 
 	axp20->regmap = axp_regmap_init_i2c(&client->dev);
 	if (IS_ERR(axp20->regmap)) {
@@ -290,7 +328,13 @@ static int axp20_probe(struct i2c_client *client,
 
 	ret = axp20_init_chip(axp20);
 	if (ret)
-		goto fail_init;
+		return ret;
+
+	ret = axp_mfd_add_devices(axp20);
+	if (ret) {
+		dev_err(axp20->dev, "failed to add MFD devices: %d\n", ret);
+		return ret;
+	}
 
 	axp20->irq_data = axp_irq_chip_register(axp20->regmap, client->irq,
 						IRQF_SHARED
@@ -304,25 +348,16 @@ static int axp20_probe(struct i2c_client *client,
 		return ret;
 	}
 
-	ret = axp_mfd_add_devices(axp20);
-	if (ret)
-		goto fail_init;
-
 	axp20_pm_power = axp20;
 
 	if (!pm_power_off)
 		pm_power_off = axp20_power_off;
 
-	axp_platform_ops_set(&axp20_plat_ops);
+	axp_platform_ops_set(axp20->pmu_num, &axp20_plat_ops);
 
 	axp20_ws = wakeup_source_register("axp20_wakeup_source");
 
 	return 0;
-
-fail_init:
-	dev_err(axp20->dev, "failed to add MFD devices: %d\n", ret);
-	axp_irq_chip_unregister(client->irq, axp20->irq_data);
-	return ret;
 }
 
 static int axp20_remove(struct i2c_client *client)
@@ -340,20 +375,9 @@ static int axp20_remove(struct i2c_client *client)
 	return 0;
 }
 
-static const struct i2c_device_id axp20_id_table[] = {
-	{ AXP_NAME, 0 },
-	{}
-};
-
-static const struct of_device_id axp20_dt_ids[] = {
-	{ .compatible = AXP_NAME, },
-	{},
-};
-MODULE_DEVICE_TABLE(of, axp20_dt_ids);
-
 static struct i2c_driver axp20_driver = {
 	.driver = {
-		.name   = AXP_NAME,
+		.name   = "axp20",
 		.owner  = THIS_MODULE,
 		.of_match_table = axp20_dt_ids,
 	},

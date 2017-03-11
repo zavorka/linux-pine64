@@ -534,6 +534,92 @@ static ssize_t arisc_freq_store(struct device *dev,
 	return size;
 }
 
+#ifdef CONFIG_ARCH_SUN50IW2P1
+static ssize_t arisc_regulator_state_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	ssize_t size = 0;
+	s32 ret = 0;
+	u32 type;
+
+	for (type = DUMMY_REGULATOR1; type <= DUMMY_REGULATOR6; type++) {
+		ret = arisc_pmu_get_voltage_state(type);
+		if (ret >= 0)
+		size += sprintf(buf + size, "regulator%u state:%u\n", type, ret);
+
+	}
+
+	return size;
+}
+
+static ssize_t arisc_regulator_state_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	u32 type = 0;
+	u32 state = 0;
+	s32 ret = 0;
+
+	sscanf(buf, "%u %u", &type, &state);
+
+	if ((type < 0) || (type >= DUMMY_REGULATOR_MAX) || ((state != 0) && (state != 1))) {
+		ARISC_WRN("invalid type [%u] or state [%u] to set\n", type, state);
+		ARISC_WRN("pls echo like that: echo type state > regulator_state to set regulator state\n");
+		return size;
+	}
+
+	ret = arisc_pmu_set_voltage_state(type, state);
+	if (ret) {
+		ARISC_ERR("type:%u state set to %u fail\n", type, state);
+	} else {
+		ARISC_LOG("type:%u state set to %u success\n", type, state);
+	}
+
+	return size;
+}
+
+static ssize_t arisc_regulator_voltage_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	ssize_t size = 0;
+	s32 ret = 0;
+	u32 type;
+
+	for (type = DUMMY_REGULATOR1; type <= DUMMY_REGULATOR6; type++) {
+		ret = arisc_pmu_get_voltage(type);
+		if (ret >= 0)
+		size += sprintf(buf + size, "regulator%u voltage:%u\n", type, ret);
+
+	}
+
+	return size;
+}
+
+static ssize_t arisc_regulator_voltage_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	u32 type = 0;
+	u32 voltage = 0;
+	s32 ret = 0;
+
+	sscanf(buf, "%u %u", &type, &voltage);
+
+	if ((type < 0) || (type >= DUMMY_REGULATOR_MAX) || (voltage < 0)) {
+		ARISC_WRN("invalid type [%u] or voltage [%u] to set\n", type, voltage);
+		ARISC_WRN("pls echo like that: echo type voltage > regulator_voltage to set regulator voltage\n");
+		return size;
+	}
+
+	ret = arisc_pmu_set_voltage(type, voltage);
+	if (ret) {
+		ARISC_ERR("type:%u voltage set to %u fail\n", type, voltage);
+	} else {
+		ARISC_LOG("type:%u voltage set to %u success\n", type, voltage);
+	}
+
+	return size;
+}
+#endif /* CONFIG_ARCH_SUN50IW2P1 */
+
 #if defined CONFIG_ARCH_SUN50IW2P1
 static ssize_t arisc_twi_read_block_data_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -795,6 +881,8 @@ static struct device_attribute sunxi_arisc_attrs[] = {
 	__ATTR(sst_power_real_info,     S_IRUGO,            arisc_power_trueinfo_show,          NULL),
 	__ATTR(freq,                    S_IRUGO | S_IWUSR,  arisc_freq_show,                    arisc_freq_store),
 #if defined CONFIG_ARCH_SUN50IW2P1
+	__ATTR(regulator_state,         S_IRUGO | S_IWUSR,  arisc_regulator_state_show,         arisc_regulator_state_store),
+	__ATTR(regulator_voltage,       S_IRUGO | S_IWUSR,  arisc_regulator_voltage_show,       arisc_regulator_voltage_store),
 	__ATTR(twi_read_block_data,     S_IRUGO | S_IWUSR,  arisc_twi_read_block_data_show,     arisc_twi_read_block_data_store),
 	__ATTR(twi_write_block_data,    S_IRUGO | S_IWUSR,  arisc_twi_write_block_data_show,    arisc_twi_write_block_data_store),
 #else

@@ -56,7 +56,7 @@ static unsigned int sunxi_dramfreq_table[LV_END] = {
 };
 
 #if defined(CONFIG_ARCH_SUN8IW10)
-static int key_masters_int_idx[][2] = {
+static int key_masters_int_idx[MASTER_MAX][2] = {
 #ifdef CONFIG_EINK_PANEL_USED
 	{ MASTER_EINK0, 5 },
 	{ MASTER_EDMA,  6 },
@@ -67,10 +67,16 @@ static int key_masters_int_idx[][2] = {
 	{ MASTER_CSI,   3 },
 };
 #elif defined(CONFIG_ARCH_SUN8IW11)
-static int key_masters_int_idx[][2] = {
+static int key_masters_int_idx[MASTER_MAX][2] = {
 	{ MASTER_GPU,   1 },
 	{ MASTER_CSI,   5 },
 	{ MASTER_DE,   13 },
+};
+#elif defined(CONFIG_ARCH_SUN50IW2)
+static int key_masters_int_idx[MASTER_MAX][2] = {
+	{ MASTER_GPU,   1 },
+	{ MASTER_CSI,   5 },
+	{ MASTER_DE,   10 },
 };
 #endif
 
@@ -1446,9 +1452,9 @@ static int sunxi_dramfreq_resume(struct platform_device *pdev)
 		if (dramfreq->devfreq->previous_freq != cur_freq)
 			dramfreq->devfreq->previous_freq = cur_freq;
 
+			sunxi_dramfreq_hw_init(dramfreq);
 		if (!sunxi_dramfreq_cur_pause) {
 			dramfreq->pause = 0;
-			sunxi_dramfreq_hw_init(dramfreq);
 			/* set master access init state */
 			sunxi_dramfreq_masters_state_init(dramfreq);
 #ifndef CONFIG_DEVFREQ_DRAM_FREQ_WITH_SOFT_NOTIFY

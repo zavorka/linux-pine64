@@ -72,19 +72,6 @@
 	.store = _name##_store,                     \
 }
 
-struct axp_adc_res {
-	uint16_t vbat_res;
-	uint16_t ocvbat_res;
-	uint16_t ibat_res;
-	uint16_t ichar_res;
-	uint16_t idischar_res;
-	uint16_t vac_res;
-	uint16_t iac_res;
-	uint16_t vusb_res;
-	uint16_t iusb_res;
-	uint16_t ts_res;
-};
-
 #define AXP22_VOL_MAX       1       /* capability buffer length */
 #define AXP22_TIME_MAX      20
 #define AXP22_AVER_MAX      10

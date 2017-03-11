@@ -360,7 +360,7 @@ static const struct sunxi_desc_pin sun50iw2p1_pins[] = {
 		SUNXI_FUNCTION(0x1, "gpio_out"),
 		SUNXI_FUNCTION(0x2, "gmac0"),		/* NULL */
 		SUNXI_FUNCTION(0x4, "ts2"),		/* D7 */
-		SUNXI_FUNCTION(0x4, "ts3"),		/* D0 */
+		SUNXI_FUNCTION(0x5, "ts3"),		/* D0 */
 		SUNXI_FUNCTION(0x7, "io_disabled")),
 	SUNXI_PIN(SUNXI_PINCTRL_PIN(D, 12),
 		SUNXI_FUNCTION(0x0, "gpio_in"),
@@ -396,7 +396,7 @@ static const struct sunxi_desc_pin sun50iw2p1_pins[] = {
 		SUNXI_FUNCTION(0x0, "gpio_in"),
 		SUNXI_FUNCTION(0x1, "gpio_out"),
 		SUNXI_FUNCTION(0x2, "gmac0"),		/* MDC? */
-		SUNXI_FUNCTION(0x7, "io_disable")),
+		SUNXI_FUNCTION(0x7, "io_disabled")),
 
 	/* HOLE */
 	SUNXI_PIN(SUNXI_PINCTRL_PIN(E, 0),
@@ -492,12 +492,12 @@ static const struct sunxi_desc_pin sun50iw2p1_pins[] = {
 		SUNXI_FUNCTION(0x0, "gpio_in"),
 		SUNXI_FUNCTION(0x1, "gpio_out"),
 		SUNXI_FUNCTION(0x3, "sim1"),		/* VPPEN */
-		SUNXI_FUNCTION(0x7, "io_disable")),
+		SUNXI_FUNCTION(0x7, "io_disabled")),
 	SUNXI_PIN(SUNXI_PINCTRL_PIN(E, 15),
 		SUNXI_FUNCTION(0x0, "gpio_in"),
 		SUNXI_FUNCTION(0x1, "gpio_out"),
 		SUNXI_FUNCTION(0x3, "sim1"),		/* VPPPP */
-		SUNXI_FUNCTION(0x7, "io_disable")),
+		SUNXI_FUNCTION(0x7, "io_disabled")),
 
 	/* HOLE */
 	SUNXI_PIN(SUNXI_PINCTRL_PIN(F, 0),

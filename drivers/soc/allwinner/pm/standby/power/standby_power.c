@@ -196,7 +196,12 @@ static s32 pmu_set_state(u32 pmux_id, u32 tree, u32 state)
 	return ret;
 }
 
-static void pmu_suspend_calc(u32 pmux_id, u32 mask, losc_enter_ss_func *func)
+#ifdef CONFIG_DUAL_AXP_USED
+static int secondary_pmu_id;
+#endif
+
+static void pmu_suspend_calc(u32 pmux_id, u32 pmu_cnt,
+				u32 mask, losc_enter_ss_func *func)
 {
 	s32 ret = -1;
 	s32 tmpctrl = 1;
@@ -205,7 +210,11 @@ static void pmu_suspend_calc(u32 pmux_id, u32 mask, losc_enter_ss_func *func)
 		return;
 	}
 
-	pmux_id &= 0xf;
+#ifdef CONFIG_DUAL_AXP_USED
+	secondary_pmu_id = (pmux_id >> 8) & 0xff;
+#endif
+
+	pmux_id &= 0xff;
 	mask &= 0x0fffffff;
 
 	switch (pmux_id) {
@@ -228,7 +237,7 @@ static void pmu_suspend_calc(u32 pmux_id, u32 mask, losc_enter_ss_func *func)
 	case AXP_813_ID:
 		break;
 	case AXP_152_ID:
-		ret = axp15_suspend_calc(mask, func);
+		ret = axp15_suspend_calc(pmu_cnt, mask, func);
 		break;
 	default:
 		printk("pmu_suspend :pmu id err, tree = 0x%x\n", mask);
@@ -240,6 +249,29 @@ static void pmu_suspend_calc(u32 pmux_id, u32 mask, losc_enter_ss_func *func)
 
 	return;
 }
+
+#ifdef CONFIG_DUAL_AXP_USED
+s32 secondary_pmu_enter_sleep(void)
+{
+	s32 ret = -1;
+
+	switch (secondary_pmu_id) {
+#ifdef CONFIG_AW_AXP259
+	case AXP_259_ID:
+		ret = axp259_enter_sleep();
+		break;
+#endif
+	default:
+		printk("%s: pmu id err, id=%d\n", __func__, secondary_pmu_id);
+		return -1;
+	}
+
+	if (0 != ret)
+		printk("%s: faied\n", __func__);
+
+	return ret;
+}
+#endif
 
 /* default = 0 */
 static u32 close_mask;
@@ -272,7 +304,8 @@ void power_enter_super_calc(struct aw_pm_info *config,
 	printk("adjust on mask = 0x%x, adjust close mask = 0x%x\n",
 				on_mask_adjust, close_mask);
 
-	pmu_suspend_calc(extended_config->pmu_id, close_mask, func);
+	pmu_suspend_calc(extended_config->pmu_id, config->pmu_arg.axp_dev_count,
+				close_mask, func);
 }
 
 void dm_suspend(struct aw_pm_info *config, extended_standby_t *extended_config)

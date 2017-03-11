@@ -1,8 +1,7 @@
 #ifndef __AXP80_H_
 #define __AXP80_H_
 
-/* For AXP80 */
-#define AXP_NAME                  "axp80"
+/* For AXP806 */
 #define AXP80_STARTUP_SOURCE      (0x00)
 #define AXP80_IC_TYPE             (0x03)
 #define AXP80_DATA_BUFFER1        (0x04)

@@ -35,6 +35,8 @@ struct standby_clk_div_t {
 
 __s32 standby_clk_init(void);
 __s32 standby_clk_exit(void);
+void standby_clk_set_keyfield(void);
+void standby_clk_unset_keyfield(void);
 __s32 standby_clk_core2losc(void);
 __s32 standby_clk_core2hosc(void);
 __s32 standby_clk_core2pll(void);

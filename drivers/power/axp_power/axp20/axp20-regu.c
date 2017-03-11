@@ -282,19 +282,19 @@ static s32 axp20_regu_dependence(const char *ldo_name)
 {
 	s32 axp20_dependence = 0;
 
-	if (strcmp("axp20_dcdc2", ldo_name) == 0)
+	if (strstr(ldo_name, "dcdc2") != NULL)
 		axp20_dependence |= AXP20X_DCDC2;
-	else if (strcmp("axp20_dcdc3", ldo_name) == 0)
+	else if (strstr(ldo_name, "dcdc3") != NULL)
 		axp20_dependence |= AXP20X_DCDC3;
-	else if (strcmp("axp20_ldo2", ldo_name) == 0)
+	else if (strstr(ldo_name, "ldo2") != NULL)
 		axp20_dependence |= AXP20X_LDO2;
-	else if (strcmp("axp20_ldo3", ldo_name) == 0)
+	else if (strstr(ldo_name, "ldo3") != NULL)
 		axp20_dependence |= AXP20X_LDO3;
-	else if (strcmp("axp20_ldo4", ldo_name) == 0)
+	else if (strstr(ldo_name, "ldo4") != NULL)
 		axp20_dependence |= AXP20X_LDO4;
-	else if (strcmp("axp20_ldoio0", ldo_name) == 0)
+	else if (strstr(ldo_name, "ldoio0") != NULL)
 		axp20_dependence |= AXP20X_LDOIO0;
-	else if (strcmp("axp20_rtc", ldo_name) == 0)
+	else if (strstr(ldo_name, "rtc") != NULL)
 		axp20_dependence |= AXP20X_RTC;
 	else
 		return -1;
@@ -332,6 +332,7 @@ static int axp20_regulator_probe(struct platform_device *pdev)
 
 	for (i = 0; i < VCC_20_MAX; i++) {
 		info = &axp20_regulator_info[i];
+		info->pmu_num = axp_dev->pmu_num;
 		if (info->desc.id == AXP20_ID_DCDC2
 				|| info->desc.id == AXP20_ID_DCDC3
 				|| info->desc.id == AXP20_ID_LDO1

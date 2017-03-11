@@ -54,10 +54,10 @@
 #define SCR_INTSTA_TXFDONE              (0x1<<0)
 
 
-#define SCR_FIFO_RX_SIZE		256
+#define SCR_BUF_SIZE			256
 #define SCR_FIFO_DEPTH                  8  /* just half of hw fifo size */
 #define SCR_RX_TRANSMIT_NOYET		0
-#define SCR_RX_TRANSMIT_DONE		1
+#define SCR_RX_TRANSMIT_TMOUT		1  /* time out */
 
 enum scr_atr_status {
 	SCR_ATR_RESP_INVALID,
@@ -101,6 +101,11 @@ struct sunxi_scr {
 	struct scr_atr scr_atr_des;
 	struct smc_atr_para smc_atr_para;
 	struct smc_pps_para smc_pps_para;
+
+	wait_queue_head_t scr_poll;
+	struct timer_list poll_timer;
+	bool card_in;
+	bool card_last;
 };
 
 #endif

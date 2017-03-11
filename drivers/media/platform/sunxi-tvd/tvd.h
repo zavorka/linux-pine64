@@ -20,6 +20,11 @@
 
 static LIST_HEAD(devlist);
 
+enum hpd_status {
+	STATUE_CLOSE = 0,
+	STATUE_OPEN  = 1,
+};
+
 struct tvd_fmt {
 	u8              name[32];
 	u32           	fourcc;          /* v4l2 format id */
@@ -107,6 +112,7 @@ struct tvd_dev {
 	unsigned int            format;
 	unsigned int            channel_index[4];
 	int			irq;
+	char			name[10];
 
 	/* working state */
 	unsigned long 	        generating;

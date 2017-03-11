@@ -20,6 +20,7 @@ extern void print_nftl_zone(void *zone);
 extern int NAND_get_storagetype(void);
 extern int NAND_Get_Dragonboard_Flag(void);
 extern int nand_thread(void *arg);
+extern int NAND_CheckBoot(void);
 
 int test_mbr(uchar *data);
 extern int NAND_Print_DBG(const char *fmt, ...);
@@ -425,12 +426,17 @@ int __init nand_init(void)
 			return ret;
 		}
 
+		if (NAND_CheckBoot() != 0) {
+			nand_dbg_err("nand CheckBoot error\n");
+		}
+
 		init_blklayer();
 	} else {
 		nand_dbg_err
 		    ("dragonboard_flag=%d,run nand test for dragonboard\n",
 		     dragonboard_flag);
 		init_blklayer_for_dragonboard();
+		return 0;
 	}
 
 	kthread_run(nand_thread, &mytr, "%sd", "nand_rc");

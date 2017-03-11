@@ -328,17 +328,13 @@ static int aw_early_suspend(void)
 	super_standby_para_info.timeout = time_to_wakeup;
 	if (0 < super_standby_para_info.timeout) {
 		super_standby_para_info.event |= CPUS_WAKEUP_TIMEOUT;
-#if defined(CONFIG_ARCH_SUN8IW10P1) || defined(CONFIG_ARCH_SUN8IW11P1)
-		super_standby_para_info.event |= CPU0_WAKEUP_TIMEOUT;
-#endif
 	}
 
 	if (unlikely(debug_mask & PM_STANDBY_PRINT_STANDBY)) {
 		pr_info
 		    ("total dynamic config standby wakeup src config: 0x%x.\n",
 		     super_standby_para_info.event);
-		parse_wakeup_event(NULL, 0, super_standby_para_info.event,
-				   CPUS_ID);
+		parse_wakeup_event(NULL, 0, super_standby_para_info.event);
 	}
 
 	if (standby_space.mem_size <
@@ -417,6 +413,7 @@ static int aw_early_suspend(void)
 	standby_info.standby_para.timeout = super_standby_para_info.timeout;
 	standby_info.standby_para.debug_mask = debug_mask;
 #if defined(CONFIG_AW_AXP)
+	standby_info.pmu_arg.axp_dev_count = axp_dev_register_count;
 	get_pwr_regu_tree((unsigned int *)(standby_info.
 					   pmu_arg.soc_power_tree));
 #endif
@@ -523,6 +520,7 @@ static int aw_super_standby(suspend_state_t state)
 		mem_para_info.axp_event = CPUS_BOOTFAST_WAKEUP;
 	}
 #else
+	mem_para_info.axp_event = 0;
 
 #endif
 	save_pm_secure_mem_status(error_gen
@@ -608,12 +606,12 @@ static int aw_pm_enter(suspend_state_t state)
 	arisc_query_wakeup_source(&mem_para_info.axp_event);
 	PM_DBG("platform wakeup, standby wakesource is:0x%x\n",
 	       mem_para_info.axp_event);
-	parse_wakeup_event(NULL, 0, mem_para_info.axp_event, CPUS_ID);
+	parse_wakeup_event(NULL, 0, mem_para_info.axp_event);
 #else
 	mem_para_info.axp_event = standby_info.standby_para.event;
 	PM_DBG("platform wakeup, standby wakesource is:0x%x\n",
 	       mem_para_info.axp_event);
-	parse_wakeup_event(NULL, 0, mem_para_info.axp_event, CPU0_ID);
+	parse_wakeup_event(NULL, 0, mem_para_info.axp_event);
 #endif
 
 	if (mem_para_info.axp_event & (CPUS_WAKEUP_LONG_KEY)) {

@@ -21,7 +21,7 @@ aw_private_data aw_private = {
 	.np_gpu        = NULL,
 #endif /* CONFIG_MALI_DT */
 	.tempctrl      = {
-		.tempctrl_status = 1,
+		.temp_ctrl_status = 1,
 	},
 	.pm            = {
 		.regulator      = NULL,
@@ -34,7 +34,7 @@ aw_private_data aw_private = {
 			.clk_name   = "mali",
 			.clk_handle = NULL,
 		},
-		.dvfs_status   = 1,
+		.dvfs_status   = 0,
 		.vf_table[0]   = {
 			.vol  = 0,
 			.freq = 144,
@@ -47,8 +47,13 @@ aw_private_data aw_private = {
 			.vol  = 0,
 			.freq = 384,
 		},
+		.vf_table[3]   = {
+			.vol  = 0,
+			.freq = 456,
+		},
 		.dvfs_status       = 0,
-		.max_level         = 2,
+		.begin_level       = 3,
+		.max_level         = 3,
 		.scene_ctrl_cmd    = 0,
 		.scene_ctrl_status = 0,
 		.independent_pow   = 0,

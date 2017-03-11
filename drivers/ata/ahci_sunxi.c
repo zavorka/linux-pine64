@@ -532,7 +532,7 @@ static void ahci_sunxi_stop(struct device *dev)
 	ahci_sunxi_gpio_set(dev, 0);
 }
 
-static int __init ahci_sunxi_probe(struct platform_device *pdev)
+static int ahci_sunxi_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct ahci_sunxi_platform_data *pdata;

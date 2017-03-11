@@ -736,7 +736,7 @@ int extended_standby_show_state(void)
 	spin_lock_irqsave(&data_lock, irqflags);
 	pr_info("dynamic config wakeup_src: 0x%16lx\n",
 		extended_standby_manager.event);
-	parse_wakeup_event(NULL, 0, extended_standby_manager.event, CPUS_ID);
+	parse_wakeup_event(NULL, 0, extended_standby_manager.event);
 	pr_info("wakeup_gpio_map 0x%16lx\n",
 		extended_standby_manager.wakeup_gpio_map);
 	parse_wakeup_gpio_map(NULL, 0,

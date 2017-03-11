@@ -32,7 +32,12 @@
 
 #ifdef CONFIG_ARM64
 #define SUNXI_IO_PHYS_BASE	0x01000000
+#if defined(CONFIG_ARCH_SUN50IW3) \
+	|| defined(CONFIG_ARCH_SUN50IW6)
+#define SUNXI_IO_SIZE		(SZ_128M + SZ_16M)
+#else
 #define SUNXI_IO_SIZE		SZ_16M          /* 16MB(Max) */
+#endif
 #define PLAT_PHYS_OFFSET	0x40000000UL
 #define SUNXI_IOMEM_VASE	0xffffff8000000000UL
 #define SUNXI_IOMEM_SIZE	SZ_2G
@@ -45,6 +50,7 @@
 #define SUNXI_MEM_PHYS_VASE	PAGE_OFFSET
 #define PRINT_ADDR_FMT		"0x%08lx"
 #endif
+
 
 
 typedef struct dump_reg {

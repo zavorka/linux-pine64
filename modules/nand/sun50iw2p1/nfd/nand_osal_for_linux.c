@@ -41,6 +41,7 @@
 #include "nand_blk.h"
 #include <linux/regulator/consumer.h>
 #include <linux/of.h>
+#include <linux/sunxi-sid.h>
 
 #ifdef CONFIG_DMA_ENGINE
 #include <linux/dmaengine.h>
@@ -49,8 +50,8 @@
 #endif
 
 #define  NAND_DRV_VERSION_0		0x03
-#define  NAND_DRV_VERSION_1		0x5001
-#define  NAND_DRV_DATE			0x20160325
+#define  NAND_DRV_VERSION_1		0x5002
+#define  NAND_DRV_DATE			0x20160512
 #define  NAND_DRV_TIME			0x1726
 
 #define GPIO_BASE_ADDR			0x01c20800
@@ -236,12 +237,10 @@ void *NAND_DMASingleMap(__u32 rw, void *buff_addr, __u32 len)
 	void *mem_addr;
 
 	if (rw == 1) {
-		mem_addr =
-		    (void *)dma_map_single(ndfc_dev, (void *)buff_addr, len,
+		mem_addr = (void *)dma_map_single(ndfc_dev, (void *)buff_addr, len,
 					   DMA_TO_DEVICE);
 	} else {
-		mem_addr =
-		    (void *)dma_map_single(ndfc_dev, (void *)buff_addr, len,
+		mem_addr = (void *)dma_map_single(ndfc_dev, (void *)buff_addr, len,
 					   DMA_BIDIRECTIONAL);
 	}
 	if (dma_mapping_error(ndfc_dev, (dma_addr_t) mem_addr)) {
@@ -298,90 +297,11 @@ __s32 NAND_PIORequest(__u32 nand_index)
 		printk("NAND_PIORequest: set nand0 pin error!\n");
 		return -1;
 	}
-#if 0
-	/* get pin sys_config info */
-	if (nand_index == 0) {
-		pin_count = script_get_pio_list("nand0_para", &pin_list);
-		NAND_Print_DBG("pin count:%d\n", pin_count);
-	} else if (nand_index == 1)
-		pin_count = script_get_pio_list("nand1_para", &pin_list);
-	else
-		return;
-	if (pin_count == 0) {
-		/* "lcd0" have no pin configuration */
-		printk("pin count 0\n");
-		return;
-	}
-
-	/* request pin individually */
-	for (pin_index = 0; pin_index < pin_count; pin_index++) {
-		struct gpio_config *pin_cfg = &(pin_list[pin_index].gpio);
-		char pin_name[SUNXI_PIN_NAME_MAX_LEN];
-		unsigned long config;
-
-		/* valid pin of sunxi-pinctrl,
-		 * config pin attributes individually.
-		 */
-		sunxi_gpio_to_name(pin_cfg->gpio, pin_name);
-		config =
-		    SUNXI_PINCFG_PACK(SUNXI_PINCFG_TYPE_FUNC, pin_cfg->mul_sel);
-		pin_config_set(SUNXI_PINCTRL, pin_name, config);
-		if (pin_cfg->pull != GPIO_PULL_DEFAULT) {
-			config =
-			    SUNXI_PINCFG_PACK(SUNXI_PINCFG_TYPE_PUD,
-					      pin_cfg->pull);
-			pin_config_set(SUNXI_PINCTRL, pin_name, config);
-		}
-		if (pin_cfg->drv_level != GPIO_DRVLVL_DEFAULT) {
-			config =
-			    SUNXI_PINCFG_PACK(SUNXI_PINCFG_TYPE_DRV,
-					      pin_cfg->drv_level);
-			pin_config_set(SUNXI_PINCTRL, pin_name, config);
-		}
-		if (pin_cfg->data != GPIO_DATA_DEFAULT) {
-			config =
-			    SUNXI_PINCFG_PACK(SUNXI_PINCFG_TYPE_DAT,
-					      pin_cfg->data);
-			pin_config_set(SUNXI_PINCTRL, pin_name, config);
-		}
-	}
-#endif
 	return 0;
 }
 
 void NAND_PIORelease(__u32 nand_index)
 {
-#if 0
-	int cnt;
-	script_item_u *list = NULL;
-
-	if (nand_index == 0) {
-
-		/* gpio list */
-		cnt = script_get_pio_list("nand0_para", &list);
-		if (0 == cnt) {
-			printk("get nand0_para gpio list failed\n");
-			return;
-		}
-
-		/* gpio */
-		while (cnt--)
-			gpio_free(list[cnt].gpio.gpio);
-	} else if (nand_index == 1) {
-		cnt = script_get_pio_list("nand1_para", &list);
-		if (0 == cnt) {
-			printk("get nand1_para gpio list failed\n");
-			return;
-		}
-
-		/* gpio */
-		while (cnt--)
-			gpio_free(list[cnt].gpio.gpio);
-	} else {
-		printk("NAND_PIORelease, nand_index error: 0x%x\n",
-		       nand_index);
-	}
-#endif
 	struct pinctrl *pinctrl = NULL;
 
 	pinctrl = pinctrl_get_select(ndfc_dev, "sleep");
@@ -525,51 +445,9 @@ __u32 NAND_GetNandExtPara(__u32 para_num)
 {
 	int ret = 0;
 	int nand_para = 0xffffffff;
-#if 0
-	script_item_u nand_para;
-	script_item_value_type_e type;
-	char str[8];
-
-	str[0] = 'n';
-	str[1] = 'a';
-	str[2] = 'n';
-	str[3] = 'd';
-	str[4] = '_';
-	str[5] = 'p';
-	str[6] = '0';
-	str[7] = '\0';
 
 	if (para_num == 0) {	/*frequency */
-		str[6] = '0';
-	} else if (para_num == 1) {	/*SUPPORT_TWO_PLANE */
-		str[6] = '1';
-	} else if (para_num == 2) {	/*SUPPORT_VERTICAL_INTERLEAVE */
-		str[6] = '2';
-	} else if (para_num == 3) {	/*SUPPORT_DUAL_CHANNEL */
-		str[6] = '3';
-	} else if (para_num == 4) {
-		str[6] = '4';
-	} else if (para_num == 5) {
-		str[6] = '5';
-	} else {
-		printk("NAND_GetNandExtPara: wrong para num: %d\n",
-		       para_num);
-		return 0xffffffff;
-	}
-
-	type = script_get_item("nand0_para", str, &nand_para);
-	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
-		printk("nand0_para, %d, nand type err! %d\n",
-		       para_num, type);
-		return 0xffffffff;
-	} else {
-		return nand_para.val;
-	}
-#endif
-
-	if (para_num == 0) {	/*frequency */
-		ret =
-		    of_property_read_u32(ndfc_dev->of_node, "nand0_p0",
+		ret = of_property_read_u32(ndfc_dev->of_node, "nand0_p0",
 					 &nand_para);
 		if (ret) {
 			printk("Failed to get nand_p0\n");
@@ -583,8 +461,7 @@ __u32 NAND_GetNandExtPara(__u32 para_num)
 				       nand_para);
 		}
 	} else if (para_num == 1) {	/*SUPPORT_TWO_PLANE */
-		ret =
-		    of_property_read_u32(ndfc_dev->of_node, "nand0_p1",
+		ret = of_property_read_u32(ndfc_dev->of_node, "nand0_p1",
 					 &nand_para);
 		if (ret) {
 			printk("Failed to get nand_p1\n");
@@ -598,8 +475,7 @@ __u32 NAND_GetNandExtPara(__u32 para_num)
 				       nand_para);
 		}
 	} else if (para_num == 2) {	/*SUPPORT_VERTICAL_INTERLEAVE */
-		ret =
-		    of_property_read_u32(ndfc_dev->of_node, "nand0_p2",
+		ret = of_property_read_u32(ndfc_dev->of_node, "nand0_p2",
 					 &nand_para);
 		if (ret) {
 			printk("Failed to get nand_p2\n");
@@ -613,8 +489,7 @@ __u32 NAND_GetNandExtPara(__u32 para_num)
 				       nand_para);
 		}
 	} else if (para_num == 3) {	/*SUPPORT_DUAL_CHANNEL */
-		ret =
-		    of_property_read_u32(ndfc_dev->of_node, "nand0_p3",
+		ret = of_property_read_u32(ndfc_dev->of_node, "nand0_p3",
 					 &nand_para);
 		if (ret) {
 			printk("Failed to get nand_p3\n");
@@ -639,23 +514,8 @@ __u32 NAND_GetNandIDNumCtrl(void)
 {
 	int ret;
 	int id_number_ctl = 0;
-#if 0
-	script_item_u id_number_ctl;
-	script_item_value_type_e type;
 
-	type = script_get_item("nand0_para", "id_number_ctl", &id_number_ctl);
-	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
-		NAND_Print_DBG("nand_para0, id_number_ctl, nand type err! %d\n",
-			       type);
-		return 0x0;
-	} else {
-		NAND_Print_DBG("nand : get id_number_ctl from script,%x\n",
-			       id_number_ctl.val);
-		return id_number_ctl.val;
-	}
-#endif
-	ret =
-	    of_property_read_u32(ndfc_dev->of_node, "nand0_id_number_ctl",
+	ret = of_property_read_u32(ndfc_dev->of_node, "nand0_id_number_ctl",
 				 &id_number_ctl);
 	if (ret) {
 		NAND_Print_DBG("Failed to get id_number_ctl\n");
@@ -924,22 +784,7 @@ __u32 nand_dma_callback(void *para)
 
 int NAND_get_storagetype(void)
 {
-#if 0
-	script_item_value_type_e script_ret;
-	script_item_u storage_type;
-
-	script_ret = script_get_item("target", "storage_type", &storage_type);
-	if (script_ret != SCIRPT_ITEM_VALUE_TYPE_INT) {
-		NAND_Print_DBG("nand init fetch storage_type failed\n");
-		storage_type.val = 0;
-		return storage_type.val;
-	}
-
-	return (int)storage_type.val;
-#else
 	return 0;
-#endif
-
 }
 
 int NAND_GetVoltage(void)
@@ -950,8 +795,7 @@ int NAND_GetVoltage(void)
 	const char *sti_vcc_io = NULL;
 #if 1
 
-	ret =
-	    of_property_read_string(ndfc_dev->of_node, "nand0_regulator1",
+	ret = of_property_read_string(ndfc_dev->of_node, "nand0_regulator1",
 				    &sti_vcc_nand);
 	printk("nand0_regulator1 %s\n", sti_vcc_nand);
 	if (ret)
@@ -975,8 +819,7 @@ int NAND_GetVoltage(void)
 
 #if 1
 
-	ret =
-	    of_property_read_string(ndfc_dev->of_node, "nand0_regulator2",
+	ret = of_property_read_string(ndfc_dev->of_node, "nand0_regulator2",
 				    &sti_vcc_io);
 	printk("nand0_regulator2 %s\n", sti_vcc_io);
 	if (ret)
@@ -1046,34 +889,21 @@ int NAND_ReleaseVoltage(void)
 
 int NAND_IS_Secure_sys(void)
 {
-#if 0
 	if (sunxi_soc_is_secure()) {
 		printk("secure system\n");
-		return 1;	/*secure */
+		return 1;
 	} else {
 		printk("non secure\n");
-		return 0;	/*non secure */
+		return 0;
 	}
-#endif
-	return 0;
 }
 
 __u32 NAND_Print_level(void)
 {
 	int ret;
 	int print_level = 0xffffffff;
-#if 0
-	script_item_u print_level;
-	script_item_value_type_e type;
 
-	type = script_get_item("nand0_para", "print_level", &print_level);
-	if (SCIRPT_ITEM_VALUE_TYPE_INT != type)
-		return 0xffffffff;
-	else
-		return print_level.val;
-#endif
-	ret =
-	    of_property_read_u32(ndfc_dev->of_node, "nand0_print_level",
+	ret = of_property_read_u32(ndfc_dev->of_node, "nand0_print_level",
 				 &print_level);
 	if (ret) {
 		NAND_Print("Failed to get print_level\n");
@@ -1094,8 +924,7 @@ int NAND_Get_Dragonboard_Flag(void)
 	int ret;
 	int dragonboard_flag = 0;
 
-	ret =
-	    of_property_read_u32(ndfc_dev->of_node, "nand0_dragonboard",
+	ret = of_property_read_u32(ndfc_dev->of_node, "nand0_dragonboard",
 				 &dragonboard_flag);
 	if (ret) {
 		NAND_Print("Failed to get dragonboard_flag\n");

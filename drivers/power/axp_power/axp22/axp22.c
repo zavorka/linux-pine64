@@ -21,6 +21,7 @@
 static struct axp_dev *axp22_pm_power;
 struct axp_config_info axp22_config;
 struct wakeup_source *axp22_ws;
+static int axp22_pmu_num;
 
 static struct axp_regmap_irq_chip axp22_regmap_irq_chip = {
 	.name           = "axp22_irq_chip",
@@ -59,23 +60,19 @@ static struct mfd_cell axp22_cells[] = {
 		.name          = "axp22-powerkey",
 		.num_resources = ARRAY_SIZE(axp22_pek_resources),
 		.resources     = axp22_pek_resources,
-		.of_compatible = "axp22-powerkey",
 	},
 	{
 		.name          = "axp22-regulator",
-		.of_compatible = "axp22-regulator",
 	},
 	{
 		.name          = "axp22-charger",
 		.num_resources = ARRAY_SIZE(axp22_charger_resources),
 		.resources     = axp22_charger_resources,
-		.of_compatible = "axp22-charger",
 	},
 	{
 		.name          = "axp22-gpio",
 		.num_resources = ARRAY_SIZE(axp22_gpio_resources),
 		.resources     = axp22_gpio_resources,
-		.of_compatible = "axp22-gpio",
 	},
 };
 
@@ -128,7 +125,8 @@ static int axp22_init_chip(struct axp_dev *axp22)
 
 	err = axp_regmap_read(axp22->regmap, AXP22_IC_TYPE, &chip_id);
 	if (err) {
-		pr_err("[AXP22-MFD] try to read chip id failed!\n");
+		pr_err("[%s] try to read chip id failed!\n",
+				axp_name[axp22_pmu_num]);
 		return err;
 	}
 
@@ -139,25 +137,30 @@ static int axp22_init_chip(struct axp_dev *axp22)
 		) {
 		if ((chip_id & 0x0f) == 0x07)
 			axp22_need_save_regulator = 1;
-		pr_info("[AXP22] chip id detect 0x%x !\n", chip_id);
+		pr_info("[%s] chip id detect 0x%x !\n",
+				axp_name[axp22_pmu_num], chip_id);
 	} else {
-		pr_info("[AXP22] chip id not detect 0x%x !\n", chip_id);
+		pr_info("[%s] chip id not detect 0x%x !\n",
+				axp_name[axp22_pmu_num], chip_id);
 	}
 
 	/* enable dcdc2 dvm */
 	err = axp_regmap_read(axp22->regmap, AXP22_DC23_DVM_CTL, &dcdc2_ctl);
 	if (err) {
-		pr_err("[AXP22] try to read dcdc2 dvm failed!\n");
+		pr_err("[%s] try to read dcdc2 dvm failed!\n",
+				axp_name[axp22_pmu_num]);
 		return err;
 	}
 
 	dcdc2_ctl |= (0x1<<2);
 	err = axp_regmap_write(axp22->regmap, AXP22_DC23_DVM_CTL, dcdc2_ctl);
 	if (err) {
-		pr_err("[AXP22] try to enable dcdc2 dvm failed!\n");
+		pr_err("[%s] try to enable dcdc2 dvm failed!\n",
+				axp_name[axp22_pmu_num]);
 		return err;
 	}
-	pr_info("[AXP22] enable dcdc2 dvm.\n");
+	pr_info("[%s] enable dcdc2 dvm.\n",
+				axp_name[axp22_pmu_num]);
 
 	/*init N_VBUSEN status*/
 	if (axp22_config.pmu_vbusen_func)
@@ -248,9 +251,9 @@ static int axp22_cfg_pmux_para(int num, struct aw_pm_info *api, int *pmu_id)
 	return 0;
 }
 
-static char *axp22_get_pmu_name(void)
+static const char *axp22_get_pmu_name(void)
 {
-	return AXP_NAME;
+	return axp_name[axp22_pmu_num];
 }
 
 static struct axp_dev *axp22_get_pmu_dev(void)
@@ -258,7 +261,7 @@ static struct axp_dev *axp22_get_pmu_dev(void)
 	return axp22_pm_power;
 }
 
-struct axp_platform_ops axp22_usb_ops = {
+struct axp_platform_ops axp22_platform_ops = {
 	.usb_det = axp22_usb_det,
 	.usb_vbus_output = axp22_usb_vbus_output,
 	.cfg_pmux_para = axp22_cfg_pmux_para,
@@ -266,7 +269,36 @@ struct axp_platform_ops axp22_usb_ops = {
 	.get_pmu_dev  = axp22_get_pmu_dev,
 	.pmu_regulator_save = axp22_regulator_save,
 	.pmu_regulator_restore = axp22_regulator_restore,
+	.powerkey_name = {
+		"axp221s-powerkey",
+		"axp227-powerkey"
+	},
+	.charger_name = {
+		"axp221s-charger",
+		"axp227-charger"
+	},
+	.regulator_name = {
+		"axp221s-regulator",
+		"axp227-regulator"
+	},
+	.gpio_name = {
+		"axp221s-gpio",
+		"axp227-gpio"
+	},
 };
+
+static const struct i2c_device_id axp22_id_table[] = {
+	{ "axp221s", 0 },
+	{ "axp227", 0 },
+	{}
+};
+
+static const struct of_device_id axp22_dt_ids[] = {
+	{ .compatible = "axp221s", },
+	{ .compatible = "axp227", },
+	{},
+};
+MODULE_DEVICE_TABLE(of, axp22_dt_ids);
 
 static int axp22_probe(struct i2c_client *client,
 				const struct i2c_device_id *id)
@@ -274,6 +306,12 @@ static int axp22_probe(struct i2c_client *client,
 	int ret;
 	struct axp_dev *axp22;
 	struct device_node *node = client->dev.of_node;
+
+	axp22_pmu_num = axp_get_pmu_num(axp22_dt_ids, ARRAY_SIZE(axp22_dt_ids));
+	if (axp22_pmu_num < 0) {
+		pr_err("%s get pmu num failed\n", __func__);
+		return axp22_pmu_num;
+	}
 
 	if (node) {
 		/* get dt and sysconfig */
@@ -284,7 +322,7 @@ static int axp22_probe(struct i2c_client *client,
 			return -EPERM;
 		} else {
 			axp22_config.pmu_used = 1;
-			ret = axp_dt_parse(node, &axp22_config);
+			ret = axp_dt_parse(node, axp22_pmu_num, &axp22_config);
 			if (ret) {
 				pr_err("%s parse device tree err\n", __func__);
 				return -EINVAL;
@@ -302,6 +340,13 @@ static int axp22_probe(struct i2c_client *client,
 	axp22->dev = &client->dev;
 	axp22->nr_cells = ARRAY_SIZE(axp22_cells);
 	axp22->cells = axp22_cells;
+	axp22->pmu_num = axp22_pmu_num;
+
+	ret = axp_mfd_cell_name_init(&axp22_platform_ops,
+				ARRAY_SIZE(axp22_dt_ids), axp22->pmu_num,
+				axp22->nr_cells, axp22->cells);
+	if (ret)
+		return ret;
 
 	axp22->regmap = axp_regmap_init_i2c(&client->dev);
 	if (IS_ERR(axp22->regmap)) {
@@ -312,7 +357,13 @@ static int axp22_probe(struct i2c_client *client,
 
 	ret = axp22_init_chip(axp22);
 	if (ret)
-		goto fail_init;
+		return ret;
+
+	ret = axp_mfd_add_devices(axp22);
+	if (ret) {
+		dev_err(axp22->dev, "failed to add MFD devices: %d\n", ret);
+		return ret;
+	}
 
 	axp22->irq_data = axp_irq_chip_register(axp22->regmap, client->irq,
 						IRQF_SHARED
@@ -326,25 +377,16 @@ static int axp22_probe(struct i2c_client *client,
 		return ret;
 	}
 
-	ret = axp_mfd_add_devices(axp22);
-	if (ret)
-		goto fail_init;
-
 	axp22_pm_power = axp22;
 
 	if (!pm_power_off)
 		pm_power_off = axp22_power_off;
 
-	axp_platform_ops_set(&axp22_usb_ops);
+	axp_platform_ops_set(axp22->pmu_num, &axp22_platform_ops);
 
 	axp22_ws = wakeup_source_register("axp22_wakeup_source");
 
 	return 0;
-
-fail_init:
-	dev_err(axp22->dev, "failed to add MFD devices: %d\n", ret);
-	axp_irq_chip_unregister(client->irq, axp22->irq_data);
-	return ret;
 }
 
 static int axp22_remove(struct i2c_client *client)
@@ -362,20 +404,10 @@ static int axp22_remove(struct i2c_client *client)
 	return 0;
 }
 
-static const struct i2c_device_id axp22_id_table[] = {
-	{ AXP_NAME, 0 },
-	{}
-};
-
-static const struct of_device_id axp22_dt_ids[] = {
-	{ .compatible = AXP_NAME, },
-	{},
-};
-MODULE_DEVICE_TABLE(of, axp22_dt_ids);
 
 static struct i2c_driver axp22_driver = {
 	.driver = {
-		.name   = AXP_NAME,
+		.name   = "axp22",
 		.owner  = THIS_MODULE,
 		.of_match_table = axp22_dt_ids,
 	},
@@ -389,7 +421,7 @@ static int __init axp22_i2c_init(void)
 	int ret;
 	ret = i2c_add_driver(&axp22_driver);
 	if (ret != 0)
-		pr_err("Failed to register axp152 I2C driver: %d\n", ret);
+		pr_err("Failed to register axp22 I2C driver: %d\n", ret);
 	return ret;
 }
 subsys_initcall(axp22_i2c_init);

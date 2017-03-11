@@ -32,8 +32,49 @@ static struct mali_gpu_device_data mali_gpu_data = {
 };
 
 #ifndef CONFIG_MALI_DT
+/* For Mali450, the number of maximum PP core is 8 */
 static struct resource mali_gpu_resources[] = {
-    MALI_GPU_RESOURCES_MALI400_MP2_PMU(GPU_PBASE, IRQ_GPU_GP, IRQ_GPU_GPMMU, IRQ_GPU_PP0, IRQ_GPU_PPMMU0, IRQ_GPU_PP1, IRQ_GPU_PPMMU1)
+	MALI_GPU_RESOURCES_MALI450_MPX_PMU(GPU_PBASE,
+					IRQ_GPU_GP,
+					IRQ_GPU_GPMMU,
+					IRQ_GPU_PP0,
+					IRQ_GPU_PPMMU0
+					#if MALI_PP_CORES_NUM == 2
+					,
+					IRQ_GPU_PP1,
+					IRQ_GPU_PPMMU1
+					#endif
+					#if MALI_PP_CORES_NUM == 3
+					,
+					IRQ_GPU_PP2,
+					IRQ_GPU_PPMMU2
+					#endif
+					#if MALI_PP_CORES_NUM == 4
+					,
+					IRQ_GPU_PP3,
+					IRQ_GPU_PPMMU3
+					#endif
+					#if MALI_PP_CORES_NUM == 5
+					,
+					IRQ_GPU_PP4,
+					IRQ_GPU_PPMMU4
+					#endif
+					#if MALI_PP_CORES_NUM == 6
+					,
+					IRQ_GPU_PP5,
+					IRQ_GPU_PPMMU5
+					#endif
+					#if MALI_PP_CORES_NUM == 7
+					,
+					IRQ_GPU_PP6,
+					IRQ_GPU_PPMMU6
+					#endif
+					#if MALI_PP_CORES_NUM == 8
+					,
+					IRQ_GPU_PP7,
+					IRQ_GPU_PPMMU7
+					#endif
+					)
 };
 
 static struct platform_device mali_gpu_device = {
@@ -140,26 +181,28 @@ static void set_freq(int freq)
 {
 	int i;
 
-	if (freq <= 0)
+	if (freq <= 0 || freq == aw_private.pm.clk[0].freq)
 		return;
 
 	for (i = 0; i < sizeof(aw_private.pm.clk)/sizeof(aw_private.pm.clk[0]); i++) {
 		if (clk_set_rate(aw_private.pm.clk[i].clk_handle, freq*1000*1000)) {
 			MALI_PRINT_ERROR(("Failed to set the frequency of gpu %s clock: Current frequency is %ld MHz, the frequency to be is %d MHz\n",
 								aw_private.pm.clk[i].clk_name, clk_get_rate(aw_private.pm.clk[i].clk_handle)/(1000*1000), freq));
+			return;
 		} else {
 			aw_private.pm.clk[i].freq = clk_get_rate(aw_private.pm.clk[i].clk_handle)/(1000*1000);
-			MALI_PRINT(("Set gpu frequency to %d MHz\n", freq));
 		}
 	}
+
+	MALI_PRINT(("Set gpu frequency to %d MHz\n", freq));
 }
 
 /**
  ****************************************************************
  * Function   : set_freq_wrap
  * Description: Set the frequency of gpu, Mali GPU will pause dur-
- 				ing setting its frequency and resume after the freq-
-			  uency is changed.
+ *		ing setting its frequency and resume after the freq-
+ *		uency is changed.
  * Input      : freq, the frequency to be set in MHz.
  * Output     : None.
  ****************************************************************
@@ -190,6 +233,9 @@ void set_freq_wrap(int freq)
  */
 static void enable_gpu_power(void)
 {
+	if (IS_ERR_OR_NULL(aw_private.pm.regulator))
+		return;
+
 	if (regulator_enable(aw_private.pm.regulator)) {
 		MALI_PRINT_ERROR(("Failed to enable gpu power!\n"));
 	} else {
@@ -214,6 +260,9 @@ static void enable_gpu_power(void)
  */
 static void disable_gpu_power(void)
 {
+	if (IS_ERR_OR_NULL(aw_private.pm.regulator))
+		return;
+
 	if (regulator_disable(aw_private.pm.regulator))
 		MALI_PRINT_ERROR(("Failed to disable gpu power!\n"));
 	else
@@ -230,7 +279,10 @@ static void disable_gpu_power(void)
  */
 void set_voltage(int vol)
 {
-	if (vol <= 0 || vol == regulator_get_voltage(aw_private.pm.regulator)/1000)
+	if (vol <= 0 || IS_ERR_OR_NULL(aw_private.pm.regulator))
+		return;
+
+	if (vol == aw_private.pm.current_vol)
 		return;
 
 	if (!aw_private.pm.dvm) {
@@ -239,10 +291,12 @@ void set_voltage(int vol)
 	}
 
 	if (!IS_ERR_OR_NULL(aw_private.pm.regulator)) {
-		if (regulator_set_voltage(aw_private.pm.regulator, vol*1000, vol*1000) != 0)
+		if (regulator_set_voltage(aw_private.pm.regulator, vol*1000, vol*1000) != 0) {
 			MALI_PRINT_ERROR(("Failed to set gpu voltage!\n"));
-		else
-			MALI_PRINT(("Set gpu voltage to %dmV.\n", regulator_get_voltage(aw_private.pm.regulator)));
+		} else {
+			aw_private.pm.current_vol = regulator_get_voltage(aw_private.pm.regulator)/1000;
+			MALI_PRINT(("Set gpu voltage to %dmV.\n", aw_private.pm.current_vol));
+		}
 	}
 
 	if (!aw_private.pm.dvm) {
@@ -261,6 +315,9 @@ void set_voltage(int vol)
  */
 void dvfs_change(u8 level)
 {
+	if (level == aw_private.pm.current_level)
+		return;
+
 	if (aw_private.pm.vf_table[level].freq < aw_private.pm.clk[0].freq) {
 		set_freq_wrap(aw_private.pm.vf_table[level].freq);
 		set_voltage(aw_private.pm.vf_table[level].vol);
@@ -300,12 +357,26 @@ void aw_resume(void)
 	enable_gpu_clk();
 }
 
+void revise_current_level(void)
+{
+	int i;
+	aw_private.pm.current_level = -1;
+	for (i = 0; i <= aw_private.pm.max_level; i++) {
+		if (aw_private.pm.clk[0].freq == aw_private.pm.vf_table[i].freq) {
+			if (IS_ERR_OR_NULL(aw_private.pm.regulator) || aw_private.pm.current_vol == aw_private.pm.vf_table[i].vol) {
+				aw_private.pm.current_level = i;
+				break;
+			}
+		}
+	}
+}
+
 #ifdef CONFIG_SUNXI_GPU_COOLING
 /**
  ****************************************************************
  * Function   : gpu_thermal_cool
  * Description: Called by thermal cooling system to restrict the
-				maximum frequency of GPU.
+ *		maximum frequency of GPU.
  * Input      : freq, the maximum frequency to be restricted in MHz.
  * Output     : Zero.
  ****************************************************************
@@ -314,21 +385,31 @@ int gpu_thermal_cool(int freq /* MHz */)
 {
 	int i;
 
-	if (aw_private.tempctrl.tempctrl_status) {
+	if (aw_private.tempctrl.temp_ctrl_status) {
+		aw_private.pm.cool_freq = freq;
+
 		if (freq > 0) {
-			for (i = aw_private.pm.max_available_level; i >= 0 ; i--) {
+			for (i = aw_private.pm.max_level; i >= 0; i--) {
 				if (aw_private.pm.vf_table[i].freq <= freq) {
 					aw_private.pm.max_available_level = i;
-
 					break;
 				}
 			}
-		} else
+		} else {
 			aw_private.pm.max_available_level = aw_private.pm.max_level;
+		}
 
-		aw_private.pm.cool_freq = 0;
+		if (!aw_private.pm.dvfs_status) {
+			if (freq > 0) {
+				set_freq_wrap(freq);
+				revise_current_level();
+				return 0;
+			} else {
+				dvfs_change(aw_private.pm.begin_level);
+			}
+		}
 
-		if (aw_private.pm.vf_table[aw_private.pm.max_available_level].freq < aw_private.pm.clk[0].freq)
+		if (aw_private.pm.current_level > aw_private.pm.max_available_level)
 			dvfs_change(aw_private.pm.max_available_level);
 	}
 
@@ -339,34 +420,64 @@ EXPORT_SYMBOL(gpu_thermal_cool);
 
 /**
  ****************************************************************
- * Function   :get_para_from_fex
- * Description:Get a parameter from sys_config.fex
+ * Function   : get_u32_from_fex
+ * Description: Get a u32 parameter from sys_config.fex.
+ * Input      : main_key, second_key.
+ * Output     : value or -1.
  ****************************************************************
  */
-static int get_para_from_fex(char *main_key, char *second_key, int max_value)
+static int get_u32_from_fex(char *main_key, char *second_key)
 {
 	u32 value;
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0))
 	script_item_u val;
 	script_item_value_type_e type = script_get_item(main_key, second_key, &val);
 
-	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
-		MALI_PRINT(("%s: %s in sys_config.fex is invalid!\n", main_key, second_key));
-		return -1;
-	}
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type)
+		goto err_out;
 	value = val.val;
 #else
-	if (of_property_read_u32(aw_private.np_gpu, second_key, &value) < 0)
-		return -1;
+	if (of_property_read_u32(aw_private.np_gpu, second_key, &value))
+		goto err_out;
 #endif
-	if (max_value) {
-		if (value <= max_value)
-			return value;
-		else
-			return -1;
-	} else {
-		return value;
-	}
+
+	return value;
+
+err_out:
+	MALI_PRINT(("Failed to get [%s, %s] in sys_config.fex!\n", main_key, second_key));
+	return -1;
+}
+
+/**
+ ****************************************************************
+ * Function   : get_str_from_fex
+ * Description: Get a string parameter from sys_config.fex.
+ * Input      : main_key, second_key.
+ * Output     : p_str or NULL.
+ ****************************************************************
+ */
+static char *get_str_from_fex(char *main_key, char *second_key)
+{
+	char *p_str;
+#ifdef CONFIG_MALI_DT
+	const char *str;
+	if (of_property_read_string(aw_private.np_gpu, second_key, &str))
+		goto err_out;
+	p_str = (char *)str;
+#else /* CONFIG_MALI_DT */
+	script_item_u str;
+	script_item_value_type_e type = script_get_item(main_key, second_key, &str);
+
+	if (SCIRPT_ITEM_VALUE_TYPE_STR != type)
+		goto err_out;
+	p_str = str.str;
+#endif /* CONFIG_MALI_DT */
+
+	return p_str;
+
+err_out:
+	MALI_PRINT(("Failed to get [%s, %s] in sys_config.fex!\n", main_key, second_key));
+	return NULL;
 }
 
 /**
@@ -383,32 +494,38 @@ static void parse_sysconfig_fex(void)
 	char second_key[11] = {0};
 	int val, i;
 
-	val = get_para_from_fex(mainkey, "dvfs_status", 1);
-	if (val >= 0)
+	aw_private.pm.regulator_id = get_str_from_fex(mainkey, "regulator_id");
+
+	val = get_u32_from_fex(mainkey, "dvfs_status");
+	if (val == 0 || val == 1)
 		aw_private.pm.dvfs_status = val;
 
-	val = get_para_from_fex(mainkey, "tempctrl_status", 1);
-	if (val >= 0)
-		aw_private.tempctrl.tempctrl_status = val;
+	val = get_u32_from_fex(mainkey, "temp_ctrl_status");
+	if (val == 0 || val == 1)
+		aw_private.tempctrl.temp_ctrl_status = val;
 
-	val = get_para_from_fex(mainkey, "scene_ctrl_status", 1);
-	if (val >= 0)
+	val = get_u32_from_fex(mainkey, "scene_ctrl_status");
+	if (val == 0 || val == 1)
 		aw_private.pm.scene_ctrl_status = val;
 
-	val = get_para_from_fex(mainkey, "lv_count", 0);
-	if (val > 0)
-		aw_private.pm.max_level = val - 1;
+	val = get_u32_from_fex(mainkey, "max_level");
+	if (val >= 0)
+		aw_private.pm.max_level = val;
+
+	val = get_u32_from_fex(mainkey, "begin_level");
+	if (val >= 0 && val <= aw_private.pm.max_level)
+		aw_private.pm.begin_level = val;
 
 	for (i = 0; i <= aw_private.pm.max_level; i++) {
-		sprintf(second_key, "lv%d_volt", i);
-		val = get_para_from_fex(mainkey, second_key, 0);
-		if (val >= 0)
-			aw_private.pm.vf_table[i].vol = val;
-
 		sprintf(second_key, "lv%d_freq", i);
-		val = get_para_from_fex(mainkey, second_key, 0);
+		val = get_u32_from_fex(mainkey, second_key);
 		if (val > 0)
 			aw_private.pm.vf_table[i].freq = val;
+
+		sprintf(second_key, "lv%d_volt", i);
+		val = get_u32_from_fex(mainkey, second_key);
+		if (val > 0)
+			aw_private.pm.vf_table[i].vol = val;
 	}
 }
 
@@ -422,6 +539,7 @@ static void parse_sysconfig_fex(void)
  */
 static void aw_init(struct platform_device *device)
 {
+	int i;
 	struct platform_device *pdev = device;
 
 #ifdef CONFIG_MALI_DT
@@ -435,31 +553,45 @@ static void aw_init(struct platform_device *device)
 
 	parse_sysconfig_fex();
 
-	if (NULL != aw_private.pm.regulator_id)
+	if (NULL != aw_private.pm.regulator_id) {
 		aw_private.pm.regulator = regulator_get(NULL, aw_private.pm.regulator_id);
-
-	if (IS_ERR_OR_NULL(aw_private.pm.regulator)) {
-		MALI_PRINT_ERROR(("Failed to get regulator!\n"));
-		aw_private.pm.regulator = NULL;
+		if (IS_ERR_OR_NULL(aw_private.pm.regulator))
+			MALI_PRINT(("Failed to get regulator!\n"));
+	} else {
+		MALI_PRINT(("There is no regulator id for GPU.\n"));
 	}
 
-	aw_private.pm.current_level = aw_private.pm.max_level;
+	aw_private.pm.current_level = aw_private.pm.begin_level;
 	aw_private.pm.max_available_level = aw_private.pm.max_level;
 
-	if (aw_private.pm.independent_pow) {
-		if (regulator_set_voltage(aw_private.pm.regulator, aw_private.pm.vf_table[aw_private.pm.max_level].vol*1000,
-								aw_private.pm.vf_table[aw_private.pm.max_level].vol*1000) != 0)
-			MALI_PRINT_ERROR(("Failed to set gpu voltage!\n"));
-		else
-			MALI_PRINT(("Set gpu voltage to %dmV.\n", regulator_get_voltage(aw_private.pm.regulator)/1000));
+	if (IS_ERR_OR_NULL(aw_private.pm.regulator)) {
+		for (i = 0; i <= aw_private.pm.max_level; i++) {
+			aw_private.pm.current_vol = -1;
+			aw_private.pm.vf_table[i].vol = aw_private.pm.current_vol;
+		}
+	} else {
+		if (aw_private.pm.independent_pow) {
+			if (regulator_set_voltage(aw_private.pm.regulator,
+								aw_private.pm.vf_table[aw_private.pm.max_level].vol*1000,
+								aw_private.pm.vf_table[aw_private.pm.max_level].vol*1000) != 0) {
+				MALI_PRINT_ERROR(("Failed to set gpu voltage!\n"));
+			} else {
+				aw_private.pm.current_vol = regulator_get_voltage(aw_private.pm.regulator)/1000;
+				MALI_PRINT(("Set gpu voltage to %dmV.\n", aw_private.pm.current_vol));
+			}
+		} else {
+			for (i = 0; i <= aw_private.pm.max_level; i++) {
+				aw_private.pm.current_vol = regulator_get_voltage(aw_private.pm.regulator)/1000;
+				aw_private.pm.vf_table[i].vol = aw_private.pm.current_vol;
+			}
+		}
 	}
 
 	enable_gpu_power();
 
 	get_gpu_clk();
 
-	/* Set the gpu frequency to the maximum value by default. */
-	set_freq(aw_private.pm.vf_table[aw_private.pm.max_level].freq);
+	set_freq(aw_private.pm.vf_table[aw_private.pm.begin_level].freq);
 
 	enable_gpu_clk();
 
@@ -486,7 +618,8 @@ static void aw_deinit(struct platform_device *device)
 
 	disable_gpu_power();
 
-	regulator_put(aw_private.pm.regulator);
+	if (!IS_ERR_OR_NULL(aw_private.pm.regulator))
+		regulator_put(aw_private.pm.regulator);
 
 #ifdef CONFIG_SUNXI_GPU_COOLING
 	gpu_thermal_cool_unregister();
@@ -496,7 +629,7 @@ static void aw_deinit(struct platform_device *device)
 /**
  ****************************************************************
  * Function   : mali_platform_device_init/
-				mali_platform_device_register
+ *		mali_platform_device_register
  * Description: Init the essential data of gpu.
  * Input      : device, a platform_device pointer/None.
  * Output     : Zero or error number.
@@ -520,7 +653,9 @@ int mali_platform_device_register(void)
 	aw_init(pdev);
 
 #ifndef CONFIG_MALI_DT
-	err = platform_device_add_resources(&mali_gpu_device, mali_gpu_resources, sizeof(mali_gpu_resources) / sizeof(mali_gpu_resources[0]));
+	err = platform_device_add_resources(&mali_gpu_device,
+					mali_gpu_resources,
+					sizeof(mali_gpu_resources) / sizeof(mali_gpu_resources[0]));
 	if (err) {
 		MALI_PRINT_ERROR(("platform_device_add_resources failed!\n"));
 		goto out;
@@ -531,7 +666,7 @@ int mali_platform_device_register(void)
 		MALI_PRINT_ERROR(("platform_device_register failed!\n"));
 		goto out;
 	}
-#endif
+#endif /* CONFIG_MALI_DT */
 
 	err = platform_device_add_data(pdev, &mali_gpu_data, sizeof(mali_gpu_data));
 	if (err) {
@@ -558,16 +693,16 @@ out:
 /**
  ****************************************************************
  * Function   : mali_platform_device_deinit/
-				mali_platform_device_unregister
+ *		mali_platform_device_unregister
  * Description: Remove the resource gpu used, and it is called
-				when mali driver is removed.
+ *		when mali driver is removed.
  * Input      : device, a platform_device pointer/None.
  * Output     : Zero or error number.
  ****************************************************************
  */
 #ifdef CONFIG_MALI_DT
 int mali_platform_device_deinit(struct platform_device *device)
-#else
+#else /* CONFIG_MALI_DT */
 int mali_platform_device_unregister(void)
 #endif /* CONFIG_MALI_DT */
 {
@@ -601,30 +736,29 @@ int mali_platform_device_unregister(void)
  */
 static void aw_dvfs_queue_work(struct work_struct *work)
 {
-	int lower_freq, low_lev_util;
+	int lower_freq;
+	int high_util = 192; /* 75% */
+
+	if (aw_private.pm.current_level == -1) {
+		dvfs_change(aw_private.pm.max_available_level);
+		return;
+	}
 
 	/* Determine whether need to increase frequency */
-	if (aw_private.utilization.data.utilization_gpu == 256) {
-		if (aw_private.pm.current_level < aw_private.pm.max_available_level)
+	if (aw_private.utilization.data.utilization_gpu > high_util) {
+		if (aw_private.pm.current_level < aw_private.pm.max_available_level) {
 			dvfs_change(aw_private.pm.current_level + 1);
-		else {
-			if ((aw_private.pm.clk[0].freq != aw_private.pm.vf_table[aw_private.pm.max_available_level].freq)
-				|| (regulator_get_voltage(aw_private.pm.regulator)/1000 != aw_private.pm.vf_table[aw_private.pm.max_available_level].vol))
-				dvfs_change(aw_private.pm.max_available_level);
-			return;
 		}
+		return;
 	}
 
 	/* Determine whether need to decrease frequency */
 	if (aw_private.pm.current_level > 0) {
 		lower_freq = aw_private.pm.vf_table[aw_private.pm.current_level - 1].freq;
-		low_lev_util = lower_freq * 100 / aw_private.pm.vf_table[aw_private.pm.current_level].freq;
 
-		if (aw_private.utilization.data.utilization_gpu <= low_lev_util)
+		if (lower_freq * high_util >= aw_private.pm.vf_table[aw_private.pm.current_level].freq
+					* aw_private.utilization.data.utilization_gpu)
 			dvfs_change(aw_private.pm.current_level - 1);
-	} else if ((aw_private.pm.clk[0].freq != aw_private.pm.vf_table[0].freq) ||
-				(regulator_get_voltage(aw_private.pm.regulator)/1000 != aw_private.pm.vf_table[0].vol)) {
-					dvfs_change(0);
 	}
 }
 
@@ -633,7 +767,7 @@ static void aw_dvfs_queue_work(struct work_struct *work)
  * Function   : mali_gpu_utilization_callback
  * Description: Get Mali GPU utilization and start a queue work.
  * Input      : data, a mali_gpu_utilization_data pointer, which
-				contains GPU GP and PP utilization.
+ *		contains GPU GP and PP utilization.
  * Output     : None.
  ****************************************************************
  */

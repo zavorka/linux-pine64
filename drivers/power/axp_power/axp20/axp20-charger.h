@@ -112,15 +112,4 @@
 	.store = _name##_store, \
 }
 
-struct axp_adc_res {
-	uint16_t vbat_res;
-	uint16_t ibat_res;
-	uint16_t ichar_res;
-	uint16_t idischar_res;
-	uint16_t vac_res;
-	uint16_t iac_res;
-	uint16_t vusb_res;
-	uint16_t iusb_res;
-};
-
 #endif /* AXP20_SPLY_H */

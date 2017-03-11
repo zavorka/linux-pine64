@@ -169,8 +169,8 @@ static int axp22_get_rest_cap(struct axp_charger_dev *cdev)
 		batt_max_cap_val[0] = temp_val[0] | (0x1<<7);
 		batt_max_cap_val[1] = temp_val[1];
 		axp_regmap_writes(map, 0xe2, 2, batt_max_cap_val);
-		AXP_DEBUG(AXP_SPLY, "Axp22 coulumb_counter = %d\n",
-						batt_max_cap);
+		AXP_DEBUG(AXP_SPLY, cdev->chip->pmu_num,
+				"Axp22 coulumb_counter = %d\n", batt_max_cap);
 	}
 
 	return rest_vol;
@@ -325,6 +325,7 @@ static int axp22_charger_init(struct axp_dev *axp_dev)
 	u8 val;
 	int cur_coulomb_counter, rdc;
 	struct axp_regmap *map = axp_dev->regmap;
+	int i, update_min_times[8] = {30, 60, 120, 164, 0, 5, 10, 20};
 
 	if (axp22_config.pmu_init_chgend_rate == 10)
 		val &= ~(1 << 4);
@@ -500,6 +501,27 @@ static int axp22_charger_init(struct axp_dev *axp_dev)
 	else
 		axp22_spy_info.batt->det_unused = 0;
 
+	if (axp22_config.pmu_ocv_en == 0) {
+		pr_warn("axp22 ocv must be enabled\n");
+		axp22_config.pmu_ocv_en = 1;
+	}
+
+	if (axp22_config.pmu_cou_en == 1) {
+		/* use ocv and cou */
+		axp_regmap_set_bits(map, AXP22_COULOMB_CTL, 0x80);
+		axp_regmap_set_bits(map, AXP22_COULOMB_CTL, 0x40);
+	} else if (axp22_config.pmu_cou_en == 0) {
+		/* only use ocv */
+		axp_regmap_set_bits(map, AXP22_COULOMB_CTL, 0x80);
+		axp_regmap_clr_bits(map, AXP22_COULOMB_CTL, 0x40);
+	}
+
+	for (i = 0; i < ARRAY_SIZE(update_min_times); i++) {
+		if (update_min_times[i] == axp22_config.pmu_update_min_time)
+			break;
+	}
+	axp_regmap_update(map, AXP22_ADJUST_PARA, i, 0x7);
+
 	return 0;
 }
 
@@ -562,6 +584,27 @@ static struct axp_interrupts axp_charger_irq[] = {
 	{"low warning2",  axp_low_warning2_isr},
 };
 
+static void axp22_private_debug(struct axp_charger_dev *cdev)
+{
+	u8 tmp[2];
+	struct axp_regmap *map = cdev->chip->regmap;
+
+	axp_regmap_reads(map, 0xbc, 2, tmp);
+	AXP_DEBUG(AXP_SPLY, cdev->chip->pmu_num,
+			"ocv_vol = %d\n", ((tmp[0] << 4) | (tmp[1] & 0xF))
+			* 1100 / 1000);
+
+	axp_regmap_read(map, 0xe4, &tmp[0]);
+	if (tmp[0] & 0x80)
+		AXP_DEBUG(AXP_SPLY, cdev->chip->pmu_num,
+			"ocv_percent = %d\n", tmp[0] & 0x7f);
+
+	axp_regmap_read(map, 0xe5, &tmp[0]);
+	if (tmp[0] & 0x80)
+		AXP_DEBUG(AXP_SPLY, cdev->chip->pmu_num,
+			"coulomb_percent = %d\n", tmp[0] & 0x7f);
+}
+
 static int axp22_charger_probe(struct platform_device *pdev)
 {
 	int ret, i, irq;
@@ -601,6 +644,7 @@ static int axp22_charger_probe(struct platform_device *pdev)
 					&battery_data, &axp22_spy_info);
 	if (IS_ERR_OR_NULL(chg_dev))
 		goto fail;
+	chg_dev->private_debug = axp22_private_debug;
 
 	for (i = 0; i < ARRAY_SIZE(axp_charger_irq); i++) {
 		irq = platform_get_irq_byname(pdev, axp_charger_irq[i].name);
@@ -698,7 +742,8 @@ static void axp22_charger_shutdown(struct platform_device *dev)
 }
 
 static const struct of_device_id axp22_charger_dt_ids[] = {
-	{ .compatible = "axp22-charger", },
+	{ .compatible = "axp221s-charger", },
+	{ .compatible = "axp227-charger", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, axp22_charger_dt_ids);

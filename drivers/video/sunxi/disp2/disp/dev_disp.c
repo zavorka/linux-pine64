@@ -152,7 +152,7 @@ static ssize_t disp_sys_store(struct device *dev,
   return count;
 }
 
-static DEVICE_ATTR(sys, S_IRUGO|S_IWUSR|S_IWGRP,
+static DEVICE_ATTR(sys, S_IRUGO | S_IWUSR,
     disp_sys_show, disp_sys_store);
 
 static ssize_t disp_disp_show(struct device *dev,
@@ -243,10 +243,320 @@ static ssize_t disp_enhance_mode_store(struct device *dev,
 
   return count;
 }
-static DEVICE_ATTR(enhance_mode, S_IRUGO|S_IWUSR|S_IWGRP,
+static DEVICE_ATTR(enhance_mode, S_IRUGO | S_IWUSR,
     disp_enhance_mode_show, disp_enhance_mode_store);
 
+static ssize_t disp_enhance_bright_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int num_screens = 2;
+	struct disp_manager *mgr = NULL;
+	struct disp_enhance *enhance = NULL;
+	int value = 0;
 
+	num_screens = bsp_disp_feat_get_num_screens();
+	if (g_disp < num_screens)
+		mgr = g_disp_drv.mgr[g_disp];
+
+	if (mgr) {
+		enhance = mgr->enhance;
+		if (enhance && enhance->get_bright)
+			value = enhance->get_bright(enhance);
+	}
+
+	return sprintf(buf, "%d\n", value);
+}
+
+static ssize_t disp_enhance_bright_store(struct device *dev,
+	struct device_attribute *attr,
+	const char *buf, size_t count)
+{
+	int err;
+	unsigned long value;
+	int num_screens = 2;
+	struct disp_manager *mgr = NULL;
+	struct disp_enhance *enhance = NULL;
+
+	err = kstrtoul(buf, 10, &value);
+	if (err) {
+		pr_warn("Invalid size\n");
+		return err;
+	}
+
+	num_screens = bsp_disp_feat_get_num_screens();
+	if (g_disp < num_screens)
+		mgr = g_disp_drv.mgr[g_disp];
+
+	if (mgr) {
+		enhance = mgr->enhance;
+		if (enhance && enhance->set_bright)
+			enhance->set_bright(enhance, value);
+	}
+
+	return count;
+}
+static DEVICE_ATTR(enhance_bright, S_IRUGO | S_IWUSR,
+	disp_enhance_bright_show, disp_enhance_bright_store);
+
+static ssize_t disp_enhance_saturation_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int num_screens = 2;
+	struct disp_manager *mgr = NULL;
+	struct disp_enhance *enhance = NULL;
+	int value = 0;
+
+	num_screens = bsp_disp_feat_get_num_screens();
+	if (g_disp < num_screens)
+		mgr = g_disp_drv.mgr[g_disp];
+
+	if (mgr) {
+		enhance = mgr->enhance;
+		if (enhance && enhance->get_saturation)
+			value = enhance->get_saturation(enhance);
+	}
+
+	return sprintf(buf, "%d\n", value);
+}
+
+static ssize_t disp_enhance_saturation_store(struct device *dev,
+	struct device_attribute *attr,
+	const char *buf, size_t count)
+{
+	int err;
+	unsigned long value;
+	int num_screens = 2;
+	struct disp_manager *mgr = NULL;
+	struct disp_enhance *enhance = NULL;
+
+	err = kstrtoul(buf, 10, &value);
+	if (err) {
+		pr_warn("Invalid size\n");
+		return err;
+	}
+
+	num_screens = bsp_disp_feat_get_num_screens();
+	if (g_disp < num_screens)
+		mgr = g_disp_drv.mgr[g_disp];
+
+	if (mgr) {
+		enhance = mgr->enhance;
+		if (enhance && enhance->set_saturation)
+			enhance->set_saturation(enhance, value);
+	}
+
+	return count;
+}
+static DEVICE_ATTR(enhance_saturation, S_IRUGO | S_IWUSR,
+	disp_enhance_saturation_show, disp_enhance_saturation_store);
+
+static ssize_t disp_enhance_contrast_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int num_screens = 2;
+	struct disp_manager *mgr = NULL;
+	struct disp_enhance *enhance = NULL;
+	int value = 0;
+
+	num_screens = bsp_disp_feat_get_num_screens();
+	if (g_disp < num_screens)
+		mgr = g_disp_drv.mgr[g_disp];
+
+	if (mgr) {
+		enhance = mgr->enhance;
+		if (enhance && enhance->get_contrast)
+			value = enhance->get_contrast(enhance);
+	}
+
+	return sprintf(buf, "%d\n", value);
+}
+
+static ssize_t disp_enhance_contrast_store(struct device *dev,
+	struct device_attribute *attr,
+	const char *buf, size_t count)
+{
+	int err;
+	unsigned long value;
+	int num_screens = 2;
+	struct disp_manager *mgr = NULL;
+	struct disp_enhance *enhance = NULL;
+
+	err = kstrtoul(buf, 10, &value);
+	if (err) {
+		pr_warn("Invalid size\n");
+		return err;
+	}
+
+	num_screens = bsp_disp_feat_get_num_screens();
+	if (g_disp < num_screens)
+		mgr = g_disp_drv.mgr[g_disp];
+
+	if (mgr) {
+		enhance = mgr->enhance;
+		if (enhance && enhance->set_contrast)
+			enhance->set_contrast(enhance, value);
+	}
+
+	return count;
+}
+static DEVICE_ATTR(enhance_contrast, S_IRUGO | S_IWUSR,
+	disp_enhance_contrast_show, disp_enhance_contrast_store);
+
+static ssize_t disp_enhance_edge_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int num_screens = 2;
+	struct disp_manager *mgr = NULL;
+	struct disp_enhance *enhance = NULL;
+	int value = 0;
+
+	num_screens = bsp_disp_feat_get_num_screens();
+	if (g_disp < num_screens)
+		mgr = g_disp_drv.mgr[g_disp];
+
+	if (mgr) {
+		enhance = mgr->enhance;
+		if (enhance && enhance->get_edge)
+			value = enhance->get_edge(enhance);
+	}
+
+	return sprintf(buf, "%d\n", value);
+}
+
+static ssize_t disp_enhance_edge_store(struct device *dev,
+	struct device_attribute *attr,
+	const char *buf, size_t count)
+{
+	int err;
+	unsigned long value;
+	int num_screens = 2;
+	struct disp_manager *mgr = NULL;
+	struct disp_enhance *enhance = NULL;
+
+	err = kstrtoul(buf, 10, &value);
+	if (err) {
+		pr_warn("Invalid size\n");
+		return err;
+	}
+
+	num_screens = bsp_disp_feat_get_num_screens();
+	if (g_disp < num_screens)
+		mgr = g_disp_drv.mgr[g_disp];
+
+	if (mgr) {
+		enhance = mgr->enhance;
+		if (enhance && enhance->set_edge)
+			enhance->set_edge(enhance, value);
+	}
+
+	return count;
+}
+static DEVICE_ATTR(enhance_edge, S_IRUGO | S_IWUSR,
+	disp_enhance_edge_show, disp_enhance_edge_store);
+
+static ssize_t disp_enhance_detail_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int num_screens = 2;
+	struct disp_manager *mgr = NULL;
+	struct disp_enhance *enhance = NULL;
+	int value = 0;
+
+	num_screens = bsp_disp_feat_get_num_screens();
+	if (g_disp < num_screens)
+		mgr = g_disp_drv.mgr[g_disp];
+
+	if (mgr) {
+		enhance = mgr->enhance;
+		if (enhance && enhance->get_detail)
+			value = enhance->get_detail(enhance);
+	}
+
+	return sprintf(buf, "%d\n", value);
+}
+
+static ssize_t disp_enhance_detail_store(struct device *dev,
+	struct device_attribute *attr,
+	const char *buf, size_t count)
+{
+	int err;
+	unsigned long value;
+	int num_screens = 2;
+	struct disp_manager *mgr = NULL;
+	struct disp_enhance *enhance = NULL;
+
+	err = kstrtoul(buf, 10, &value);
+	if (err) {
+		pr_warn("Invalid size\n");
+		return err;
+	}
+
+	num_screens = bsp_disp_feat_get_num_screens();
+	if (g_disp < num_screens)
+		mgr = g_disp_drv.mgr[g_disp];
+
+	if (mgr) {
+		enhance = mgr->enhance;
+		if (enhance && enhance->set_detail)
+			enhance->set_detail(enhance, value);
+	}
+
+	return count;
+}
+static DEVICE_ATTR(enhance_detail, S_IRUGO | S_IWUSR,
+	disp_enhance_detail_show, disp_enhance_detail_store);
+
+static ssize_t disp_enhance_denoise_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int num_screens = 2;
+	struct disp_manager *mgr = NULL;
+	struct disp_enhance *enhance = NULL;
+	int value = 0;
+
+	num_screens = bsp_disp_feat_get_num_screens();
+	if (g_disp < num_screens)
+		mgr = g_disp_drv.mgr[g_disp];
+
+	if (mgr) {
+		enhance = mgr->enhance;
+		if (enhance && enhance->get_denoise)
+			value = enhance->get_denoise(enhance);
+	}
+
+	return sprintf(buf, "%d\n", value);
+}
+
+static ssize_t disp_enhance_denoise_store(struct device *dev,
+	struct device_attribute *attr,
+	const char *buf, size_t count)
+{
+	int err;
+	unsigned long value;
+	int num_screens = 2;
+	struct disp_manager *mgr = NULL;
+	struct disp_enhance *enhance = NULL;
+
+	err = kstrtoul(buf, 10, &value);
+	if (err) {
+		pr_warn("Invalid size\n");
+		return err;
+	}
+
+	num_screens = bsp_disp_feat_get_num_screens();
+	if (g_disp < num_screens)
+		mgr = g_disp_drv.mgr[g_disp];
+
+	if (mgr) {
+		enhance = mgr->enhance;
+		if (enhance && enhance->set_denoise)
+			enhance->set_denoise(enhance, value);
+	}
+
+	return count;
+}
+static DEVICE_ATTR(enhance_denoise, S_IRUGO | S_IWUSR,
+	disp_enhance_denoise_show, disp_enhance_denoise_store);
 
 static ssize_t disp_cvbs_enhance_show(struct device *dev,
     struct device_attribute *attr, char *buf)
@@ -313,12 +623,18 @@ static DEVICE_ATTR(runtime_enable, S_IRUGO|S_IWUGO,
     disp_runtime_enable_show, disp_runtime_enable_store);
 
 static struct attribute *disp_attributes[] = {
-    &dev_attr_sys.attr,
-    &dev_attr_disp.attr,
-    &dev_attr_enhance_mode.attr,
-    &dev_attr_cvbs_enhacne_mode.attr,
-    &dev_attr_runtime_enable.attr,
-    NULL
+	&dev_attr_sys.attr,
+	&dev_attr_disp.attr,
+	&dev_attr_enhance_mode.attr,
+	&dev_attr_cvbs_enhacne_mode.attr,
+	&dev_attr_runtime_enable.attr,
+	&dev_attr_enhance_bright.attr,
+	&dev_attr_enhance_saturation.attr,
+	&dev_attr_enhance_contrast.attr,
+	&dev_attr_enhance_edge.attr,
+	&dev_attr_enhance_detail.attr,
+	&dev_attr_enhance_denoise.attr,
+	NULL
 };
 
 static struct attribute_group disp_attribute_group = {
@@ -456,15 +772,7 @@ static s32 parser_disp_init_para(const struct device_node *np, disp_init_para * 
 	}
 #endif
 	//fb0
-	value = 0;
-	if (of_property_read_u32(np, "fb0_buffer_num", &value) < 0)	{
-		__wrn("of_property_read disp_init.fb0_buffer_num fail\n");
-	}
-	if (value == 2) {
-		init_para->buffer_num[0] = 2;
-	} else {
-		init_para->buffer_num[0] = 1;
-	}
+	init_para->buffer_num[0]= 2;
 
 	if (of_property_read_u32(np, "fb0_format", &value) < 0) {
 		__wrn("of_property_read disp_init.fb0_format fail\n");
@@ -486,15 +794,7 @@ static s32 parser_disp_init_para(const struct device_node *np, disp_init_para * 
 
 	//fb1
 	if (DISP_SCREEN_NUM > 1) {
-		value = 0;
-		if (of_property_read_u32(np, "fb1_buffer_num", &value) < 0)	{
-			__wrn("of_property_read disp_init.fb1_buffer_num fail\n");
-		}
-		if (value == 2) {
-			init_para->buffer_num[1] = 2;
-		} else {
-			init_para->buffer_num[1] = 1;
-		}
+		init_para->buffer_num[1]= 2;
 
 		if (of_property_read_u32(np, "fb1_format", &value) < 0) {
 			__wrn("of_property_read disp_init.fb1_format fail\n");
@@ -999,8 +1299,7 @@ static s32 disp_exit(void)
 
 static int disp_mem_request(int sel,u32 size)
 {
-//#ifndef FB_RESERVED_MEM
-#if 1
+#ifndef FB_RESERVED_MEM
 	unsigned map_size = 0;
 	struct page *page;
 
@@ -1047,8 +1346,7 @@ static int disp_mem_request(int sel,u32 size)
 
 static int disp_mem_release(int sel)
 {
-//#ifndef FB_RESERVED_MEM
-#if 1
+#ifndef FB_RESERVED_MEM
 	unsigned map_size = PAGE_ALIGN(g_disp_mm[sel].mem_len);
 	unsigned page_size = map_size;
 
@@ -1372,9 +1670,6 @@ static int disp_runtime_suspend(struct device *dev)
 	struct disp_device* dispdev_suspend = NULL;
 	struct list_head* disp_list= NULL;
 
-	if (suspend_prestep == 0)
-		return 0;
-
 	pr_info("%s\n", __func__);
 
 	if (!g_pm_runtime_enable)
@@ -1418,9 +1713,6 @@ static int disp_runtime_resume(struct device *dev)
 	struct disp_manager *mgr = NULL;
 	struct disp_device* dispdev = NULL;
 	struct list_head* disp_list= NULL;
-
-	if (suspend_prestep == 3)
-		return 0;
 
 	pr_info("%s\n", __func__);
 
@@ -1495,9 +1787,6 @@ static int disp_suspend(struct device *dev)
 	struct disp_manager *mgr = NULL;
 	struct disp_device* dispdev_suspend = NULL;
 	struct list_head* disp_list= NULL;
-
-	if (suspend_prestep == 1)
-		return 0;
 
 #if defined(SUPPORT_EINK) && defined(CONFIG_EINK_PANEL_USED)
 	struct disp_eink_manager *eink_manager = NULL;
@@ -1578,14 +1867,8 @@ static int disp_resume(struct device *dev)
 	int num_screens = bsp_disp_feat_get_num_screens();
 	struct disp_manager *mgr = NULL;
 
-	if (suspend_prestep == 2)
-		return 0;
-
 #if defined(SUPPORT_EINK) && defined(CONFIG_EINK_PANEL_USED)
 	struct disp_eink_manager *eink_manager = NULL;
-	eink_manager = g_disp_drv.eink_manager[0];
-	if (!eink_manager)
-		__wrn("eink_manager is NULL!\n");
 #endif
 #if defined(CONFIG_PM_RUNTIME)
 	struct disp_device* dispdev = NULL;
@@ -1668,6 +1951,9 @@ static int disp_resume(struct device *dev)
 	suspend_prestep = 2;
 
 #if defined(SUPPORT_EINK) && defined(CONFIG_EINK_PANEL_USED)
+	eink_manager = g_disp_drv.eink_manager[0];
+	if (!eink_manager)
+		__wrn("eink_manager is NULL!\n");
 	eink_manager->resume(eink_manager);
 #endif
 	pr_info("%s finish\n", __func__);
@@ -1705,6 +1991,8 @@ static void disp_shutdown(struct platform_device *pdev)
 
 	return ;
 }
+
+struct disp_layer_config eink_para[16];
 
 #ifdef EINK_FLUSH_TIME_TEST
 struct timeval ioctrl_start_timer;
@@ -1840,10 +2128,8 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		if (ubuffer[1]) {
 #if defined(CONFIG_PM_RUNTIME)
-			if (g_disp_drv.dev) {
-				dispdev->backlight_disable(dispdev);
+			if (g_disp_drv.dev)
 				pm_runtime_put(g_disp_drv.dev);
-			}
 			else
 				pr_warn("%s, display device is null\n", __func__);
 #endif
@@ -1865,7 +2151,6 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				pm_runtime_set_suspended(g_disp_drv.dev);
 				pm_runtime_enable(g_disp_drv.dev);
 				pm_runtime_get_sync(g_disp_drv.dev);
-				dispdev->backlight_enable(dispdev);
 			}
 			else
 				pr_warn("%s, display device is null\n", __func__);
@@ -1879,36 +2164,43 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		/* if the whhole display device have already enter blank status,
 		 * DISP_DEVICE_SWITCH request will not be responsed.
 		 */
-		if (!(suspend_status & DISPLAY_BLANK))
+		if (!(suspend_status & DISPLAY_BLANK)||(ubuffer[0]==1))
 			ret = bsp_disp_device_switch(ubuffer[0], (enum disp_output_type)ubuffer[1], (enum disp_output_type)ubuffer[2]);
 		suspend_output_type[ubuffer[0]] = ubuffer[1];
-	#if defined(SUPPORT_TV) && defined(CONFIG_ARCH_SUN8IW7)
+#if defined(SUPPORT_TV) && defined(CONFIG_ARCH_SUN50IW2P1)
 		bsp_disp_tv_set_hpd(1);
-	#endif
+#endif
 		break;
 	}
 #if defined(SUPPORT_EINK)
 
 	case DISP_EINK_UPDATE:
 	{
-
-		unsigned long addr = 0;
-		if (eink_manager) {
-			// ubuffer[0] -- framebuffer id, default is 0
-			// ubuffer[1] -- update mode, INIT, GC16 and etc
-			// ubuffer[2] -- area_info
-			#ifdef SUPPORT_WB
-			addr = fb_get_address_info(ubuffer[0], 1);	//if define write back function, need to return phy address
-			#else
-			addr = fb_get_address_info(ubuffer[0], 0);	//if do not define write back function, need to return virtual address
-			#endif
-			if (0 == addr) {
-				__wrn("fail to get fb%ld address\n", ubuffer[0]);
-				return -EFAULT;
-			}
-			ret = bsp_disp_eink_update(eink_manager, (void*)addr, (enum eink_update_mode)ubuffer[1], (struct area_info *)ubuffer[2]);
+		struct area_info area;
+		if (!eink_manager) {
+			pr_err("there is no eink manager!\n");
+			break;
 		}
 
+		memset(eink_para, 0, 16 * sizeof(struct disp_layer_config));
+		if (copy_from_user(eink_para, (void __user *)ubuffer[3],
+			sizeof(struct disp_layer_config) * ubuffer[1])) {
+			__wrn("copy_from_user fail\n");
+			return  -EFAULT;
+		}
+
+		memset(&area, 0, sizeof(struct area_info));
+		if (copy_from_user(&area, (void __user *)ubuffer[0],
+						sizeof(struct area_info))) {
+			__wrn("copy_from_user fail\n");
+			return  -EFAULT;
+		}
+
+		ret = bsp_disp_eink_update(eink_manager,
+				(struct disp_layer_config *) &eink_para[0],
+				(unsigned int) ubuffer[1],
+				(enum eink_update_mode)ubuffer[2],
+				&area);
 		break;
 	}
 	case DISP_EINK_SET_TEMP:
@@ -1919,6 +2211,11 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case DISP_EINK_GET_TEMP:
 	{
 		ret = bsp_disp_eink_get_temperature(eink_manager);
+		break;
+	}
+	case DISP_EINK_OVERLAP_SKIP:
+	{
+		ret = bsp_disp_eink_op_skip(eink_manager, ubuffer[0]);
 		break;
 	}
 #endif
@@ -1969,8 +2266,10 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			__wrn("copy_from_user fail\n");
 			return  -EFAULT;
 		}
+#if !defined(CONFIG_EINK_PANEL_USED)
 		if (mgr && mgr->set_layer_config)
 			ret = mgr->set_layer_config(mgr, &para, ubuffer[2]);
+#endif
 		break;
 	}
 

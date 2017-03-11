@@ -26,6 +26,8 @@
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
+#include <linux/of_gpio.h>
+#include <linux/sys_config.h>
 #include <sound/initval.h>
 #include <sound/soc.h>
 #include "sunxi_spdif.h"
@@ -54,6 +56,13 @@ struct sample_rate {
 	unsigned int samplerate;
 	unsigned int rate_bit;
 };
+
+
+struct spdif_gpio_ {
+	u32 gpio;
+	bool cfg;
+};
+struct spdif_gpio_ spdif_gpio;
 
 /* Origin freq convert */
 static const struct sample_rate sample_rate_orig[] = {
@@ -426,6 +435,8 @@ static int sunxi_spdif_trigger(struct snd_pcm_substream *substream,
 	case	SNDRV_PCM_TRIGGER_START:
 	case	SNDRV_PCM_TRIGGER_RESUME:
 	case	SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		if (spdif_gpio.cfg)
+			gpio_set_value(spdif_gpio.gpio, 1);
 		if(substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 			sunxi_spdif_txctrl_enable(sunxi_spdif, 1);
 		} else {
@@ -440,6 +451,8 @@ static int sunxi_spdif_trigger(struct snd_pcm_substream *substream,
 		} else {
 			sunxi_spdif_rxctrl_enable(sunxi_spdif, 0);
 		}
+		if (spdif_gpio.cfg)
+			gpio_set_value(spdif_gpio.gpio, 0);
 		break;
 	default:
 		ret = -EINVAL;
@@ -459,6 +472,10 @@ static int sunxi_spdif_prepare(struct snd_pcm_substream *substream, struct snd_s
 	struct sunxi_spdif_info *sunxi_spdif = snd_soc_dai_get_drvdata(dai);
 	unsigned int reg_val;
 
+	/*as you need to clean up TX or RX FIFO , need to turn off GEN bit*/
+	regmap_update_bits(sunxi_spdif->regmap, SUNXI_SPDIF_CTL,
+			(1 << CTL_GEN_EN), (0 << CTL_GEN_EN));
+
 	if(substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 #ifdef	CONFIG_ARCH_SUN8IW10
 		regmap_update_bits(sunxi_spdif->regmap, SUNXI_SPDIF_CTL,
@@ -473,6 +490,8 @@ static int sunxi_spdif_prepare(struct snd_pcm_substream *substream, struct snd_s
 		regmap_write(sunxi_spdif->regmap, SUNXI_SPDIF_RXCNT, 0);
 	}
 
+	regmap_update_bits(sunxi_spdif->regmap, SUNXI_SPDIF_CTL,
+			(1 << CTL_GEN_EN), (1 << CTL_GEN_EN));
 	/* clear all interrupt status */
 	regmap_read(sunxi_spdif->regmap, SUNXI_SPDIF_INT_STA, &reg_val);
 	regmap_write(sunxi_spdif->regmap, SUNXI_SPDIF_INT_STA, reg_val);
@@ -637,6 +656,7 @@ static int  sunxi_spdif_dev_probe(struct platform_device *pdev)
 	struct device_node *node = pdev->dev.of_node;
 	void __iomem *sunxi_spdif_membase;
 	struct sunxi_spdif_info *sunxi_spdif;
+	struct gpio_config config;
 	int	ret;
 
 	sunxi_spdif = devm_kzalloc(&pdev->dev, sizeof(struct sunxi_spdif_info), GFP_KERNEL);
@@ -728,7 +748,21 @@ static int  sunxi_spdif_dev_probe(struct platform_device *pdev)
 		ret = -EINVAL;
 		goto err_pinctrl_put;
 	}
-
+	/*initial speaker gpio */
+	spdif_gpio.gpio = of_get_named_gpio_flags(node, "gpio-spdif", 0, (enum of_gpio_flags *)&config);
+	if (!gpio_is_valid(spdif_gpio.gpio)) {
+		pr_err("failed to get gpio-spdif gpio from dts,spdif_gpio:%d\n", spdif_gpio.gpio);
+		spdif_gpio.cfg = 0;
+	} else {
+		ret = devm_gpio_request(&pdev->dev, spdif_gpio.gpio, "SPDIF");
+		if (ret) {
+			spdif_gpio.cfg = 0;
+			pr_err("failed to request gpio-spdif gpio\n");
+		} else {
+			spdif_gpio.cfg = 1;
+			gpio_direction_output(spdif_gpio.gpio, 0);
+		}
+	}
 	ret = snd_soc_register_component(&pdev->dev, &sunxi_spdif_component, &sunxi_spdif->dai, 1);
 	if (ret) {
 		dev_err(&pdev->dev, "Could not register DAI: %d\n", ret);

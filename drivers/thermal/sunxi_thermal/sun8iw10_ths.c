@@ -27,6 +27,7 @@
 #include <linux/of_address.h>
 #include "sunxi_ths.h"
 #include "sun8iw10_ths.h"
+#include <linux/sunxi-sid.h>
 
 struct sunxi_ths_data {
 	void __iomem *base_addr;
@@ -73,12 +74,17 @@ static u32 sun8_th_temp_to_reg(long temp)
 static void ths_sensor_init(struct sunxi_ths_data *ths_data)///gai
 {
 	u32 reg_value,i;
+	u32 ths_cal_data;
 
 	thsprintk(DEBUG_INIT, "ths_sensor_init: ths setup start!!\n");
 
 	writel(THS_CTRL_VALUE, ths_data->base_addr + THS_CTRL_REG);
 	writel(THS_CLEAR_INT_STA, ths_data->base_addr + THS_INT_STA_REG);
 	writel(THS_FILT_CTRL_VALUE, ths_data->base_addr + THS_FILT_CTRL_REG);
+
+	sunxi_efuse_read(EFUSE_THM_SENSOR_NAME, (void *)(&ths_cal_data));
+	if (ths_cal_data != 0)
+		writel(ths_cal_data, ths_data->base_addr + THS_0_1_CDATA_REG);
 
 	reg_value = sun8_th_temp_to_reg(ths_data->shut_temp);
 	reg_value = (reg_value<<16);
@@ -96,6 +102,8 @@ static void ths_sensor_init(struct sunxi_ths_data *ths_data)///gai
 	thsprintk(DEBUG_INIT, "THS_INT_CTRL_REG = 0x%x\n", readl(ths_data->base_addr + THS_INT_CTRL_REG));
 	thsprintk(DEBUG_INIT, "THS_INT_STA_REG = 0x%x\n", readl(ths_data->base_addr + THS_INT_STA_REG));
 	thsprintk(DEBUG_INIT, "THS_FILT_CTRL_REG = 0x%x\n", readl(ths_data->base_addr + THS_FILT_CTRL_REG));
+	thsprintk(DEBUG_INIT, "THS_0_1_CDATA_REG = 0x%x\n",
+		readl(ths_data->base_addr + THS_0_1_CDATA_REG));
 
 	thsprintk(DEBUG_INIT, "ths_sensor_init: ths setup end!!\n");
 	return;

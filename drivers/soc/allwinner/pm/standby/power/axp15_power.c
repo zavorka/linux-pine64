@@ -99,21 +99,31 @@ s32 __axp15_set_wakeup(u8 saddr)
 	if (ret)
 		goto out;
 
-	ret = twi_byte_rw(TWI_OP_RD, saddr, 0x90, &reg_val);
+	ret = twi_byte_rw(TWI_OP_RD, saddr, 0x42, &reg_val);
+	if (ret)
+		goto out;
+
+	reg_val |= 0x1 << 2;
+
+	ret = twi_byte_rw(TWI_OP_WR, saddr, 0x42, &reg_val);
+	if (ret)
+		goto out;
+
+	ret = twi_byte_rw(TWI_OP_RD, saddr, 0x92, &reg_val);
 	if (ret)
 		goto out;
 
 	/*
-	 * enable gpio0 negative edge trigger IRQ or wake up
-	 * when gpio0 is digital input
+	 * enable gpio2 negative edge trigger IRQ or wake up
+	 * when gpio2 is digital input
 	 */
 	reg_val |= 0x1 << 6;
 
-	/* gpio0 as digital input */
+	/* gpio2 as digital input */
 	reg_val &= ~(0x7 << 0);
 	reg_val |= 0x3 << 0;
 
-	ret = twi_byte_rw(TWI_OP_WR, saddr, 0x90, &reg_val);
+	ret = twi_byte_rw(TWI_OP_WR, saddr, 0x92, &reg_val);
 out:
 	return ret;
 }
@@ -135,7 +145,7 @@ void axp15_losc_enter_ss(void)
 
 }
 
-s32 axp15_suspend_calc(u32 id, losc_enter_ss_func *func)
+s32 axp15_suspend_calc(u32 pmu_cnt, u32 id, losc_enter_ss_func *func)
 {
 	struct axp_regulator_info *info = NULL;
 	u32 i = 0;
@@ -143,7 +153,13 @@ s32 axp15_suspend_calc(u32 id, losc_enter_ss_func *func)
 
 	printk("%s: id=0x%x\n", __func__, id);
 
+	/* axp15 set wakeup and enter sleep */
 	__axp15_set_wakeup(AXP15_ADDR);
+
+#ifdef CONFIG_DUAL_AXP_USED
+	if (pmu_cnt == 2)
+		secondary_pmu_enter_sleep();
+#endif
 
 	for (i = 0; i <= AXP15_ID_MAX; i++) {
 		if (id & (0x1 << i)) {

@@ -71,6 +71,8 @@
 #define  SUN8IW10P1
 #elif defined CONFIG_ARCH_SUN8IW11P1
 #define  SUN8IW11P1
+#elif defined CONFIG_ARCH_SUN50IW2P1
+#define  SUN50IW2P1
 #else
 #error "please select a platform\n"
 #endif
@@ -105,9 +107,6 @@ struct nand_blk_dev {
 	struct mutex lock;
 	struct gendisk *disk;
 	struct kref ref;
-	struct task_struct *thread;
-	struct request_queue *rq;
-	spinlock_t queue_lock;
 	void *priv;
 	struct class dev_class;
 
@@ -122,8 +121,6 @@ struct nand_blk_dev {
 	int readonly;
 	int writeonly;
 	int disable_access;
-	int bg_stop;
-	int rq_null;
 	char name[32];
 };
 
@@ -156,6 +153,11 @@ struct nand_blk_ops {
 	int minorbits;
 	int blksize;
 	int blkshift;
+
+	struct task_struct *thread;
+	struct request_queue *rq;
+	spinlock_t queue_lock;
+
 	/* add/remove nandflash devparts,use gendisk */
 	int (*add_dev) (struct nand_blk_ops *tr,
 			struct _nand_phy_partition *phy_partition);
@@ -179,6 +181,8 @@ struct nand_blk_ops {
 	wait_queue_head_t thread_wq;
 	struct semaphore nand_ops_mutex;
 	struct list_head devs;
+	int bg_stop;
+	int rq_null;
 
 	struct module *owner;
 };

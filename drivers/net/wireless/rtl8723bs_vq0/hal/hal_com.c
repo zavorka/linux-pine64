@@ -6219,7 +6219,7 @@ void Hal_ReadMACAddrFromFile(
 	set_fs(fs);
 	pHalData->bloadmac_fail_flag = _FALSE;
 
-	if (rtw_check_invalid_mac_address(pHalData->EEPROMMACAddr) == _TRUE) {
+	if (rtw_check_invalid_mac_address(pHalData->EEPROMMACAddr, _TRUE) == _TRUE) {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,33))
 		get_random_bytes(pHalData->EEPROMMACAddr, ETH_ALEN);
 		pHalData->EEPROMMACAddr[0] = 0x00;
@@ -6296,7 +6296,7 @@ void Hal_GetPhyEfuseMACAddr(PADAPTER padapter, u8* mac_addr) {
 
 	rtw_efuse_map_read(padapter, addr_offset, ETH_ALEN, mac_addr);
 
-	if (rtw_check_invalid_mac_address(mac_addr) == _TRUE) {
+	if (rtw_check_invalid_mac_address(mac_addr, _TRUE) == _TRUE) {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,33))
 		get_random_bytes(mac_addr, ETH_ALEN);
 		mac_addr[0] = 0x00;

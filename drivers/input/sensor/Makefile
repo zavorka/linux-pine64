@@ -11,5 +11,7 @@ obj-$(CONFIG_SENSORS_MXC622X)   += mxc622x.o
 obj-$(CONFIG_SENSORS_MMA8452)   += mma8452.o
 obj-$(CONFIG_SENSORS_MMA865X)   += mma865x.o
 obj-$(CONFIG_SENSORS_GPADC)   += sunxi_gpadc.o
+obj-$(CONFIG_SENSORS_MIR3DA)	+= mir3da.o
+mir3da-objs:= mir3da_cust.o mir3da_core.o
 obj-$(CONFIG_SENSORS_GPADC_TEST)   += sunxi_gpadc_test.o
 

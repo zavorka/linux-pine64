@@ -216,7 +216,6 @@ static int sunxi_pcm_hdmi_hw_params(struct snd_pcm_substream *substream,
 		return ret;
 	}
 
-	slave_config.dst_addr = dmap->dma_addr;
 	slave_config.dst_maxburst = dmap->dst_maxburst;
 	slave_config.src_maxburst = dmap->src_maxburst;
 

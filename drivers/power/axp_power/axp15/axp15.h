@@ -2,7 +2,6 @@
 #define AXP15_H_
 
 /* For AXP15 */
-#define AXP_NAME                  "axp15"
 #define AXP15_STATUS              (0x00)
 #define AXP15_MODE_CHGSTATUS      (0x01)
 #define AXP15_OTG_STATUS          (0x02)

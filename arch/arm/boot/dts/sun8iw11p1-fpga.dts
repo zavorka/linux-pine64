@@ -46,6 +46,10 @@
 		udc:udc-controller@0x01c13000 {
 			interrupts = <GIC_SPI 12 IRQ_TYPE_LEVEL_HIGH>; /* udc is IRQ49 on fpga */
 		};
+		twi1: twi@0x01c2b000 {
+			interrupts = <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>;           /* twi1 is IRQ35 on fpga */
+			status = "okay";
+		};
 
 		ehci0:ehci0-controller@0x01c14000 {
 			interrupts = <GIC_SPI 13 IRQ_TYPE_LEVEL_HIGH>; /* ehci0 is IRQ50 on fpga */
@@ -205,6 +209,10 @@
 					allwinner,pins = "PB22", "PB23";
 					allwinner,muxsel = <7>;
 				};
+		};
+
+		csi0:vfe@0 {
+			interrupts = <GIC_SPI 16 4>;/*SUNXI_IRQ_CSI0 (SUNXI_GIC_START + 16 ) = 48 on fpga*/
 		};
 
 		sata:sata@01c18000{

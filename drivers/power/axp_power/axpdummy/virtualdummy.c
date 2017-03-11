@@ -26,9 +26,20 @@ static int regulator_virtual_consumer_probe(struct platform_device *pdev)
 	char *reg_id = pdev->dev.platform_data;
 	struct virtual_consumer_data *drvdata;
 	int ret, i;
-	char *pmu_name = get_pmu_cur_name();
+	const char *pmu_name;
 
-	if (strncmp("axpdummy", pmu_name, 8))
+	for (i = 0; i < AXP_ONLINE_SUM; i++) {
+		pmu_name = get_pmu_cur_name(i);
+		if (pmu_name == NULL)
+			continue;
+
+		if (strncmp("axpdummy", pmu_name, 8))
+			continue;
+		else
+			break;
+	}
+
+	if (i == AXP_ONLINE_SUM)
 		return 0;
 
 	drvdata = kzalloc(sizeof(struct virtual_consumer_data), GFP_KERNEL);

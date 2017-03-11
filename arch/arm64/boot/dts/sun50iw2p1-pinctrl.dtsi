@@ -1,5 +1,5 @@
 /*
- * Allwinner 1718 pin config info.
+ * Allwinner sun50iw2p1 pin config info.
  */
 
 / {
@@ -192,7 +192,70 @@
 				allwinner,drive = <1>;
 				allwinner,pull = <0>;
 			};
-
+			ts0_pins_a: ts0@0 {
+				allwinner,pins = "PE0","PE1","PE2","PE3","PE4","PE5","PE6","PE7","PE8","PE9","PE10","PE11";
+				allwinner,pname = "ts0_clk","ts0_err","ts0_sync","ts0_dvld","ts0_d0","ts0_d1","ts0_d2","ts0_d3","ts0_d4","ts0_d5","ts0_d6","ts0_d7";
+				allwinner,function = "ts0";
+				allwinner,muxsel = <3>;
+				allwinner,drive = <1>;
+				allwinner,pull = <0>;
+			};
+			ts0_pins_b: ts0_sleep@0 {
+				allwinner,pins = "PE0","PE1","PE2","PE3","PE4","PE5","PE6","PE7","PE8","PE9","PE10","PE11";
+				allwinner,pname = "ts0_clk","ts0_err","ts0_sync","ts0_dvld","ts0_d0","ts0_d1","ts0_d2","ts0_d3","ts0_d4","ts0_d5","ts0_d6","ts0_d7";
+				allwinner,function = "io_disabled";
+				allwinner,muxsel = <7>;
+				allwinner,drive = <1>;
+				allwinner,pull = <0>;
+			};
+			ts1_pins_a: ts1@0 {
+				allwinner,pins = "PE7","PE8","PE9","PE10","PE11";
+				allwinner,pname = "ts1_clk","ts1_err","ts1_sync","ts1_dvld","ts1_d0";
+				allwinner,function = "ts1";
+				allwinner,muxsel = <4>;
+				allwinner,drive = <1>;
+				allwinner,pull = <0>;
+			};
+			ts1_pins_b: ts1_sleep@0 {
+				allwinner,pins = "PE7","PE8","PE9","PE10","PE11";
+				allwinner,pname = "ts1_clk","ts1_err","ts1_sync","ts1_dvld","ts1_d0";
+				allwinner,function = "io_disabled";
+				allwinner,muxsel = <7>;
+				allwinner,drive = <1>;
+				allwinner,pull = <0>;
+			};
+			ts2_pins_a: ts2@0 {
+				allwinner,pins = "PD0","PD1","PD2","PD3","PD4","PD5","PD6","PD7","PD8","PD9","PD10","PD11";
+				allwinner,pname = "ts2_clk","ts2_err","ts2_sync","ts2_dvld","ts2_d0","ts2_d1","ts2_d2","ts2_d3","ts2_d4","ts2_d5","ts2_d6","ts2_d7";
+				allwinner,function = "ts2";
+				allwinner,muxsel = <4>;
+				allwinner,drive = <1>;
+				allwinner,pull = <0>;
+			};
+			ts2_pins_b: ts2_sleep@0 {
+				allwinner,pins = "PD0","PD1","PD2","PD3","PD4","PD5","PD6","PD7","PD8","PD9","PD10","PD11";
+				allwinner,pname = "ts2_clk","ts2_err","ts2_sync","ts2_dvld","ts2_d0","ts2_d1","ts2_d2","ts2_d3","ts2_d4","ts2_d5","ts2_d6","ts2_d7";
+				allwinner,function = "io_disabled";
+				allwinner,muxsel = <7>;
+				allwinner,drive = <1>;
+				allwinner,pull = <0>;
+			};
+			ts3_pins_a: ts3@0 {
+				allwinner,pins = "PD7","PD8","PD9","PD10","PD11";
+				allwinner,pname = "ts3_clk","ts3_err","ts3_sync","ts3_dvld","ts3_d0";
+				allwinner,function = "ts3";
+				allwinner,muxsel = <5>;
+				allwinner,drive = <1>;
+				allwinner,pull = <0>;
+			};
+			ts3_pins_b: ts3_sleep@0 {
+				allwinner,pins = "PD7","PD8","PD9","PD10","PD11";
+				allwinner,pname = "ts3_clk","ts3_err","ts3_sync","ts3_dvld","ts3_d0";
+				allwinner,function = "io_disabled";
+				allwinner,muxsel = <7>;
+				allwinner,drive = <1>;
+				allwinner,pull = <0>;
+			};
 			spi0_pins_a: spi0@0 {
 				allwinner,pins = "PC2", "PC0", "PC1";
 				allwinner,pname = "spi0_sclk", "spi0_mosi",

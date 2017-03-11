@@ -28,8 +28,10 @@
  */
 /* #define SUNXI_ALARM1_USED */
 
-#if (defined CONFIG_ARCH_SUN50IW1P1) \
-	|| (defined CONFIG_ARCH_SUN50IW2P1) \
+#if (defined CONFIG_ARCH_SUN50IW1) \
+	|| (defined CONFIG_ARCH_SUN50IW2) \
+	|| (defined CONFIG_ARCH_SUN50IW3) \
+	|| (defined CONFIG_ARCH_SUN50IW6) \
 	|| (defined CONFIG_ARCH_SUN8IW10P1) \
 	|| (defined CONFIG_ARCH_SUN8IW11P1)
 #define SUNXI_RTC_YMD				0x0010
@@ -152,6 +154,10 @@
  * relative to the minimum year allowed by the hardware.
  */
 #define SUNXI_YEAR_OFF(x)			((x)->min - 1900)
+
+#if defined(CONFIG_ARCH_SUN50IW2) || defined(CONFIG_ARCH_SUN50IW6)
+#define SUNXI_RTC_DYNAMIC_YEAR_RANGE	1
+#endif
 
 /*
  * min and max year are arbitrary set considering the limited range of the

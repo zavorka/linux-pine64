@@ -2,7 +2,6 @@
 #define AXP22_HH_
 
 /*For AXP22*/
-#define AXP_NAME                  "axp22"
 #define AXP22_STATUS              (0x00)
 #define AXP22_MODE_CHGSTATUS      (0x01)
 #define AXP22_IC_TYPE             (0x03)

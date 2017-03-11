@@ -47,7 +47,7 @@
 #include <linux/mmc/slot-gpio.h>
 
 #include "sunxi-smhc.h"
-#include "sunxi-mmc-sun8iw10p1-2.h"
+#include "sunxi-mmc-v5px.h"
 #include "sunxi-mmc-debug.h"
 #include "sunxi-mmc-export.h"
 
@@ -149,15 +149,14 @@ static void sunxi_mmc_init_idma_des(struct sunxi_mmc_host *smc_host,
 	
 	pdes[i-1].end = 1;
 	pdes[i-1].int_en = 1;
+
+	smp_wmb();
 	dev_dbg(mmc_dev(smc_host->mmc),"sg len %d end des index %d\n",data->sg_len, i-1);
 	
 	for_each_sg(data->sg, sg, data->sg_len, i) {
 		dev_dbg(mmc_dev(smc_host->mmc), "sg %d, des[%d](%08x): [0] = %08x, [1] = %08x\n",
 					i, i, (u32)&pdes[i],(u32)((u32*)&pdes[i])[0], (u32)((u32*)&pdes[i])[1]);
 	}
-	
-	smp_wmb();
-	return;
 }
 
 static enum dma_data_direction sunxi_mmc_get_dma_dir(struct mmc_data *data)
@@ -338,9 +337,11 @@ static irqreturn_t sunxi_mmc_finalize_request(struct sunxi_mmc_host *smc_host)
 	if (data) {
 		struct mmc_data* data = mrq->data;
 		//recover to cpu access
+		/*
 		tmp = smhc_readl(smc_host, SMHC_CTRL3);
 		tmp |= CPUAcessBuffEn;
 		smhc_writel(smc_host, SMHC_CTRL3, tmp);
+		*/
 
 		// recover dma select
 		tmp = smhc_readl(smc_host, SMHC_CTRL1);
@@ -1129,9 +1130,8 @@ static void sunxi_mmc_regulator_release_supply(struct mmc_host *mmc)
 
 
 static const struct of_device_id sunxi_mmc_of_match[] = {
-	{ .compatible = "allwinner,sun8iw10p1-sdmmc2", },	
-
-	{ /* sentinel */ }
+    { .compatible = "allwinner,sunxi-mmc-v5px", },
+    { /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, sunxi_mmc_of_match);
 
@@ -1154,22 +1154,21 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 	int ret;
 
 
-	if(of_device_is_compatible(np, "allwinner,sun8iw10p1-sdmmc2")){
- 		host->sunxi_mmc_clk_set_rate = sunxi_mmc_clk_set_rate_for_sdmmc2;
-		//host->dma_tl = (0x3<<28)|(15<<16)|240;
-		//host->dma_tl = SUNXI_DMA_TL_SDMMC2;
-		//host->idma_des_size_bits = 12;
-		//host->idma_des_size_bits = SUNXI_DES_SIZE_SDMMC2;
-		host->sunxi_mmc_thld_ctl = sunxi_mmc_thld_ctl_for_sdmmc2;
-		//host->sunxi_mmc_save_spec_reg = sunxi_mmc_save_spec_reg2;
-		//host->sunxi_mmc_restore_spec_reg = sunxi_mmc_restore_spec_reg2;
-		//host->sunxi_mmc_dump_dly_table  = sunxi_mmc_dump_dly2;
-		sunxi_mmc_reg_ex_res_inter(host,2);
-		//host->sunxi_mmc_set_acmda = sunxi_mmc_set_a12a;
-		host->sunxi_mmc_shutdown = sunxi_mmc_do_shutdown2;
-		host->phy_index = 2;
- 	}
-
+	if (of_device_is_compatible(np, "allwinner,sunxi-mmc-v5px"))	{
+		int phy_index = 0;
+		if (of_property_match_string(np , "device_type" , "sdc0") == 0) {
+			phy_index = 0;
+		} else if (of_property_match_string(np , "device_type" , "sdc1") == 0) {
+			phy_index = 1;
+		} else if (of_property_match_string(np , "device_type" , "sdc2") == 0) {
+			phy_index = 2;
+		} else if (of_property_match_string(np , "device_type" , "sdc3") == 0) {
+			phy_index = 3;
+		} else {
+			dev_err(&pdev->dev , "No sdmmc device,check dts\n");
+		}
+		sunxi_mmc_init_priv_v5px(host , pdev , phy_index);
+	}
 
 	//ret = mmc_regulator_get_supply(host->mmc);
 	ret = sunxi_mmc_regulator_get_supply(host->mmc);
@@ -1355,7 +1354,7 @@ static int sunxi_mmc_probe(struct platform_device *pdev)
 	mmc->max_blk_count	= MAX_BLK_COUNT;
 	mmc->max_blk_size	= MAX_BLK_SIZE;
 	mmc->max_segs		= SUNXI_REQ_PAGE_SIZE/sizeof(struct sdhc_idma_des);
-	mmc->max_seg_size	= SMHC_DES_BUFFER_MAX_LEN;
+	mmc->max_seg_size	= 1<<host->idma_des_size_bits;
 	mmc->max_req_size	= mmc->max_blk_size * mmc->max_blk_count;
 	/* 400kHz ~ 50MHz */
 	mmc->f_min		=   400000;
@@ -1498,13 +1497,10 @@ static int sunxi_mmc_suspend(struct device *dev)
 
 				clk_disable_unprepare(host->clk_mmc);
 				clk_disable_unprepare(host->clk_ahb);
-#if 0
-				if (!IS_ERR(host->reset))
-					reset_control_assert(host->reset);
-#else
+
 				if (!IS_ERR(host->clk_rst))
 					clk_disable_unprepare(host->clk_rst);
-#endif
+
 				ret = pinctrl_select_state(host->pinctrl, host->pins_sleep);
 				if (ret){
 					dev_err(mmc_dev(mmc), "could not set sleep pins in suspend\n");
@@ -1559,15 +1555,6 @@ static int sunxi_mmc_resume(struct device *dev)
 				return ret;
 			}
 			
-#if 0
-			if (!IS_ERR(host->reset)) {
-					ret = reset_control_deassert(host->reset);
-					if (ret) {
-						dev_err(mmc_dev(mmc), "reset err %d\n", ret);
-						return ret;
-					}
-			}			
-#else
 			if (!IS_ERR(host->clk_rst)) {
 				ret = clk_prepare_enable(host->clk_rst);
 				if (ret) {
@@ -1575,7 +1562,7 @@ static int sunxi_mmc_resume(struct device *dev)
 					return ret;
 				}
 			}
-#endif
+
 			ret = clk_prepare_enable(host->clk_ahb);
 			if (ret) {
 				dev_err(mmc_dev(mmc), "Enable ahb clk err %d\n", ret);

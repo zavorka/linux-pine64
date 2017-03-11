@@ -24,6 +24,11 @@ obj-$(CONFIG_AW_AXP22) += axp22/axp22-powerkey.o
 obj-$(CONFIG_AW_AXP22) += axp22/virtual22.o
 obj-$(CONFIG_AW_AXP22) += axp22/virtual22_dev.o
 
+#AXP259
+obj-$(CONFIG_AW_AXP259) += axp259/axp259.o
+obj-$(CONFIG_AW_AXP259) += axp259/axp259-charger.o
+obj-$(CONFIG_AW_AXP259) += axp259/axp259-powerkey.o
+
 #AXP22X
 obj-$(CONFIG_AW_AXP20) += axp20/axp20.o
 obj-$(CONFIG_AW_AXP20) += axp20/axp20-regu.o

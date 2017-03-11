@@ -215,7 +215,8 @@ static void arch_timer_set_mode_phys_mem(enum clock_event_mode mode,
 {
 	timer_set_mode(ARCH_TIMER_MEM_PHYS_ACCESS, mode, clk);
 }
-#ifdef  CONFIG_ARCH_SUN50I
+#if defined(CONFIG_ARCH_SUN50IW1P1) \
+	|| defined(CONFIG_ARCH_SUN50IW2P1)
 #define ARCH_TVAL_TRY_MAX_TIME (12)
 #define ARCH_CVAL_MAX_DELTA    (40)
 static __always_inline void set_next_event(const int access, unsigned long evt,

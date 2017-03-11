@@ -30,6 +30,8 @@
 #include <asm/irq.h>
 #include "sunxi-di.h"
 
+#define DI_MAX_USERS 1
+
 static di_struct *di_data;
 static s32 sunxi_di_major = -1;
 static struct class *di_dev_class;
@@ -385,6 +387,7 @@ static s32 sunxi_di_suspend(struct device *dev)
 {
 	dprintk(DEBUG_SUSPEND, "enter: sunxi_di_suspend. \n");
 
+	del_timer_sync(s_timer);
 	if (atomic_read(&di_data->enable)) {
 		di_irq_enable(0);
 		di_reset();
@@ -505,6 +508,12 @@ static int sunxi_di_open(struct inode *inode, struct file *file)
 
 	dprintk(DEBUG_DATA_INFO, "%s: enter!!\n", __func__);
 
+	if (di_data->users >= DI_MAX_USERS) {
+		pr_err("%s: users number is out of range(%d)!\n", __func__,
+		    DI_MAX_USERS);
+		return -EMFILE;
+	}
+
 	atomic_set(&di_data->enable, 1);
 
 	di_data->flag_size = (FLAG_WIDTH*FLAG_HIGH)/4;
@@ -538,6 +547,8 @@ static int sunxi_di_open(struct inode *inode, struct file *file)
 	di_internal_clk_enable();
 	di_set_init();
 
+	di_data->users++;
+
 	return 0;
 }
 
@@ -545,12 +556,20 @@ static int sunxi_di_release(struct inode *inode, struct file *file)
 {
 	dprintk(DEBUG_DATA_INFO, "%s: enter!!\n", __func__);
 
+	if (0 == di_data->users) {
+		pr_err("%s:users number is already Zero, no need to release!\n",
+		    __func__);
+		return 0;
+	}
+	di_data->users--;
 	atomic_set(&di_data->enable, 0);
 
 	di_irq_enable(0);
 	di_reset();
 	di_internal_clk_disable();
 	di_clk_disable();
+
+	del_timer_sync(s_timer);
 	if (NULL != di_data->mem_in_params.v_addr)
 		di_mem_release(&(di_data->mem_in_params));
 	if (NULL != di_data->mem_out_params.v_addr)

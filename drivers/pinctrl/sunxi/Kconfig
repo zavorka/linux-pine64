@@ -79,4 +79,28 @@ config PINCTRL_SUN50IW2P1_R
 	bool "Pinctrl sun50iw2p1 R_PIO controller"
 	select PINCTRL_SUNXI_COMMON
 
+config PINCTRL_SUN50IW3P1
+	def_bool ARCH_SUN50IW3P1
+	depends on ARCH_SUN50IW3P1
+	bool "Pinctrl sun50iw3p1 PIO controller"
+	select PINCTRL_SUNXI_COMMON
+
+config PINCTRL_SUN50IW3P1_R
+	def_bool ARCH_SUN50IW3P1
+	depends on ARCH_SUN50IW3P1
+	bool "Pinctrl sun50iw3p1 R_PIO controller"
+	select PINCTRL_SUNXI_COMMON
+
+config PINCTRL_SUN50IW6P1
+	def_bool ARCH_SUN50IW6P1
+	depends on ARCH_SUN50IW6P1
+	bool "Pinctrl sun50iw6p1 PIO controller"
+	select PINCTRL_SUNXI_COMMON
+
+config PINCTRL_SUN50IW6P1_R
+	def_bool ARCH_SUN50IW6P1
+	depends on ARCH_SUN50IW6P1
+	bool "Pinctrl sun50iw6p1 R_PIO controller"
+	select PINCTRL_SUNXI_COMMON
+
 endmenu

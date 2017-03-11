@@ -1,7 +1,7 @@
 #include "panels.h"
 
 struct sunxi_lcd_drv g_lcd_drv;
-extern __lcd_panel_t anx9804_panel;
+
 __lcd_panel_t* panel_array[] = {
 	&default_eink,
 	&default_panel,
@@ -14,8 +14,7 @@ __lcd_panel_t* panel_array[] = {
 	&inet_dsi_panel,
 	&gg1p4062utsw_panel,
 	/* add new panel below */
-    	&mb709_mipi_panel,
-	&anx9804_panel,
+
 	NULL,
 };
 

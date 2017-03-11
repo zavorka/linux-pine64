@@ -111,6 +111,8 @@ int sndhdmi_hw_params(struct snd_pcm_substream *substream,
 	}
 	if (hdmi_para.channel_num == 8) {
 		hdmi_para.ca = 0x12;
+	} else if (hdmi_para.channel_num == 6) {
+		hdmi_para.ca = 0x0b;
 	} else if ((hdmi_para.channel_num >= 3)) {
 		hdmi_para.ca = 0x1f;
 	} else {
@@ -175,8 +177,8 @@ int sndhdmi_prepare(struct snd_pcm_substream *substream,
 	}
 	if (atomic_read(&pcm_count_num) <= 1) {
 		g_hdmi_func.hdmi_set_audio_para(&hdmi_para);
+		g_hdmi_func.hdmi_audio_enable(1, 1);
 	}
-	g_hdmi_func.hdmi_audio_enable(1, 1);
 
 #ifdef CONFIG_ARCH_SUN9I
 	is_play = g_hdmi_func.hdmi_is_playback();

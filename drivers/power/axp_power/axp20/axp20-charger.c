@@ -597,7 +597,7 @@ static void axp20_charger_shutdown(struct platform_device *dev)
 }
 
 static const struct of_device_id axp20_charger_dt_ids[] = {
-	{ .compatible = "axp20-charger", },
+	{ .compatible = "axp209-charger", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, axp20_charger_dt_ids);

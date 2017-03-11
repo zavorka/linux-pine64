@@ -1,53 +1,72 @@
-/*
+/**
+ * Copyright (C) 2015-2016 Allwinner Technology Limited. All rights reserved.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
- * Copyright (C) 2015 Allwinner Technology Co., Ltd.
- *
- * Author: Xiangyun Yu <yuxyun@allwinnertech.com>
+ * Author: Albert Yu <yuxyun@allwinnertech.com>
  */
 
 #ifndef _MALI_SUN8I_W11P1_H_
 #define _MALI_SUN8I_W11P1_H_
 
-static struct aw_freq_data freq_data =
-{
-	.normal_freq  = 384,
-	.extreme_freq = 384,
-};
-
-static struct aw_private_data private_data =
-{
-	.clk_status        = 0,
-	.scene_ctrl_status = 0,
-	.sensor_num        = 1,
+aw_private_data aw_private = {
 #ifdef CONFIG_MALI_DT
-	.np_gpu            = NULL,
-#endif
-	.regulator         = NULL,
-	.regulator_id      = NULL,
-	.tempctrl_data     =
-	{
+	.np_gpu        = NULL,
+#endif /* CONFIG_MALI_DT */
+	.tempctrl      = {
 		.temp_ctrl_status = 1,
 	},
-};
-
-static struct aw_clk_data clk_data[] =
-{
-	{
-		.clk_name   = "pll",
-		.clk_handle = NULL,
+	.pm            = {
+		.regulator      = NULL,
+		.regulator_id   = "vdd-gpu",
+		.clk[0]         = {
+			.clk_name   = "pll",
+			.clk_handle = NULL,
+		},
+		.clk[1]         = {
+			.clk_name   = "mali",
+			.clk_handle = NULL,
+		},
+		.vf_table[0]   = {
+			.vol  = 0,
+			.freq = 144,
+		},
+		.vf_table[1]   = {
+			.vol  = 1100,
+			.freq = 240,
+		},
+		.vf_table[2]   = {
+			.vol  = 1100,
+			.freq = 312,
+		},
+		.vf_table[3]   = {
+			.vol  = 1100,
+			.freq = 384,
+		},
+		.dvfs_status       = 0,
+		.begin_level       = 3,
+		.max_level         = 3,
+		.scene_ctrl_cmd    = 0,
+		.scene_ctrl_status = 1,
+		.independent_pow   = 0,
+		.dvm               = 0,
 	},
-	{
-		.clk_name   = "mali",
-		.clk_handle = NULL,
-	},
+	.debug           = {
+		.enable      = 0,
+		.frequency   = 0,
+		.voltage     = 0,
+		.tempctrl    = 0,
+		.scenectrl   = 0,
+		.dvfs        = 0,
+		.level       = 0,
+	}
 };
 
 #endif

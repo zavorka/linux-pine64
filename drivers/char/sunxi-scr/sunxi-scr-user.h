@@ -27,6 +27,8 @@
 #define SCR_IOCSPARA		_IOW(SCR_IOC_MAGIC, 4, struct scr_card_para)
 #define SCR_IOCGATRPARA		_IOW(SCR_IOC_MAGIC, 5, struct smc_atr_para)
 #define SCR_IOCGPPSPARA		_IOW(SCR_IOC_MAGIC, 6, struct smc_pps_para)
+#define SCR_IOCWRDATA		_IOWR(SCR_IOC_MAGIC, 7, struct scr_wr_data)
+
 
 enum scr_card_sta {
 	SCR_CARD_OUT = 0,
@@ -72,6 +74,16 @@ struct smc_pps_para {
 	uint8_t pps2;
 	uint8_t pps3;
 	uint8_t pck;
+};
+
+/* write cmd and read data immediately */
+struct scr_wr_data {
+	uint8_t *cmd_buf;
+	uint32_t cmd_len;
+	uint8_t *rtn_data;
+	uint32_t *rtn_len;
+	uint8_t *psw1;
+	uint8_t *psw2;
 };
 
 #endif

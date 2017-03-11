@@ -23,6 +23,7 @@
 #include "axp22-gpio.h"
 
 static struct axp_gpio_irqchip *axp22_gpio_irqchip;
+static int axp22_pmu_num;
 
 static int axp22_gpio_get_data(struct axp_dev *axp_dev, int gpio)
 {
@@ -225,7 +226,7 @@ static int axp22_gpio_irq_free(int gpio_no)
 
 static int axp22_gpio_irq_ack(int gpio_no)
 {
-	struct axp_dev *cur_axp_dev = get_pmu_cur_dev();
+	struct axp_dev *cur_axp_dev = get_pmu_cur_dev(axp22_pmu_num);
 	struct axp_regmap *map = cur_axp_dev->regmap;
 	int gpio = gpio_no - AXP_PIN_BASE;
 
@@ -241,7 +242,7 @@ static int axp22_gpio_irq_ack(int gpio_no)
 
 static int axp22_gpio_irq_enable(int gpio_no)
 {
-	struct axp_dev *cur_axp_dev = get_pmu_cur_dev();
+	struct axp_dev *cur_axp_dev = get_pmu_cur_dev(axp22_pmu_num);
 	struct axp_regmap *map = cur_axp_dev->regmap;
 	int gpio = gpio_no - AXP_PIN_BASE;
 	u8 regval;
@@ -260,7 +261,7 @@ static int axp22_gpio_irq_enable(int gpio_no)
 
 static int axp22_gpio_irq_disable(int gpio_no)
 {
-	struct axp_dev *cur_axp_dev = get_pmu_cur_dev();
+	struct axp_dev *cur_axp_dev = get_pmu_cur_dev(axp22_pmu_num);
 	struct axp_regmap *map = cur_axp_dev->regmap;
 	int gpio = gpio_no - AXP_PIN_BASE;
 	u8 regval;
@@ -279,7 +280,7 @@ static int axp22_gpio_irq_disable(int gpio_no)
 
 static int axp22_gpio_set_type(int gpio_no, unsigned long type)
 {
-	struct axp_dev *cur_axp_dev = get_pmu_cur_dev();
+	struct axp_dev *cur_axp_dev = get_pmu_cur_dev(axp22_pmu_num);
 	struct axp_regmap *map = cur_axp_dev->regmap;
 	int gpio = gpio_no - AXP_PIN_BASE;
 	int reg = 0;
@@ -343,11 +344,13 @@ static irqreturn_t axp22_gpio_isr(int irq, void *data)
 		return IRQ_NONE;
 	}
 
-	AXP_DEBUG(AXP_INT, "gpio%d input edge\n", gpio);
+	AXP_DEBUG(AXP_INT, axp22_pmu_num, "gpio%d input edge\n", gpio);
 
-	axp22_gpio_irqchip[gpio].handler(gpio + AXP_PIN_BASE,
+	if (axp22_gpio_irqchip[gpio].handler != NULL) {
+		axp22_gpio_irqchip[gpio].handler(gpio + AXP_PIN_BASE,
 				axp22_gpio_irqchip[gpio].data);
-	axp22_gpio_irq_ack(gpio + AXP_PIN_BASE);
+		axp22_gpio_irq_ack(gpio + AXP_PIN_BASE);
+	}
 
 	return IRQ_HANDLED;
 }
@@ -393,7 +396,8 @@ static int axp22_gpio_probe(struct platform_device *pdev)
 		goto out_irq;
 	}
 
-	axp_gpio_irq_ops_set(&axp22_gpio_irq_ops);
+	axp22_pmu_num = axp_dev->pmu_num;
+	axp_gpio_irq_ops_set(axp_dev->pmu_num, &axp22_gpio_irq_ops);
 
 	platform_set_drvdata(pdev, axp22_pin);
 
@@ -430,7 +434,8 @@ static int axp22_gpio_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id axp22_gpio_dt_ids[] = {
-	{ .compatible = "axp22-gpio", },
+	{ .compatible = "axp221s-gpio", },
+	{ .compatible = "axp227-gpio", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, axp22_gpio_dt_ids);

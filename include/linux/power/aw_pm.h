@@ -481,7 +481,9 @@ typedef	struct normal_standby_para {
 					CPUS_WAKEUP_DESCEND |\
 					CPUS_WAKEUP_ASCEND |\
 					CPUS_WAKEUP_ALM0 |\
-					CPUS_WAKEUP_GPIO)
+					CPUS_WAKEUP_GPIO |\
+					CPUS_WAKEUP_IR)
+
 #define CPUS_BOOTFAST_WAKEUP         (CPUS_WAKEUP_LOWBATT |\
 					CPUS_WAKEUP_LONG_KEY |\
 					CPUS_WAKEUP_ALM0 |\
@@ -502,6 +504,7 @@ struct aw_pmu_arg {
     unsigned int  twi_port;		/**<twi port for pmu chip   */
     unsigned char dev_addr;		/**<address of pmu device   */
     unsigned int soc_power_tree[VCC_MAX_INDEX];  /* power tree struct point */
+    int axp_dev_count; /* axp devices online sum */
 };
 
 
@@ -567,7 +570,7 @@ extern unsigned int parse_wakeup_gpio_group_map(char *s, unsigned int size,
 					unsigned int gpio_map);
 
 extern unsigned int parse_wakeup_event(char *s, unsigned int size,
-				unsigned int event, event_cpu_id_e cpu_id);
+				unsigned int event);
 
 extern unsigned int parse_wakeup_gpio_map(char *s, unsigned int size,
 				unsigned int gpio_map);

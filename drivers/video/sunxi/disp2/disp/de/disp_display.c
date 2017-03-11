@@ -222,18 +222,20 @@ s32 bsp_disp_device_switch(int disp, enum disp_output_type output_type, enum dis
 	return ret;
 }
 
-s32 bsp_disp_eink_update(struct disp_eink_manager* manager, void *src_img, enum eink_update_mode mode, struct area_info* update_area)
+s32 bsp_disp_eink_update(struct disp_eink_manager *manager,
+			struct disp_layer_config *config,
+			unsigned int layer_num,
+			enum eink_update_mode mode,
+			struct area_info *update_area)
 {
 	int ret = -1;
 	struct area_info area;
 
 	memcpy(&area, update_area, sizeof(struct area_info));
 
-	__debug("src_img=0x%p, mode=0x%d, x_top=%u, y_top=%u, x_bottom=%u, y_bottom=%u\n", \
-			src_img, mode, area.x_top,area.y_top, area.x_bottom, area.y_bottom);
-
 	if (manager)
-		ret = manager->eink_update(manager, src_img, mode, area);
+		ret = manager->eink_update(manager, config, layer_num,
+						mode, area);
 	else
 		__debug("eink manager is NULL!\n");
 
@@ -247,7 +249,7 @@ s32 bsp_disp_eink_set_temperature(struct disp_eink_manager* manager, unsigned in
 	if (manager)
 		ret = manager->set_temperature(manager, temp);
 	else
-		__debug("eink manager is NULL!\n");
+		pr_err("eink manager is NULL!\n");
 
 	return ret;
 }
@@ -259,11 +261,21 @@ s32 bsp_disp_eink_get_temperature(struct disp_eink_manager* manager)
 	if (manager)
 		ret = manager->get_temperature(manager);
 	else
-		__debug("eink manager is NULL!\n");
+		pr_err("eink manager is NULL!\n");
 
 	return ret;
 }
 
+s32 bsp_disp_eink_op_skip(struct disp_eink_manager *manager, unsigned int skip)
+{
+	s32 ret = -1;
+	if (manager)
+		ret = manager->op_skip(manager, skip);
+	else
+		pr_err("eink manager is NULL!\n");
+
+	return ret;
+}
 
 s32 disp_init_connections(disp_bsp_init_para * para)
 {
@@ -794,6 +806,10 @@ s32 bsp_disp_get_screen_width_from_output_type(u32 disp, u32 output_type, u32 ou
 			width = 3840;
 			height = 2160;
 			break;
+		case DISP_TV_MOD_4096_2160P_24HZ:
+			width = 4096;
+			height = 2160;
+			break;
 		case DISP_VGA_MOD_800_600P_60:
 			width = 800;
 			height = 600;
@@ -878,6 +894,10 @@ s32 bsp_disp_get_screen_height_from_output_type(u32 disp, u32 output_type, u32 o
 		case DISP_TV_MOD_3840_2160P_25HZ:
 		case DISP_TV_MOD_3840_2160P_24HZ:
 			width = 3840;
+			height = 2160;
+			break;
+		case DISP_TV_MOD_4096_2160P_24HZ:
+			width = 4096;
 			height = 2160;
 			break;
 		case DISP_VGA_MOD_800_600P_60:

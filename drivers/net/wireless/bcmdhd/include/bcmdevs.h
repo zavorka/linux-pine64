@@ -352,6 +352,7 @@
 #define BCM43569_CHIP_ID	0xAA31          /* 43569 chipcommon chipid */
 #define BCM43570_CHIP_ID	0xAA32          /* 43570 chipcommon chipid */
 #define BCM4358_CHIP_ID         0x4358          /* 4358 chipcommon chipid */
+#define BCM4371_CHIP_ID		0x4371          /* 4371 chipcommon chipid */
 #define BCM4350_CHIP(chipid)	((CHIPID(chipid) == BCM4350_CHIP_ID) || \
 				(CHIPID(chipid) == BCM4354_CHIP_ID) || \
 				(CHIPID(chipid) == BCM4356_CHIP_ID) || \
@@ -364,6 +365,7 @@
 				(CHIPID(chipid) == BCM43570_CHIP_ID) || \
 				(CHIPID(chipid) == BCM4358_CHIP_ID)) /* 4350 variations */
 #define BCM4345_CHIP_ID		0x4345		/* 4345 chipcommon chipid */
+#define BCM43454_CHIP_ID	43454		/* 43454 chipcommon chipid */
 #define BCM43430_CHIP_ID	43430		/* 43430 chipcommon chipid */
 #define BCM4349_CHIP_ID		0x4349		/* 4349 chipcommon chipid */
 #define BCM4355_CHIP_ID		0x4355		/* 4355 chipcommon chipid */
@@ -683,17 +685,17 @@
 #define	BU4702_BOARD		0x0424
 
 #define	BCM94306PC_BOARD	0x0425		/* pcmcia 3.3v 4306 card */
-				
+
 #define	MPSG4306_BOARD		0x0427
-				
+
 #define	BCM94702MN_BOARD	0x0428
 
 /* BCM4702 1U CompactPCI Board */
 #define	BCM94702CPCI_BOARD	0x0429
-						
+
 /* BCM4702 with BCM95380 VLAN Router */
 #define	BCM95380RR_BOARD	0x042a
-									   
+
 /* cb4306 with SiGe PA */
 #define	BCM94306CBSG_BOARD	0x042b
 

@@ -56,6 +56,17 @@
 #include "sunxi-mmc-debug.h"
 #include "sunxi-mmc-export.h"
 
+/**default retry times ****/
+#define SUNXI_DEF_RETRY_TIMES		6
+
+
+static void sunxi_mmc_regs_save(struct sunxi_mmc_host *host);
+static void sunxi_mmc_regs_restore(struct sunxi_mmc_host *host);
+static int sunxi_mmc_bus_clk_en(struct sunxi_mmc_host *host , int enable);
+static void sunxi_mmc_parse_cmd(struct mmc_host *mmc, struct mmc_command *cmd , u32 *cval , u32 *im , bool *wdma);
+static void sunxi_mmc_set_dat(struct sunxi_mmc_host *host, struct mmc_host *mmc , struct mmc_data *data);
+static void sunxi_mmc_exe_cmd(struct sunxi_mmc_host *host, struct mmc_command *cmd , u32 cmd_val , u32 imask);
+
 static int sunxi_mmc_reset_host(struct sunxi_mmc_host *host)
 {
 	unsigned long expire = jiffies + msecs_to_jiffies(250);
@@ -289,6 +300,7 @@ static void sunxi_mmc_send_manual_stop(struct sunxi_mmc_host *host,
 	}
 
 	mmc_writel(host, REG_CARG, arg);
+	wmb();
 	mmc_writel(host, REG_CMDR, cmd_val);
 
 	do {
@@ -297,12 +309,13 @@ static void sunxi_mmc_send_manual_stop(struct sunxi_mmc_host *host,
 		 time_before(jiffies, expire));
 
 	if (!(ri & SDXC_COMMAND_DONE) || (ri & SDXC_INTERRUPT_ERROR_BIT)) {
-		dev_err(mmc_dev(host->mmc), "send stop command failed\n");
+		dev_err(mmc_dev(host->mmc), "send  manual stop command failed\n");
 		if (req->stop)
 			req->stop->resp[0] = -ETIMEDOUT;
 	} else {
 		if (req->stop)
 			req->stop->resp[0] = mmc_readl(host, REG_RESP0);
+		dev_dbg(mmc_dev(host->mmc) , "send manual stop command ok\n");
 	}
 
 	mmc_writel(host, REG_RINTR, 0xffff);
@@ -348,15 +361,20 @@ static irqreturn_t sunxi_mmc_finalize_request(struct sunxi_mmc_host *host)
 
 	if (host->int_sum & SDXC_INTERRUPT_ERROR_BIT) {
 		sunxi_mmc_dump_errinfo(host);
-		mrq->cmd->error = -ETIMEDOUT;
+		if ((host->ctl_spec_cap & SUNXI_SC_EN_RETRY) &&  data) {
+				host->mrq_retry = mrq;
+				host->errno_retry = host->int_sum & SDXC_INTERRUPT_ERROR_BIT;
+		} else{
+			mrq->cmd->error = -ETIMEDOUT;
 
-		if (data) {
-			data->error = -ETIMEDOUT;
-			host->manual_stop_mrq = mrq;
+			if (data) {
+				data->error = -ETIMEDOUT;
+				host->manual_stop_mrq = mrq;
+			}
+
+			if (mrq->stop)
+				mrq->stop->error = -ETIMEDOUT;
 		}
-
-		if (mrq->stop)
-			mrq->stop->error = -ETIMEDOUT;
 	} else {
 		if (mrq->cmd->flags & MMC_RSP_136) {
 			mrq->cmd->resp[0] = mmc_readl(host, REG_RESP3);
@@ -377,15 +395,11 @@ static irqreturn_t sunxi_mmc_finalize_request(struct sunxi_mmc_host *host)
 			&& (mrq->cmd->data->flags & MMC_DATA_WRITE)
 			&& !(host->
 			     ctl_spec_cap & NO_MANUAL_WAIT_BUSY_WRITE_END))) {
-			host->mrq_busy = host->mrq;
+			if (mmc_readl(host, REG_STAS) & SDXC_CARD_DATA_BUSY)
+				host->mrq_busy = host->mrq;
 		}
-		/*
-		   else{
-		   if(mrq->cmd->data && (mrq->cmd->data->flags& MMC_DATA_WRITE)&&(host->ctl_spec_cap & NO_MANUAL_WAIT_BUSY_WRITE_END)){
-		   dev_err(mmc_dev(host->mmc), "***no wait busy when write end***\n");
-		   }
-		   }
-		 */
+		/**clear retry count if retry ok*/
+		host->retry_cnt = 0;
 	}
 
 	if (data) {
@@ -414,7 +428,8 @@ static irqreturn_t sunxi_mmc_finalize_request(struct sunxi_mmc_host *host)
 	host->wait_dma = false;
 
 	return (host->manual_stop_mrq
-		|| host->mrq_busy) ? IRQ_WAKE_THREAD : IRQ_HANDLED;
+			|| host->mrq_busy
+			|| host->mrq_retry) ? IRQ_WAKE_THREAD : IRQ_HANDLED;
 }
 
 static irqreturn_t sunxi_mmc_irq(int irq, void *dev_id)
@@ -477,6 +492,7 @@ static irqreturn_t sunxi_mmc_irq(int irq, void *dev_id)
 	if (finalize)
 		ret = sunxi_mmc_finalize_request(host);
       out:
+	smp_wmb();
 	spin_unlock(&host->lock);
 
 	if (finalize && ret == IRQ_HANDLED)
@@ -537,167 +553,211 @@ static int sunxi_check_r1_ready_may_sleep(struct sunxi_mmc_host *smc_host)
 			    (mmc_readl(smc_host, REG_STAS) &
 			     SDXC_CARD_DATA_BUSY)) {
 				dev_dbg(mmc_dev(smc_host->mmc),
-					"Wait r1 rdy ok c%d i%d \n", cnt, i);
+					"cmd%d Wait r1 rdy ok c%d i%d \n", mmc_readl(smc_host, REG_CMDR)&0x3F, cnt, i);
 				return 0;
 			}
-			if (i ? cnt / 5000 : cnt / 500000) {
-				//print to tell that we are waiting busy
-				dev_dbg(mmc_dev(smc_host->mmc),
-					 "Has wait r1 rdy c%d i%d\n", cnt, i);
+
+			/* wait data0 busy... */
+			if (i == 0) {
+				if (((cnt % 500000) == 0) && cnt) {
+					dev_dbg(mmc_dev(smc_host->mmc),
+					 "cmd%d Has wait r1 rdy c%d i%d\n",  mmc_readl(smc_host, REG_CMDR)&0x3F, cnt, i);
+				}
+				usleep_range(10, 20);
+			} else {
+				if (((cnt % 5000) == 0) && cnt) {
+					dev_dbg(mmc_dev(smc_host->mmc),
+					 "cmd%d Has wait r1 rdy c%d i%d\n",  mmc_readl(smc_host, REG_CMDR)&0x3F, cnt, i);
+				}
+				usleep_range(1000, 1200);
 			}
-			i ? usleep_range(1000, 1200) : usleep_range(10, 20);
 		} while ((cnt++) < delay_max_cnt[i]);
 	}
 
-	dev_err(mmc_dev(smc_host->mmc), "Wait r1 rdy timeout\n");
+	dev_err(mmc_dev(smc_host->mmc), "cmd%d Wait r1 rdy timeout\n", mmc_readl(smc_host, REG_CMDR)&0x3F);
 	return -1;
 }
 
-//static irqreturn_t sunxi_mmc_handle_manual_stop(int irq, void *dev_id)
 static irqreturn_t sunxi_mmc_handle_bottom_half(int irq, void *dev_id)
 {
 	struct sunxi_mmc_host *host = dev_id;
-	struct mmc_request *mrq;
+	struct mmc_request *mrq_stop;
 	struct mmc_request *mrq_busy = NULL;
+	struct mmc_request *mrq_retry = NULL;
+	struct mmc_host	*mmc = host->mmc;
+	int rval = 0;
 	unsigned long iflags;
 
 	spin_lock_irqsave(&host->lock, iflags);
-	mrq = host->manual_stop_mrq;
+	mrq_stop = host->manual_stop_mrq;
 	mrq_busy = host->mrq_busy;
+	mrq_retry = host->mrq_retry;
 	spin_unlock_irqrestore(&host->lock, iflags);
 
 	if (mrq_busy) {
-		//Here,we don't use the timeout value in mrq_busy->busy_timeout
-		//Because this value may not right for example when useing TRIM
-		//So we use max wait time and print time value every 1 second
-		//sunxi_check_r1_ready_may_sleep(host,0x7ffffff);
+		/*
+		*Here,we don't use the timeout value in mrq_busy->busy_timeout
+		*Because this value may not right for example when useing TRIM
+		*So we use max wait time and print time value every 1 second
+		*sunxi_check_r1_ready_may_sleep(host,0x7ffffff);
+		*/
 		sunxi_check_r1_ready_may_sleep(host);
 		spin_lock_irqsave(&host->lock, iflags);
 		host->mrq_busy = NULL;
+		smp_wmb();
 		spin_unlock_irqrestore(&host->lock, iflags);
-		mmc_request_done(host->mmc, mrq_busy);
-		return IRQ_HANDLED;
-	} else {
-		dev_dbg(mmc_dev(host->mmc), "no request for busy\n");
-	}
-
-	if (!mrq) {
-		dev_err(mmc_dev(host->mmc), "no request for manual stop\n");
+		mmc_request_done(mmc, mrq_busy);
 		return IRQ_HANDLED;
 	}
+	dev_dbg(mmc_dev(mmc), "no request for busy\n");
 
-	dev_err(mmc_dev(host->mmc), "data error, sending stop command\n");
 
-	/*
-	 * We will never have more than one outstanding request,
-	 * and we do not complete the request until after
-	 * we've cleared host->manual_stop_mrq so we do not need to
-	 * spin lock this function.
-	 * Additionally we have wait states within this function
-	 * so having it in a lock is a very bad idea.
-	 */
-	sunxi_mmc_send_manual_stop(host, mrq);
-	if (gpio_is_valid(host->card_pwr_gpio))
-		gpio_set_value(host->card_pwr_gpio,
-			       (host->
-				ctl_spec_cap & CARD_PWR_GPIO_HIGH_ACTIVE) ? 0 :
-			       1);
+	if (mrq_stop) {
+		dev_err(mmc_dev(mmc), "data error, sending stop command\n");
 
-	spin_lock_irqsave(&host->lock, iflags);
-	host->manual_stop_mrq = NULL;
-	spin_unlock_irqrestore(&host->lock, iflags);
+		/*
+		 * We will never have more than one outstanding request,
+		 * and we do not complete the request until after
+		* we've cleared host->manual_stop_mrq so we do not need to
+		* spin lock this function.
+		* Additionally we have wait states within this function
+		* so having it in a lock is a very bad idea.
+		*/
+		sunxi_mmc_send_manual_stop(host, mrq_stop);
+		if (gpio_is_valid(host->card_pwr_gpio))
+			gpio_set_value(host->card_pwr_gpio,
+					(host->
+						ctl_spec_cap & CARD_PWR_GPIO_HIGH_ACTIVE) ? 0 :
+						1);
 
-	mmc_request_done(host->mmc, mrq);
+		/***reset host***/
+		sunxi_mmc_regs_save(host);
+		sunxi_mmc_bus_clk_en(host , 0);
+		sunxi_mmc_bus_clk_en(host , 1);
+		sunxi_mmc_regs_restore(host);
+		dev_info(mmc_dev(host->mmc) , "reset:host reset and recover finish\n");
+		/***update clk***/
+		rval = host->sunxi_mmc_oclk_en(host , 1);
+		if (rval) {
+			dev_err(mmc_dev(mmc) , "reset:update clk failed %s %d\n",
+							__FUNCTION__ , __LINE__);
+		}
+
+		spin_lock_irqsave(&host->lock, iflags);
+		host->manual_stop_mrq = NULL;
+		smp_wmb();
+		spin_unlock_irqrestore(&host->lock, iflags);
+
+		mmc_request_done(mmc, mrq_stop);
+		return IRQ_HANDLED;
+	}
+	dev_dbg(mmc_dev(mmc), "no request for manual stop\n");
+
+
+	if (mrq_retry) {
+		bool wait_dma = false;
+		u32 imask = 0;
+		u32 cmd_val = 0;
+		struct mmc_command *cmd = mrq_retry->cmd;
+		struct mmc_data *data = mrq_retry->data;
+
+		dev_info(mmc_dev(host->mmc) , "*****retry:start*****\n");
+
+		/***Recover device state and stop host state machine****/
+		sunxi_mmc_send_manual_stop(host , mrq_retry);
+
+		/*****If device not exit,no need to retry*****/
+		/**to do:how to deal with data3 detect better here**/
+		if (!mmc_gpio_get_cd(mmc)) {
+			dev_err(mmc_dev(mmc) , "retry:no device\n");
+			goto retry_giveup;
+		}
+
+		/***wait device busy over***/
+		rval = sunxi_mmc_check_r1_ready(mmc , 1000);
+		if (rval) {
+			dev_err(mmc_dev(host->mmc) , "retry:busy timeout\n");
+			goto retry_giveup;
+		}
+
+		/***reset host***/
+		spin_lock_irqsave(&host->lock , iflags);
+		sunxi_mmc_regs_save(host);
+		spin_unlock_irqrestore(&host->lock , iflags);
+		/**if gating/reset protect itself,so no lock use host->lock**/
+		sunxi_mmc_bus_clk_en(host , 0);
+		sunxi_mmc_bus_clk_en(host , 1);
+		spin_lock_irqsave(&host->lock , iflags);
+		sunxi_mmc_regs_restore(host);
+		spin_unlock_irqrestore(&host->lock , iflags);
+		dev_dbg(mmc_dev(host->mmc) , "retry:host reset and reg recover ok\n");
+
+		/***set phase/delay not lock***/
+		if (host->sunxi_mmc_judge_retry) {
+			rval = host->sunxi_mmc_judge_retry(host , NULL , host->retry_cnt , host->errno_retry , NULL);
+			if (rval) {
+				dev_err(mmc_dev(mmc) , "retry:set phase failed or over retry times\n");
+				goto reupdate_clk;
+			}
+		} else if (host->retry_cnt > SUNXI_DEF_RETRY_TIMES) {
+				dev_err(mmc_dev(mmc) , "retry:over default retry times\n");
+				goto reupdate_clk;
+		}
+
+		/***use sunxi_mmc_oclk_en  to update clk***/
+		rval = host->sunxi_mmc_oclk_en(host , 1);
+		if (rval) {
+			dev_err(mmc_dev(mmc) , "retry:update clk failed %s %d\n",
+							__FUNCTION__ , __LINE__);
+			goto retry_giveup;
+		}
+
+		rval = sunxi_mmc_map_dma(host , data);
+		if (rval < 0) {
+			dev_err(mmc_dev(mmc) , "map DMA failed\n");
+			goto retry_giveup;
+		}
+
+		sunxi_mmc_parse_cmd(mmc , cmd , &cmd_val , &imask , &wait_dma);
+		sunxi_mmc_set_dat(host , mmc , data);
+		spin_lock_irqsave(&host->lock, iflags);
+		host->mrq = mrq_retry;
+		host->mrq_retry = NULL;
+		host->wait_dma = wait_dma;
+		host->retry_cnt++;
+		sunxi_mmc_exe_cmd(host, cmd , cmd_val , imask);
+		dev_info(mmc_dev(host->mmc) , "*****retry:re-send cmd*****\n");
+		smp_wmb();
+		spin_unlock_irqrestore(&host->lock, iflags);
+		return IRQ_HANDLED;
+reupdate_clk:
+		/**update clk for other cmd from upper layer to be sent****/
+		rval = host->sunxi_mmc_oclk_en(host , 1);
+		if (rval)
+			dev_err(mmc_dev(mmc) , "retry:update clk failed %s %d\n",
+						__FUNCTION__ , __LINE__);
+retry_giveup:
+		dev_err(mmc_dev(host->mmc) , "retry:give up\n");
+		spin_lock_irqsave(&host->lock , iflags);
+		host->mrq_retry = NULL;
+		cmd->error = -ETIMEDOUT;
+		data->error = -ETIMEDOUT;
+		if (mrq_retry->stop)
+			mrq_retry->stop->error = -ETIMEDOUT;
+		smp_wmb();
+		spin_unlock_irqrestore(&host->lock , iflags);
+		mmc_request_done(host->mmc , mrq_retry);
+		return IRQ_HANDLED;
+
+	}
+	dev_dbg(mmc_dev(host->mmc) , "no request for data retry\n");
+
+	dev_err(mmc_dev(host->mmc) , "no request in bottom halfhalf\n");
 
 	return IRQ_HANDLED;
 }
 
-#if 0
-static int sunxi_mmc_oclk_onoff(struct sunxi_mmc_host *host, u32 oclk_en)
-{
-	unsigned long expire = jiffies + msecs_to_jiffies(250);
-	u32 rval;
 
-	rval = mmc_readl(host, REG_CLKCR);
-	rval &= ~(SDXC_CARD_CLOCK_ON | SDXC_LOW_POWER_ON);
-
-	if (oclk_en)
-		rval |= SDXC_CARD_CLOCK_ON;
-
-	mmc_writel(host, REG_CLKCR, rval);
-
-	rval = SDXC_START | SDXC_UPCLK_ONLY | SDXC_WAIT_PRE_OVER;
-	mmc_writel(host, REG_CMDR, rval);
-
-	do {
-		rval = mmc_readl(host, REG_CMDR);
-	} while (time_before(jiffies, expire) && (rval & SDXC_START));
-
-	/* clear irq status bits set by the command */
-	mmc_writel(host, REG_RINTR,
-		   mmc_readl(host, REG_RINTR) & ~SDXC_SDIO_INTERRUPT);
-
-	if (rval & SDXC_START) {
-		dev_err(mmc_dev(host->mmc), "fatal err update clk timeout\n");
-		return -EIO;
-	}
-
-	return 0;
-}
-
-static int sunxi_mmc_clk_set_rate(struct sunxi_mmc_host *host,
-				  struct mmc_ios *ios)
-{
-	u32 rate, oclk_dly, rval, sclk_dly;
-	int ret;
-
-	rate = clk_round_rate(host->clk_mmc, ios->clock);
-	dev_dbg(mmc_dev(host->mmc), "setting clk to %d, rounded %d\n",
-		ios->clock, rate);
-
-	/* setting clock rate */
-	ret = clk_set_rate(host->clk_mmc, rate);
-	if (ret) {
-		dev_err(mmc_dev(host->mmc), "error setting clk to %d: %d\n",
-			rate, ret);
-		return ret;
-	}
-
-	ret = sunxi_mmc_oclk_onoff(host, 0);
-	if (ret)
-		return ret;
-
-	/* clear internal divider */
-	rval = mmc_readl(host, REG_CLKCR);
-	rval &= ~0xff;
-	mmc_writel(host, REG_CLKCR, rval);
-
-	/* determine delays */
-	if (rate <= 400000) {
-		oclk_dly = 0;
-		sclk_dly = 7;
-	} else if (rate <= 25000000) {
-		oclk_dly = 0;
-		sclk_dly = 5;
-	} else if (rate <= 50000000) {
-		if (ios->timing == MMC_TIMING_UHS_DDR50) {
-			oclk_dly = 2;
-			sclk_dly = 4;
-		} else {
-			oclk_dly = 3;
-			sclk_dly = 5;
-		}
-	} else {
-		/* rate > 50000000 */
-		oclk_dly = 2;
-		sclk_dly = 4;
-	}
-
-	clk_sunxi_mmc_phase_control(host->clk_mmc, sclk_dly, oclk_dly);
-
-	return sunxi_mmc_oclk_onoff(host, 1);
-}
-#endif
 
 s32 sunxi_mmc_update_clk(struct sunxi_mmc_host *host)
 {
@@ -705,12 +765,15 @@ s32 sunxi_mmc_update_clk(struct sunxi_mmc_host *host)
 	unsigned long expire = jiffies + msecs_to_jiffies(1000);	//1000ms timeout
 	s32 ret = 0;
 
+	/* mask data0 when update clock */
+	mmc_writel(host, REG_CLKCR, mmc_readl(host, REG_CLKCR) | SDXC_MASK_DATA0);
+
 	rval = SDXC_START | SDXC_UPCLK_ONLY | SDXC_WAIT_PRE_OVER;
 	/*
-    if (smc_host->voltage_switching)
-	      rval |= SDXC_VolSwitch;
-    */
-    mmc_writel(host, REG_CMDR, rval);
+	if (smc_host->voltage_switching)
+		rval |= SDXC_VolSwitch;
+	*/
+	mmc_writel(host, REG_CMDR, rval);
 
 	do {
 		rval = mmc_readl(host, REG_CMDR);
@@ -722,8 +785,45 @@ s32 sunxi_mmc_update_clk(struct sunxi_mmc_host *host)
 		ret = -EIO;
 	}
 
+	/* release data0 after update clock */
+	mmc_writel(host, REG_CLKCR, mmc_readl(host, REG_CLKCR) & (~SDXC_MASK_DATA0));
+
 	return ret;
 }
+
+static int sunxi_mmc_bus_clk_en(struct sunxi_mmc_host *host , int enable)
+{
+	int rval = 0;
+	struct mmc_host	*mmc = host->mmc;
+	if (enable) {
+		if (!IS_ERR(host->clk_rst)) {
+			rval = clk_prepare_enable(host->clk_rst);
+			if (rval) {
+				dev_err(mmc_dev(mmc), "reset err %d\n", rval);
+				return -1;
+			}
+		}
+
+		rval = clk_prepare_enable(host->clk_ahb);
+		if (rval) {
+			dev_err(mmc_dev(mmc), "Enable ahb clk err %d\n", rval);
+			return -1;
+		}
+		rval = clk_prepare_enable(host->clk_mmc);
+		if (rval) {
+			dev_err(mmc_dev(mmc), "Enable mmc clk err %d\n", rval);
+			return -1;
+		}
+	} else{
+		clk_disable_unprepare(host->clk_mmc);
+		clk_disable_unprepare(host->clk_ahb);
+		if (!IS_ERR(host->clk_rst))
+			clk_disable_unprepare(host->clk_rst);
+	}
+	return 0;
+}
+
+
 
 static void sunxi_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 {
@@ -780,20 +880,14 @@ static void sunxi_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 					ctl_spec_cap &
 					CARD_PWR_GPIO_HIGH_ACTIVE) ? 1 : 0);
 
-		rval = pinctrl_select_state(host->pinctrl, host->pins_default);
-		if (rval) {
-			dev_err(mmc_dev(mmc), "could not set default pins\n");
-			return;
-		}
-#if 0
-		if (!IS_ERR(host->reset)) {
-			rval = reset_control_deassert(host->reset);
+		if (!IS_ERR(host->pins_default)) {
+			rval = pinctrl_select_state(host->pinctrl, host->pins_default);
 			if (rval) {
-				dev_err(mmc_dev(mmc), "reset err %d\n", rval);
+				dev_err(mmc_dev(mmc), "could not set default pins\n");
 				return;
 			}
 		}
-#else
+
 		if (!IS_ERR(host->clk_rst)) {
 			rval = clk_prepare_enable(host->clk_rst);
 			if (rval) {
@@ -801,7 +895,6 @@ static void sunxi_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 				return;
 			}
 		}
-#endif
 
 		rval = clk_prepare_enable(host->clk_ahb);
 		if (rval) {
@@ -834,18 +927,16 @@ static void sunxi_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 		clk_disable_unprepare(host->clk_mmc);
 		clk_disable_unprepare(host->clk_ahb);
-#if 0
-		if (!IS_ERR(host->reset))
-			reset_control_assert(host->reset);
-#else
+
 		if (!IS_ERR(host->clk_rst))
 			clk_disable_unprepare(host->clk_rst);
-#endif
 
-		rval = pinctrl_select_state(host->pinctrl, host->pins_sleep);
-		if (rval) {
+		if (!IS_ERR(host->pins_sleep)) {
+			rval = pinctrl_select_state(host->pinctrl, host->pins_sleep);
+			if (rval) {
 			dev_err(mmc_dev(mmc), "could not set sleep pins\n");
-			return;
+				return;
+			}
 		}
 
 		if (gpio_is_valid(host->card_pwr_gpio))
@@ -1033,35 +1124,12 @@ static int sunxi_mmc_card_busy(struct mmc_host *mmc)
 	return mmc_readl(host, REG_STAS) & SDXC_CARD_DATA_BUSY;
 }
 
-static void sunxi_mmc_request(struct mmc_host *mmc, struct mmc_request *mrq)
+
+static void sunxi_mmc_parse_cmd(struct mmc_host *mmc, struct mmc_command *cmd , u32 *cval , u32 *im , bool *wdma)
 {
-	struct sunxi_mmc_host *host = mmc_priv(mmc);
-	struct mmc_command *cmd = mrq->cmd;
-	struct mmc_data *data = mrq->data;
-	unsigned long iflags;
+	bool wait_dma	= false;
 	u32 imask = SDXC_INTERRUPT_ERROR_BIT;
 	u32 cmd_val = SDXC_START | (cmd->opcode & 0x3f);
-	bool wait_dma = host->wait_dma;
-	int ret;
-	int rval = 0;
-
-	/* Check for set_ios errors (should never happen) */
-	if (host->ferror) {
-		mrq->cmd->error = host->ferror;
-		mmc_request_done(mmc, mrq);
-		return;
-	}
-
-	if (data) {
-		ret = sunxi_mmc_map_dma(host, data);
-		if (ret < 0) {
-			dev_err(mmc_dev(mmc), "map DMA failed\n");
-			cmd->error = ret;
-			data->error = ret;
-			mmc_request_done(mmc, mrq);
-			return;
-		}
-	}
 
 	if (cmd->opcode == MMC_GO_IDLE_STATE) {
 		cmd_val |= SDXC_SEND_INIT_SEQUENCE;
@@ -1104,6 +1172,68 @@ static void sunxi_mmc_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	} else {
 		imask |= SDXC_COMMAND_DONE;
 	}
+	*im			= imask;
+	*cval		= cmd_val;
+	*wdma		= wait_dma;
+}
+
+
+static void sunxi_mmc_set_dat(struct sunxi_mmc_host *host, struct mmc_host *mmc , struct mmc_data *data)
+{
+		mmc_writel(host, REG_BLKSZ, data->blksz);
+		mmc_writel(host, REG_BCNTR, data->blksz * data->blocks);
+		if (host->sunxi_mmc_thld_ctl) {
+			host->sunxi_mmc_thld_ctl(host, &mmc->ios, data);
+		}
+		sunxi_mmc_start_dma(host, data);
+}
+
+static void sunxi_mmc_exe_cmd(struct sunxi_mmc_host *host, struct mmc_command *cmd , u32 cmd_val , u32 imask)
+{
+	u32 rval = 0;
+	if (host->dat3_imask) {
+		rval = mmc_readl(host, REG_GCTRL);
+		rval &= ~SDXC_DEBOUNCE_ENABLE_BIT;
+		mmc_writel(host, REG_GCTRL, rval);
+	}
+	mmc_writel(host, REG_IMASK,
+		   host->sdio_imask | host->dat3_imask | imask);
+	mmc_writel(host, REG_CARG, cmd->arg);
+	wmb();
+	mmc_writel(host, REG_CMDR, cmd_val);
+}
+
+
+static void sunxi_mmc_request(struct mmc_host *mmc, struct mmc_request *mrq)
+{
+	struct sunxi_mmc_host *host = mmc_priv(mmc);
+	struct mmc_command *cmd = mrq->cmd;
+	struct mmc_data *data = mrq->data;
+	unsigned long iflags;
+	bool wait_dma = false;
+	u32 imask = 0;
+	u32 cmd_val = 0;
+	int ret;
+
+	/* Check for set_ios errors (should never happen) */
+	if (host->ferror) {
+		mrq->cmd->error = host->ferror;
+		mmc_request_done(mmc, mrq);
+		return;
+	}
+
+	if (data) {
+		ret = sunxi_mmc_map_dma(host, data);
+		if (ret < 0) {
+			dev_err(mmc_dev(mmc), "map DMA failed\n");
+			cmd->error = ret;
+			data->error = ret;
+			mmc_request_done(mmc, mrq);
+			return;
+		}
+	}
+
+	sunxi_mmc_parse_cmd(mmc , cmd , &cmd_val , &imask, &wait_dma);
 
 	dev_dbg(mmc_dev(mmc), "cmd %d(%08x) arg %x ie 0x%08x len %d\n",
 		cmd_val & 0x3f, cmd_val, cmd->arg, imask,
@@ -1111,7 +1241,8 @@ static void sunxi_mmc_request(struct mmc_host *mmc, struct mmc_request *mrq)
 
 	spin_lock_irqsave(&host->lock, iflags);
 
-	if (host->mrq || host->manual_stop_mrq || host->mrq_busy) {
+	if (host->mrq || host->manual_stop_mrq
+		|| host->mrq_busy || host->mrq_retry) {
 		spin_unlock_irqrestore(&host->lock, iflags);
 
 		if (data)
@@ -1125,28 +1256,15 @@ static void sunxi_mmc_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	}
 
 	if (data) {
-		mmc_writel(host, REG_BLKSZ, data->blksz);
-		mmc_writel(host, REG_BCNTR, data->blksz * data->blocks);
-		if (host->sunxi_mmc_thld_ctl) {
-			host->sunxi_mmc_thld_ctl(host, &mmc->ios, data);
-		}
 		spin_unlock_irqrestore(&host->lock, iflags);
-		sunxi_mmc_start_dma(host, data);
+		sunxi_mmc_set_dat(host , mmc , data);
 		spin_lock_irqsave(&host->lock, iflags);
 	}
 
 	host->mrq = mrq;
 	host->wait_dma = wait_dma;
-	if (host->dat3_imask) {
-		rval = mmc_readl(host, REG_GCTRL);
-		rval &= ~SDXC_DEBOUNCE_ENABLE_BIT;
-		mmc_writel(host, REG_GCTRL, rval);
-	}
-	mmc_writel(host, REG_IMASK,
-		   host->sdio_imask | host->dat3_imask | imask);
-	mmc_writel(host, REG_CARG, cmd->arg);
-	mmc_writel(host, REG_CMDR, cmd_val);
-
+	sunxi_mmc_exe_cmd(host, cmd , cmd_val , imask);
+	smp_wmb();
 	spin_unlock_irqrestore(&host->lock, iflags);
 }
 
@@ -1474,7 +1592,7 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 	ret = of_property_read_u32(np, "ctl-spec-caps", &caps_val);
 	if (!ret) {
 		host->ctl_spec_cap |= caps_val;
-		dev_info(&pdev->dev, "ctl-spec-caps %x\n", host->ctl_spec_cap);
+		dev_info(&pdev->dev, "***ctl-spec-caps*** %x\n", host->ctl_spec_cap);
 	}
 #ifdef SUNXI_SDMMC3
 	if (of_device_is_compatible(np, "allwinner,sun8iw10p1-sdmmc3")) {
@@ -1521,6 +1639,7 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 			host->sunxi_mmc_shutdown = sunxi_mmc_do_shutdown_com;
 		}
 		host->phy_index = 2;
+		host->sunxi_mmc_oclk_en = sunxi_mmc_oclk_onoff_sdmmc2;
 	}
 #endif
 
@@ -1539,6 +1658,7 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 		sunxi_mmc_reg_ex_res_inter(host, 0);
 		host->sunxi_mmc_set_acmda = sunxi_mmc_set_a12a;
 		host->phy_index = 0;
+		host->sunxi_mmc_oclk_en = sunxi_mmc_oclk_onoff_sdmmc0;
 	}
 #endif
 
@@ -1558,6 +1678,7 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 		sunxi_mmc_reg_ex_res_inter(host, 1);
 		host->sunxi_mmc_set_acmda = sunxi_mmc_set_a12a;
 		host->phy_index = 1;
+		host->sunxi_mmc_oclk_en = sunxi_mmc_oclk_onoff_sdmmc1;
 	}
 #endif
 	if (of_device_is_compatible(np, "allwinner,sunxi-mmc-v4p1x"))	{
@@ -1592,12 +1713,6 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 		sunxi_mmc_init_priv_v4p5x(host , pdev , phy_index);
 	}
 
-
-#if !defined(SUNXI_SDMMC0)&& !defined(SUNXI_SDMMC1)&& !defined(SUNXI_SDMMC2)&& !defined(SUNXI_SDMMC3)
-	dev_info(&pdev->dev, "No sdmmc define check code\n");
-	/*ret = -1;*/
-	/*return ret;*/
-#endif
 
 	//ret = mmc_regulator_get_supply(host->mmc);
 	ret = sunxi_mmc_regulator_get_supply(host->mmc);
@@ -1634,24 +1749,19 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 
 	host->pinctrl = devm_pinctrl_get(&pdev->dev);
 	if (IS_ERR(host->pinctrl)) {
-		ret = PTR_ERR(host->pinctrl);
-		goto error_disable_regulator;
+		dev_warn(&pdev->dev, "Could not get pinctrl,check if pin is needed\n");
 	}
 
 	host->pins_default = pinctrl_lookup_state(host->pinctrl,
-						  PINCTRL_STATE_DEFAULT);
+					  PINCTRL_STATE_DEFAULT);
 	if (IS_ERR(host->pins_default)) {
-		dev_err(&pdev->dev, "could not get default pinstate\n");
-		ret = PTR_ERR(host->pins_default);
-		goto error_disable_regulator;
+		dev_warn(&pdev->dev, "could not get default pinstate,check if pin is needed\n");
 	}
 
 	host->pins_sleep = pinctrl_lookup_state(host->pinctrl,
-						PINCTRL_STATE_SLEEP);
+					PINCTRL_STATE_SLEEP);
 	if (IS_ERR(host->pins_sleep)) {
-		dev_err(&pdev->dev, "could not get sleep pinstate\n");
-		ret = PTR_ERR(host->pins_sleep);
-		goto error_disable_regulator;
+		dev_warn(&pdev->dev, "could not get sleep pinstate,check if pin is needed\n");
 	}
 
 	host->reg_base = devm_ioremap_resource(&pdev->dev,
@@ -1676,24 +1786,12 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 		ret = PTR_ERR(host->clk_mmc);
 		goto error_disable_regulator;
 	}
-#if 0
-	host->reset = devm_reset_control_get(&pdev->dev, "ahb");
-#else
+
 	host->clk_rst = devm_clk_get(&pdev->dev, "rst");
 	if (IS_ERR(host->clk_rst)) {
 		dev_warn(&pdev->dev, "Could not get mmc rst\n");
 	}
-#endif
 
-#if 0
-	if (!IS_ERR(host->reset)) {
-		ret = reset_control_deassert(host->reset);
-		if (ret) {
-			dev_err(&pdev->dev, "reset err %d\n", ret);
-			goto error_disable_clk_mmc;
-		}
-	}
-#else
 	if (!IS_ERR(host->clk_rst)) {
 		ret = clk_prepare_enable(host->clk_rst);
 		if (ret) {
@@ -1701,7 +1799,6 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 			goto error_disable_regulator;
 		}
 	}
-#endif
 
 	ret = clk_prepare_enable(host->clk_ahb);
 	if (ret) {
@@ -1738,18 +1835,9 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 
 	clk_disable_unprepare(host->clk_mmc);
 	clk_disable_unprepare(host->clk_ahb);
-#if 0
-	if (!IS_ERR(host->reset))
-		reset_control_assert(host->reset);
-#else
+
 	if (!IS_ERR(host->clk_rst))
 		clk_disable_unprepare(host->clk_rst);
-#endif
-/*
-	ret = mmc_create_sys_fs(host,pdev);
-	if(ret)
-	      goto error_disable_regulator;
-*/
 
 	return ret;
 
@@ -1826,7 +1914,7 @@ static int sunxi_mmc_probe(struct platform_device *pdev)
 	    MMC_VDD_28_29 | MMC_VDD_29_30 | MMC_VDD_30_31 | MMC_VDD_31_32 |
 	    MMC_VDD_32_33 | MMC_VDD_33_34;
 	dev_info(&pdev->dev,
-		 "*******************set host ocr**************************\n");
+		 "***set host ocr***\n");
 
 #endif
 
@@ -1834,7 +1922,7 @@ static int sunxi_mmc_probe(struct platform_device *pdev)
 	if (mmc->sunxi_caps3 & MMC_SUNXI_CAP3_DAT3_DET) {
 		host->dat3_imask = SDXC_CARD_INSERT | SDXC_CARD_REMOVE;
 		dev_info(mmc_dev(host->mmc),
-			 "*************enable data3 detect****************\n");
+			 "***enable data3 detect***\n");
 	}
 
 	if (mmc_gpio_get_cd(mmc)) {
@@ -1896,9 +1984,9 @@ static int sunxi_mmc_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM
 
-void sunxi_mmc_regs_save(struct sunxi_mmc_host *host)
+
+static void sunxi_mmc_regs_save(struct sunxi_mmc_host *host)
 {
 	struct sunxi_mmc_ctrl_regs *bak_regs = &host->bak_regs;
 
@@ -1921,7 +2009,7 @@ void sunxi_mmc_regs_save(struct sunxi_mmc_host *host)
 	}
 }
 
-void sunxi_mmc_regs_restore(struct sunxi_mmc_host *host)
+static void sunxi_mmc_regs_restore(struct sunxi_mmc_host *host)
 {
 	struct sunxi_mmc_ctrl_regs *bak_regs = &host->bak_regs;
 
@@ -1946,6 +2034,7 @@ void sunxi_mmc_regs_restore(struct sunxi_mmc_host *host)
 		host->sunxi_mmc_set_acmda(host);
 	}
 }
+#ifdef CONFIG_PM
 
 static int sunxi_mmc_suspend(struct device *dev)
 {
@@ -1972,20 +2061,17 @@ static int sunxi_mmc_suspend(struct device *dev)
 
 				clk_disable_unprepare(host->clk_mmc);
 				clk_disable_unprepare(host->clk_ahb);
-#if 0
-				if (!IS_ERR(host->reset))
-					reset_control_assert(host->reset);
-#else
+
 				if (!IS_ERR(host->clk_rst))
 					clk_disable_unprepare(host->clk_rst);
-#endif
-				ret =
-				    pinctrl_select_state(host->pinctrl,
-							 host->pins_sleep);
-				if (ret) {
-					dev_err(mmc_dev(mmc),
-						"could not set sleep pins in suspend\n");
-					return ret;
+
+				if (!IS_ERR(host->pins_sleep)) {
+					ret = pinctrl_select_state(host->pinctrl , host->pins_sleep);
+					if (ret) {
+						dev_err(mmc_dev(mmc),
+							"could not set sleep pins in suspend\n");
+						return ret;
+					}
 				}
 				if (!IS_ERR(mmc->supply.vqmmc))
 					regulator_disable(mmc->supply.vqmmc);
@@ -1997,10 +2083,12 @@ static int sunxi_mmc_suspend(struct device *dev)
 								  vmmc, 0);
 					return ret;
 				}
-				dev_info(mmc_dev(mmc), "dat3_imask %x\n",
+				dev_dbg(mmc_dev(mmc), "dat3_imask %x\n",
 					 host->dat3_imask);
 					/*dump_reg(host);*/
 			}
+			sunxi_mmc_gpio_suspend_cd(mmc);
+			/*sunxi_dump_reg(mmc);*/
 		}
 	}
 
@@ -2015,6 +2103,7 @@ static int sunxi_mmc_resume(struct device *dev)
 	int ret = 0;
 
 	if (mmc) {
+		sunxi_mmc_gpio_resume_cd(mmc);
 		if (mmc_card_keep_power(mmc) || host->dat3_imask) {
 			if (!IS_ERR(mmc->supply.vmmc)) {
 				ret =
@@ -2033,24 +2122,15 @@ static int sunxi_mmc_resume(struct device *dev)
 				}
 			}
 
-			ret =
-			    pinctrl_select_state(host->pinctrl,
-						 host->pins_default);
-			if (ret) {
-				dev_err(mmc_dev(mmc),
-					"could not set default pins in resume\n");
-				return ret;
-			}
-#if 0
-			if (!IS_ERR(host->reset)) {
-				ret = reset_control_deassert(host->reset);
+			if (!IS_ERR(host->pins_default)) {
+				ret = pinctrl_select_state(host->pinctrl , host->pins_default);
 				if (ret) {
-					dev_err(mmc_dev(mmc), "reset err %d\n",
-						ret);
+					dev_err(mmc_dev(mmc),
+						"could not set default pins in resume\n");
 					return ret;
 				}
 			}
-#else
+
 			if (!IS_ERR(host->clk_rst)) {
 				ret = clk_prepare_enable(host->clk_rst);
 				if (ret) {
@@ -2059,7 +2139,7 @@ static int sunxi_mmc_resume(struct device *dev)
 					return ret;
 				}
 			}
-#endif
+
 			ret = clk_prepare_enable(host->clk_ahb);
 			if (ret) {
 				dev_err(mmc_dev(mmc), "Enable ahb clk err %d\n",
@@ -2096,6 +2176,7 @@ static int sunxi_mmc_resume(struct device *dev)
 				return ret;
 			}
 		}
+		/*sunxi_dump_reg(mmc);*/
 		ret = mmc_resume_host(mmc);
 	}
 

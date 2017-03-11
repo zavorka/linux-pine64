@@ -11,6 +11,7 @@
 		2016/01/18			ZHUWEI			0.20		LPDDR2 HDR always open
 		2016/01/19			ZHUWEI			0.30		support master priority set
 		2016/03/17			ZHUWEI			0.40		change de priority set
+		2016/05/16			ZHUWEI			0.50		change tvin priority set
 *****************************************************************************
 */
 #include "mctl_reg-sun8iw11.h"
@@ -265,8 +266,8 @@ void set_master_priority_standby(void)
 	mctl_write_w(0x01800009, MC_MnCR0(11));
 	mctl_write_w(0x00000100, MC_MnCR1(11));
 	/*set TVIN*/
-	mctl_write_w(0x01800009, MC_MnCR0(12));
-	mctl_write_w(0x00000100, MC_MnCR1(12));
+	mctl_write_w(0x0200000D, MC_MnCR0(12));
+	mctl_write_w(0x01000180, MC_MnCR1(12));
 	/*set DE*/
 	mctl_write_w(0x2000020d, MC_MnCR0(13));
 	mctl_write_w(0x04001800, MC_MnCR1(13));
@@ -976,7 +977,7 @@ signed int init_DRAM_standby(int type, __dram_para_t *para)
 	unsigned int pad_hold = 0;
 	unsigned int dram_size = 0;
 
-	dram_dbg_0("DRAM NORM STANDBY DRIVE INFO: V0.3\n");
+	dram_dbg_0("DRAM NORM STANDBY DRIVE INFO: V0.5\n");
 /*****************************************************************************
 Function : DRAM Controller Basic Initialization
 *****************************************************************************/

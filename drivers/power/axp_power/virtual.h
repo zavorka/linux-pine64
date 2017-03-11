@@ -3,6 +3,7 @@
 #include <linux/regulator/of_regulator.h>
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
+#include "axp-core.h"
 
 extern char *get_pmu_cur_name(void);
 

@@ -176,13 +176,16 @@ static void sunxi_clk_fators_disable(struct clk_hw *hw)
 	unsigned long reg;
 	unsigned long flags = 0;
 
-	if(factor->flags & CLK_IGNORE_DISABLE)
-		return;
-
 	/* check if the pll disabled already */
 	reg = factor_readl(factor, factor->reg);
 	if(!GET_BITS(config->enshift, 1, reg))
 		return;
+
+	/* When the pll is not in use, just set it to the minimum frequency */
+	if (factor->flags & CLK_IGNORE_DISABLE) {
+		clk_set_rate(hw->clk, 0);
+		return;
+	}
 
 	if(factor->lock)
 		spin_lock_irqsave(factor->lock, flags);
@@ -190,9 +193,11 @@ static void sunxi_clk_fators_disable(struct clk_hw *hw)
 	reg = factor_readl(factor, factor->reg);
 	if(config->sdmwidth)
 		reg = SET_BITS(config->sdmshift, config->sdmwidth, reg, 0);
+
 	/* update for pll_ddr register */
 	if(config->updshift)
 		reg = SET_BITS(config->updshift, 1, reg, 1);
+
 	/* disable pll */
 	reg = SET_BITS(config->enshift, 1, reg, 0);
 	factor_writel(factor,reg, factor->reg);

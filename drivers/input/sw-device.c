@@ -32,6 +32,7 @@ static struct sw_device_info gsensors[] = {
         {  "fxos8700", 0, {0x1c, 0x1d, 0x1e, 0x1f}, 0x0d, {0xc7          }, 0},
         {   "lsm303d", 0, {0x1e, 0x1d            }, 0x0f, {0x49          }, 0},    
         {   "sc7a30",  0, {0x1D                  }, 0x2A, {0x00          }, 0},
+		{   "mir3da",  0, {0x26, 0x27            }, 0x00, {0x00          }, 0},
 };
 /*ctp info*/
 static struct sw_device_info ctps[] = {
@@ -768,7 +769,7 @@ static void sw_devices_set_power(struct para_power *pm)
 
 static void sw_devices_power_free(struct para_power *pm)
 {
-	if (pm && !IS_ERR_OR_NULL(pm->ldo)) {
+	if (pm && !IS_ERR(pm->ldo)) {
 		regulator_disable(pm->ldo);
 		regulator_put(pm->ldo);
 		pm->ldo = NULL;

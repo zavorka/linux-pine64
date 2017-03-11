@@ -373,6 +373,9 @@ static irqreturn_t sw_uart_irq(int irq, void *dev_id)
 	} else {
 		if (lsr & (SUNXI_UART_LSR_DR | SUNXI_UART_LSR_BI))
 			lsr = sw_uart_handle_rx(sw_uport, lsr);
+		/* has charto irq but no dr lsr? just read and ignore */
+		else if (iir & SUNXI_UART_IIR_IID_CHARTO)
+			serial_in(&sw_uport->port, SUNXI_UART_RBR);
 		sw_uart_modem_status(sw_uport);
 		#ifdef CONFIG_SW_UART_PTIME_MODE
 		if (iir == SUNXI_UART_IIR_IID_THREMP)
@@ -944,6 +947,7 @@ static int sw_uart_ioctl(struct uart_port *port, unsigned int cmd,
 static void sw_uart_pm(struct uart_port *port, unsigned int state,
 		      unsigned int oldstate)
 {
+#ifdef CONFIG_EVB_PLATFORM
 	int ret;
 	struct sw_uart_port *sw_uport = UART_TO_SPORT(port);
 
@@ -972,6 +976,7 @@ static void sw_uart_pm(struct uart_port *port, unsigned int state,
 	default:
 		SERIAL_MSG("uart%d, Unknown PM state %d\n", sw_uport->id, state);
 	}
+#endif
 }
 
 static struct uart_ops sw_uart_ops = {
@@ -1377,12 +1382,12 @@ static int sw_uart_probe(struct platform_device *pdev)
 		return -ENXIO;
 	}
 
+#ifdef CONFIG_EVB_PLATFORM
 	sw_uport->mclk = of_clk_get(np, 0);
 	if (IS_ERR(sw_uport->mclk)) {
 		SERIAL_MSG("uart%d error to get clk\n", pdev->id);
 		return -EINVAL;
 	}
-#ifdef CONFIG_EVB_PLATFORM
 	port->uartclk = clk_get_rate(sw_uport->mclk);
 #else
 	port->uartclk = 24000000;
@@ -1423,7 +1428,7 @@ static int sw_uart_probe(struct platform_device *pdev)
 	port->type = PORT_SUNXI;
 	port->flags = UPF_BOOT_AUTOCONF;
 	port->ops = &sw_uart_ops;
-	port->fifosize = 64;
+	port->fifosize = SUNXI_UART_FIFO_SIZE;
 	platform_set_drvdata(pdev, port);
 
 	sunxi_uart_sysfs(pdev);

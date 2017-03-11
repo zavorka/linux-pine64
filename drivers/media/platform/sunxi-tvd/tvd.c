@@ -41,6 +41,8 @@
 #include <linux/pinctrl/pinconf-sunxi.h>
 #include <linux/of_gpio.h>
 #include <linux/regulator/consumer.h>
+#include <linux/switch.h>
+
 #ifdef CONFIG_DEVFREQ_DRAM_FREQ_WITH_SOFT_NOTIFY
 #include <linux/sunxi_dramfreq.h>
 #endif
@@ -59,9 +61,11 @@
 #define YPBPRP_INTERFACE 2
 #define NTSC   0
 #define PAL    1
+#define NONE   2
+
 #define TVD_MAX_POWER_NUM 2
 #define TVD_MAX_GPIO_NUM 2
-
+#define TVD_MAX 4
 #define TVD_MAJOR_VERSION 1
 #define TVD_MINOR_VERSION 0
 #define TVD_RELEASE		  0
@@ -75,10 +79,13 @@ static unsigned int tvd_dbg_sel;
 static char tvd_dump_file_name[TVD_NAME_LEN];
 static struct tvd_status tvd_status[4];
 static struct tvd_dev *tvd[4];
+static unsigned int tvd_hot_plug;
+
 /* use for reversr special interfaces */
 static int tvd_count;
 static int fliter_count;
 static struct mutex fliter_lock;
+static struct mutex power_lock;
 static char tvd_power[TVD_MAX_POWER_NUM][32];
 static struct gpio_config tvd_gpio_config[TVD_MAX_GPIO_NUM];
 static struct regulator *regu[TVD_MAX_POWER_NUM];
@@ -89,6 +96,8 @@ static atomic_t gpio_power_enable_count = ATOMIC_INIT(0);
 static irqreturn_t tvd_isr(int irq, void *priv);
 static irqreturn_t tvd_isr_special(int irq, void *priv);
 static int __tvd_fetch_sysconfig(int sel, char *sub_name, int value[]);
+static int __tvd_auto_plug_enable(struct tvd_dev *dev);
+static int __tvd_auto_plug_disable(struct tvd_dev *dev);
 
 static ssize_t tvd_dbg_en_show(struct device *dev,
 		    struct device_attribute *attr, char *buf)
@@ -534,8 +543,15 @@ static irqreturn_t tvd_isr(int irq, void *priv)
 {
 	struct tvd_buffer *buf;
 	unsigned long flags;
+	u32 irq_status = 0;
 	struct tvd_dev *dev = (struct tvd_dev *)priv;
 	struct tvd_dmaqueue *dma_q = &dev->vidq;
+	u32 err = (1 << TVD_IRQ_FIFO_C_O) |
+			(1 << TVD_IRQ_FIFO_Y_O) |
+			(1 << TVD_IRQ_FIFO_C_U) |
+			(1 << TVD_IRQ_FIFO_Y_U) |
+			(1 << TVD_IRQ_WB_ADDR_CHANGE_ERR);
+
 	if (dev->special_active == 1) {
 		return tvd_isr_special(irq, priv);
 	}
@@ -544,6 +560,9 @@ static irqreturn_t tvd_isr(int irq, void *priv)
 		tvd_irq_status_clear(dev->sel, TVD_IRQ_FRAME_END);
 		return IRQ_HANDLED;
 	}
+	tvd_dma_irq_status_get(dev->sel, &irq_status);
+	if ((irq_status & err) != 0)
+		tvd_dma_irq_status_clear_err_flag(dev->sel, err);
 
 	spin_lock_irqsave(&dev->slock, flags);
 
@@ -688,11 +707,13 @@ static int stop_streaming(struct vb2_queue *vq)
 {
 	struct tvd_dev *dev = vb2_get_drv_priv(vq);
 	struct tvd_dmaqueue *dma_q = &dev->vidq;
+	unsigned long flags = 0;
 
 	pr_debug("%s:\n", __func__);
 	tvd_stop_generating(dev);
 
 	/* Release all active buffers */
+	spin_lock_irqsave(&dev->slock, flags);
 	while (!list_empty(&dma_q->active)) {
 		struct tvd_buffer *buf;
 		buf = list_entry(dma_q->active.next, struct tvd_buffer, list);
@@ -700,7 +721,7 @@ static int stop_streaming(struct vb2_queue *vq)
 		vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
 		pr_debug("[%p/%d] done\n", buf, buf->vb.v4l2_buf.index);
 	}
-
+	spin_unlock_irqrestore(&dev->slock, flags);
 	return 0;
 }
 
@@ -1252,15 +1273,22 @@ static int tvd_open(struct file *file)
 	struct tvd_dev *dev = video_drvdata(file);
 	int ret = -1;
 	int i = 0;
-
 	pr_debug("%s:\n", __func__);
+
 	if (tvd_is_opened(dev)) {
 		pr_err("%s: device open busy\n", __func__);
 		return -EBUSY;
 	}
+
+	if (tvd_hot_plug)
+		__tvd_auto_plug_disable(dev);
+
 	dev->system = NTSC;
+	/* register irq */
+	ret = request_irq(dev->irq, tvd_isr, IRQF_DISABLED, dev->name, dev);
 
 	/* gpio power, open only once */
+	mutex_lock(&power_lock);
 	if (!atomic_read(&gpio_power_enable_count)) {
 		for (i = 0; i < atomic_read(&tvd_used_gpio_num); i++)
 			ret = __tvd_gpio_request(&tvd_gpio_config[i]);
@@ -1273,6 +1301,7 @@ static int tvd_open(struct file *file)
 		if (ret)
 			pr_err("power(%s) enable failed.\n", &tvd_power[i][0]);
 	}
+	mutex_unlock(&power_lock);
 
 	if (__tvd_clk_init(dev)) {
 		pr_err("%s: clock init fail!\n", __func__);
@@ -1301,6 +1330,7 @@ static int tvd_close(struct file *file)
 	vb2_queue_release(&dev->vb_vidq);
 	tvd_stop_opened(dev);
 
+	free_irq(dev->irq, dev);
 	mutex_lock(&fliter_lock);
 	if (fliter_count > 0 && dev->fliter.used) {
 		__tvd_3d_comp_mem_free(dev);
@@ -1309,6 +1339,7 @@ static int tvd_close(struct file *file)
 	mutex_unlock(&fliter_lock);
 
 	/* close pmu power */
+	mutex_lock(&power_lock);
 	for (i = 0; i < atomic_read(&tvd_used_power_num); i++) {
 		ret = __tvd_power_enable(regu[i], false);
 		if (ret)
@@ -1319,6 +1350,10 @@ static int tvd_close(struct file *file)
 		for (i = 0; i < atomic_read(&tvd_used_gpio_num); i++)
 			gpio_free(tvd_gpio_config[i].gpio);
 	}
+	mutex_unlock(&power_lock);
+
+	if (tvd_hot_plug)
+		__tvd_auto_plug_enable(dev);
 
 	pr_debug("tvd_close end\n");
 
@@ -1445,6 +1480,7 @@ int tvd_open_special(int tvd_fd)
 	dev->system = NTSC;
 
 	/* gpio power, open only once */
+	mutex_lock(&power_lock);
 	if (!atomic_read(&gpio_power_enable_count)) {
 		for (i = 0; i < atomic_read(&tvd_used_gpio_num); i++)
 			ret = __tvd_gpio_request(&tvd_gpio_config[i]);
@@ -1457,6 +1493,7 @@ int tvd_open_special(int tvd_fd)
 		if (ret)
 			pr_err("power(%s) enable failed.\n", &tvd_power[i][0]);
 	}
+	mutex_unlock(&power_lock);
 
 	INIT_LIST_HEAD(&active->active);
 	INIT_LIST_HEAD(&done->active);
@@ -1491,6 +1528,7 @@ int tvd_close_special(int tvd_fd)
 	dev->special_active = 0;
 
 	/* close pmu power */
+	mutex_lock(&power_lock);
 	for (i = 0; i < atomic_read(&tvd_used_power_num); i++) {
 		ret = __tvd_power_enable(regu[i], false);
 		if (ret)
@@ -1501,6 +1539,7 @@ int tvd_close_special(int tvd_fd)
 		for (i = 0; i < atomic_read(&tvd_used_gpio_num); i++)
 			gpio_free(tvd_gpio_config[i].gpio);
 	}
+	mutex_unlock(&power_lock);
 
 	return ret;
 }
@@ -1945,8 +1984,180 @@ static int __jude_config(struct tvd_dev *dev)
 
 }
 
+#if defined(CONFIG_SWITCH) || defined(CONFIG_ANDROID_SWITCH)
+
+static char switch_lock_name[20];
+static char switch_system_name[20];
+static struct switch_dev switch_lock[TVD_MAX];
+static struct switch_dev switch_system[TVD_MAX];
+static struct task_struct *tvd_task;
+
+static int __tvd_auto_plug_init(struct tvd_dev *dev)
+{
+	int ret = 0;
+
+	snprintf(switch_lock_name, sizeof(switch_lock_name), "tvd_lock%d",
+		dev->sel);
+
+	switch_lock[dev->sel].name = switch_lock_name;
+	ret = switch_dev_register(&switch_lock[dev->sel]);
+
+
+	snprintf(switch_system_name, sizeof(switch_system_name), "tvd_system%d",
+		dev->sel);
+
+	switch_system[dev->sel].name = switch_system_name;
+	ret = switch_dev_register(&switch_system[dev->sel]);
+
+	return ret;
+}
+
+static void __tvd_auto_plug_exit(struct tvd_dev *dev)
+{
+	switch_dev_unregister(&switch_lock[dev->sel]);
+	switch_dev_unregister(&switch_system[dev->sel]);
+}
+
+static int __tvd_detect_thread(void *parg)
+{
+	s32 i = 0;
+	u32 locked = 0;
+	u32 system = 2;
+	static u32 systems[TVD_MAX];
+	static bool hpd[TVD_MAX];
+
+
+	for (i = 0; i < TVD_MAX; i++) {
+		systems[i] = NONE;
+		hpd[i] = false;
+	}
+
+	for (;;) {
+		if (kthread_should_stop())
+			break;
+
+		for (i = 0; i < tvd_count; i++) {
+			tvd_get_status(i, &locked, &system);
+			if (hpd[i] != locked) {
+				pr_debug("reverse hpd=%d, i = %d\n", locked, i);
+				hpd[i] = locked;
+				switch_set_state(&switch_lock[i], locked);
+			}
+			if (systems[i] != system) {
+				pr_debug("system = %d, i = %d\n", system, i);
+				systems[i] = system;
+				switch_set_state(&switch_system[i], system);
+			}
+		}
+		set_current_state(TASK_INTERRUPTIBLE);
+		schedule_timeout(50);
+	}
+
+	return 0;
+}
+
+static int __tvd_auto_plug_enable(struct tvd_dev *dev)
+{
+	int ret = 0;
+	int i = 0;
+
+	dev->system = NTSC;
+
+	/* gpio power, open only once */
+	mutex_lock(&power_lock);
+	if (!atomic_read(&gpio_power_enable_count)) {
+		for (i = 0; i < atomic_read(&tvd_used_gpio_num); i++)
+			ret = __tvd_gpio_request(&tvd_gpio_config[i]);
+	}
+	atomic_inc(&gpio_power_enable_count);
+
+	/* pmu power */
+	for (i = 0; i < atomic_read(&tvd_used_power_num); i++) {
+		ret = __tvd_power_enable(regu[i], true);
+		if (ret)
+			pr_err("power(%s) enable failed.\n", &tvd_power[i][0]);
+	}
+	mutex_unlock(&power_lock);
+
+	if (__tvd_clk_init(dev))
+		pr_err("%s: clock init fail!\n", __func__);
+
+	ret = __tvd_clk_enable(dev);
+	__tvd_init(dev);
+	tvd_init(dev->sel, dev->interface);
+
+	/* Set system as NTSC */
+	dev->width = 720;
+	dev->height = 480;
+	dev->fmt = &formats[0];
+
+	ret = __tvd_config(dev);
+
+	/* enable detect thread */
+	if (!tvd_task) {
+		tvd_task = kthread_create(__tvd_detect_thread, (void *)0,
+						"tvd detect");
+		if (IS_ERR(tvd_task)) {
+			s32 err = 0;
+			err = PTR_ERR(tvd_task);
+			tvd_task = NULL;
+			return err;
+		}
+		wake_up_process(tvd_task);
+	}
+
+	return ret;
+}
+
+static int __tvd_auto_plug_disable(struct tvd_dev *dev)
+{
+	int ret = 0;
+	int i = 0;
+
+	__tvd_clk_disable(dev);
+
+	/* close pmu power */
+	mutex_lock(&power_lock);
+	for (i = 0; i < atomic_read(&tvd_used_power_num); i++) {
+		ret = __tvd_power_enable(regu[i], false);
+		if (ret)
+			pr_err("power(%s) disable failed.\n", &tvd_power[i][0]);
+	}
+
+	if (atomic_dec_and_test(&gpio_power_enable_count)) {
+		for (i = 0; i < atomic_read(&tvd_used_gpio_num); i++)
+			gpio_free(tvd_gpio_config[i].gpio);
+	}
+	mutex_unlock(&power_lock);
+
+	return ret;
+}
+
+#else
+static int __tvd_auto_plug_init(struct tvd_dev *dev)
+{
+	return 0;
+}
+
+static void __tvd_auto_plug_exit(struct tvd_dev *dev)
+{
+
+}
+
+static int __tvd_auto_plug_enable(struct tvd_dev *dev)
+{
+	pr_warn("there is no switch class for tvd\n");
+	return 0;
+}
+
+static int __tvd_auto_plug_disable(struct tvd_dev *dev)
+{
+	return 0;
+}
+#endif
+
 static void __iomem  *tvd_top;
-struct clk* tvd_clk_top;
+static struct clk *tvd_clk_top;
 
 static int __tvd_probe_init(int sel, struct platform_device *pdev)
 {
@@ -1990,6 +2201,7 @@ static int __tvd_probe_init(int sel, struct platform_device *pdev)
 
 	tvd[dev->id] = dev;
 	tvd_count++;
+	memcpy(dev->name, pdev->name, sizeof(pdev->name) + 1);
 	dev->irq = irq_of_parse_and_map(np, 0);
 	if (dev->irq <= 0) {
 		pr_err("failed to get IRQ resource\n");
@@ -2005,9 +2217,6 @@ static int __tvd_probe_init(int sel, struct platform_device *pdev)
 	}
 	dev->regs_top = tvd_top;
 	dev->clk_top = tvd_clk_top;
-
-	/* register irq */
-	ret = request_irq(dev->irq, tvd_isr, IRQF_DISABLED, pdev->name, dev);
 
 	/* get tvd clk ,name fix */
 	dev->clk = of_clk_get(np, 0);//fix
@@ -2093,6 +2302,11 @@ static int __tvd_probe_init(int sel, struct platform_device *pdev)
 	mutex_init(&dev->opened_lock);
 	mutex_init(&dev->buf_lock);
 
+	if (tvd_hot_plug) {
+		__tvd_auto_plug_init(dev);
+		__tvd_auto_plug_enable(dev);
+	}
+
 	return 0;
 
 vb2_queue_err:
@@ -2129,6 +2343,7 @@ static int tvd_probe(struct platform_device *pdev)
 	char sub_name[32] = {0};
 	const char *str;
 
+	mutex_init(&power_lock);
 	mutex_init(&fliter_lock);
 	tvd_top = of_iomap(pdev->dev.of_node, 0);
 	if (IS_ERR_OR_NULL(tvd_top)) {
@@ -2142,6 +2357,8 @@ static int tvd_probe(struct platform_device *pdev)
 		pr_err("get tvd clk error!\n");
 		goto iomap_tvd_err;
 	}
+
+	of_property_read_u32(pdev->dev.of_node, "tvd_hot_plug", &tvd_hot_plug);
 
 	for (i = 0; i < TVD_MAX_POWER_NUM; i++) {
 		snprintf(sub_name, sizeof(sub_name), "tvd_power%d", i);
@@ -2264,11 +2481,30 @@ static int tvd_runtime_idle(struct device *d)
 
 static int tvd_suspend(struct device *d)
 {
+#if defined(CONFIG_SWITCH) || defined(CONFIG_ANDROID_SWITCH)
+	if (tvd_task && tvd_hot_plug) {
+		if (!kthread_stop(tvd_task))
+			tvd_task = NULL;
+	}
+#endif
 	return 0;
 }
 
 static int tvd_resume(struct device *d)
 {
+#if defined(CONFIG_SWITCH) || defined(CONFIG_ANDROID_SWITCH)
+	if ((!tvd_task) && (tvd_hot_plug)) {
+		tvd_task = kthread_create(__tvd_detect_thread, (void *)0,
+						"tvd detect");
+		if (IS_ERR(tvd_task)) {
+			s32 err = 0;
+			err = PTR_ERR(tvd_task);
+			tvd_task = NULL;
+			return err;
+		}
+		wake_up_process(tvd_task);
+	}
+#endif
 	return 0;
 }
 
@@ -2324,7 +2560,13 @@ static int __init tvd_module_init(void)
 
 static void __exit tvd_module_exit(void)
 {
+	int i = 0;
+
 	pr_info("tvd_exit\n");
+	if (tvd_hot_plug) {
+		for (i = 0; i < tvd_count; i++)
+			__tvd_auto_plug_exit(tvd[i]);
+	}
 
 	tvd_release();
 	platform_driver_unregister(&tvd_driver);

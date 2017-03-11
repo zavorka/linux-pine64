@@ -186,6 +186,7 @@ void axp_charger_update_state(struct axp_charger *charger)
 
 	/* wait for the stability of ACIN valid and VBUS valid */
 	msleep(2);
+
 	axp_reads(charger->master, AXP_CHARGE_STATUS, 2, val);
 	tmp = (val[1] << 8) + val[0];
 	spin_lock(&charger->charger_lock);

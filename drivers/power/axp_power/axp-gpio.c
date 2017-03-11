@@ -689,45 +689,46 @@ int axp_pinctrl_unregister(struct axp_pinctrl *pctl)
 }
 EXPORT_SYMBOL_GPL(axp_pinctrl_unregister);
 
-struct axp_gpio_irq_ops axp_irq_ops;
+struct axp_gpio_irq_ops axp_irq_ops[AXP_ONLINE_SUM];
 
-void axp_gpio_irq_ops_set(struct axp_gpio_irq_ops *ops)
+void axp_gpio_irq_ops_set(int pmu_num, struct axp_gpio_irq_ops *ops)
 {
-	axp_irq_ops.irq_request  = ops->irq_request;
-	axp_irq_ops.irq_free     = ops->irq_free;
-	axp_irq_ops.irq_ack      = ops->irq_ack;
-	axp_irq_ops.irq_enable   = ops->irq_enable;
-	axp_irq_ops.irq_disable  = ops->irq_disable;
-	axp_irq_ops.irq_set_type = ops->irq_set_type;
+	axp_irq_ops[pmu_num].irq_request  = ops->irq_request;
+	axp_irq_ops[pmu_num].irq_free     = ops->irq_free;
+	axp_irq_ops[pmu_num].irq_ack      = ops->irq_ack;
+	axp_irq_ops[pmu_num].irq_enable   = ops->irq_enable;
+	axp_irq_ops[pmu_num].irq_disable  = ops->irq_disable;
+	axp_irq_ops[pmu_num].irq_set_type = ops->irq_set_type;
 }
 
-int axp_gpio_irq_request(int gpio_no, u32 (*handler)(int, void *), void *data)
+int axp_gpio_irq_request(int pmu_num, int gpio_no,
+				u32 (*handler)(int, void *), void *data)
 {
-	return axp_irq_ops.irq_request(gpio_no, handler, data);
+	return axp_irq_ops[pmu_num].irq_request(gpio_no, handler, data);
 }
 EXPORT_SYMBOL_GPL(axp_gpio_irq_request);
 
-int axp_gpio_irq_enable(int gpio_no)
+int axp_gpio_irq_enable(int pmu_num, int gpio_no)
 {
-	return axp_irq_ops.irq_enable(gpio_no);
+	return axp_irq_ops[pmu_num].irq_enable(gpio_no);
 }
 EXPORT_SYMBOL_GPL(axp_gpio_irq_enable);
 
-int axp_gpio_irq_disable(int gpio_no)
+int axp_gpio_irq_disable(int pmu_num, int gpio_no)
 {
-	return axp_irq_ops.irq_disable(gpio_no);
+	return axp_irq_ops[pmu_num].irq_disable(gpio_no);
 }
 EXPORT_SYMBOL_GPL(axp_gpio_irq_disable);
 
-int axp_gpio_irq_set_type(int gpio_no, unsigned long type)
+int axp_gpio_irq_set_type(int pmu_num, int gpio_no, unsigned long type)
 {
-	return axp_irq_ops.irq_set_type(gpio_no, type);
+	return axp_irq_ops[pmu_num].irq_set_type(gpio_no, type);
 }
 EXPORT_SYMBOL_GPL(axp_gpio_irq_set_type);
 
-int axp_gpio_irq_free(int gpio_no)
+int axp_gpio_irq_free(int pmu_num, int gpio_no)
 {
-	return axp_irq_ops.irq_free(gpio_no);
+	return axp_irq_ops[pmu_num].irq_free(gpio_no);
 }
 EXPORT_SYMBOL_GPL(axp_gpio_irq_free);
 

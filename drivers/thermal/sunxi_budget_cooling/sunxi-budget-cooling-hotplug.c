@@ -91,11 +91,12 @@ int __ref sunxi_hotplug_update_state(struct sunxi_budget_cooling_device
 		max);
 	autohotplug_roomage_limit(cluster, min, max);
 #endif
-
+	get_online_cpus();
 	for_each_online_cpu(i) {
 		if (cpumask_test_cpu(i, &cooling_device->cluster_cpus[cluster]))
 			online++;
 	}
+	put_online_cpus();
 
 	takeup = (online < max) ? (max - online) : 0;
 

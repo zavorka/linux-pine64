@@ -316,6 +316,7 @@ static int bus_enter_lowfreq(extended_standby_t *para)
 	/* delay_ms(1); */
 	standby_clk_plldisable();
 
+	standby_clk_set_keyfield();
 	/* switch cpu to 32k */
 	save_mem_status(STANDBY_START | 0x0d);
 	standby_clk_core2losc();
@@ -328,27 +329,33 @@ static int bus_enter_lowfreq(extended_standby_t *para)
 	if (1 == para->soc_dram_state.selfresh_flag) {
 		/* printk("disable HOSC, and disable LDO\n"); */
 		/* disable HOSC, and disable LDO */
-		standby_clk_hoscdisable();
-		standby_clk_ldodisable();
+		if (0 == (para->cpux_clk_state.osc_en & BITMAP(OSC_HOSC_BIT)))
+			standby_clk_hoscdisable();
+		if (0 == (para->cpux_clk_state.osc_en & BITMAP(OSC_LDO1_BIT)))
+			standby_clk_ldodisable();
 	}
-
 	return 0;
 }
 
 static int bus_freq_resume(extended_standby_t *para)
 {
 	if (1 == para->soc_dram_state.selfresh_flag) {
-		/* enable LDO, enable HOSC */
-		standby_clk_ldoenable();
-		/* delay 1ms for power be stable */
-		/* 3ms */
-		standby_delay_cycle(1);
-		standby_clk_hoscenable();
-		/* 3ms */
-		standby_delay_cycle(1);
+		if (0 == (para->cpux_clk_state.osc_en & BITMAP(OSC_LDO1_BIT))) {
+			/* enable LDO, enable HOSC */
+			standby_clk_ldoenable();
+			/* delay 1ms for power be stable */
+			/* 3ms */
+			standby_delay_cycle(1);
+		}
+		if (0 == (para->cpux_clk_state.osc_en & BITMAP(OSC_HOSC_BIT))) {
+			standby_clk_hoscenable();
+			/* 3ms */
+			standby_delay_cycle(1);
+		}
 	}
 	/* switch clock to hosc */
 	standby_clk_core2hosc();
+	standby_clk_unset_keyfield();
 
 	/* swtich apb2 to hosc */
 	standby_clk_apb2hosc();

@@ -243,13 +243,13 @@ struct clk *sunxi_clk_register_factors(struct device *dev,
 	}
 
 #define FACTOR_ALL(nv, ns, nw, kv, ks, kw, mv, ms, mw, \
-		   pv, ps, pw, d0v, d0s, d0w, d1v, d1s, d1w) \
+		   pv, ps, pw, d1v, d1s, d1w, d2v, d2s, d2w) \
 		  ((((nv & ((1 << nw) - 1)) << ns) | \
 		    ((kv & ((1 << kw) - 1)) << ks) | \
 		    ((mv & ((1 << mw) - 1)) << ms) | \
 		    ((pv & ((1 << pw) - 1)) << ps) | \
-		    ((d0v & ((1 << d0w) - 1)) << d0s) | \
-		    ((d1v & ((1 << d1w) - 1)) << d1s)))
+		    ((d1v & ((1 << d1w) - 1)) << d1s) | \
+		    ((d2v & ((1 << d2w) - 1)) << d2s)))
 
 #define SUNXI_CLK_FACTORS_UPDATE(name, _nshift, _nwidth, _kshift, _kwidth, \
 		_mshift, _mwidth,  _pshift, _pwidth, _d1shift, _d1width, \

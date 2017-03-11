@@ -1057,20 +1057,18 @@ typedef struct
 
 typedef enum
 {
-	TVD_IRQ_LOCK					=   0 ,
-	TVD_IRQ_UNLOCK					=	1 ,
-	TVD_IRQ_FIFO_V_O 				=	3 ,
-	TVD_IRQ_FIFO_U_O 				=	4 ,
-	TVD_IRQ_FIFO_Y_O   				=	5 ,
-	TVD_IRQ_FIFO_Y_V    			=	6 ,
-	TVD_IRQ_FIFO_Y_U       			=	7 ,
-	TVD_IRQ_FIFO_Y_U_    			=	8 ,
-	TVD_IRQ_WB_ADDR_CHANGE_ERR  	=	16,
-	TVD_IRQ_FRAME_END  				=	24,
-	TVD_IRQ_FIFO_3D_RX_U  			=	28,
-	TVD_IRQ_FIFO_3D_RX_O   			=	29,
-	TVD_IRQ_FIFO_3D_TX_U      		=	30,
-	TVD_IRQ_FIFO_3D_TX_O  			=	31,
+	TVD_IRQ_LOCK = 0,
+	TVD_IRQ_UNLOCK = 1,
+	TVD_IRQ_FIFO_C_O = 4,
+	TVD_IRQ_FIFO_Y_O = 5,
+	TVD_IRQ_FIFO_C_U = 7,
+	TVD_IRQ_FIFO_Y_U = 8,
+	TVD_IRQ_WB_ADDR_CHANGE_ERR = 16,
+	TVD_IRQ_FRAME_END = 24,
+	TVD_IRQ_FIFO_3D_RX_U = 28,
+	TVD_IRQ_FIFO_3D_RX_O = 29,
+	TVD_IRQ_FIFO_3D_TX_U = 30,
+	TVD_IRQ_FIFO_3D_TX_O = 31,
 }TVD_IRQ_T;
 
 typedef enum
@@ -1098,6 +1096,9 @@ s32 tvd_irq_enable(u32 sel,TVD_IRQ_T irq_id);
 s32 tvd_irq_disable(u32 sel,TVD_IRQ_T irq_id);
 s32 tvd_irq_status_get(u32 sel,TVD_IRQ_T irq_id,u32* irq_status);
 s32 tvd_irq_status_clear(u32 sel,TVD_IRQ_T irq_id);
+s32 tvd_dma_irq_status_get(u32 sel, u32 *irq_status);
+s32 tvd_dma_irq_status_clear_err_flag(u32 sel, u32 irq_status);
+
 s32 tvd_adc_config(u32 adc);
 s32 tvd_set_saturation(u32 sel, u32 saturation);
 s32 tvd_set_luma(u32 sel,u32 luma);

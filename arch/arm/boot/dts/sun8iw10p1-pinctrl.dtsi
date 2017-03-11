@@ -275,22 +275,6 @@
 				allwinner,pull = <1>;
 			};
 
-			sdc1_pins_a: sdc1@0 {
-				allwinner,pins = "PG0", "PG1", "PG2", "PG3","PG4","PG5";
-				allwinner,function = "sdc1";
-				allwinner,muxsel = <2>;
-				allwinner,drive = <3>;
-				allwinner,pull = <1>;
-			};
-
-			sdc1_pins_b: sdc1@1 {
-				allwinner,pins = "PG0", "PG1", "PG2", "PG3","PG4","PG5";
-				allwinner,function = "io_disabled";
-				allwinner,muxsel = <7>;
-				allwinner,drive = <1>;
-				allwinner,pull = <1>;
-			};
-
 			sdc2_pins_a: sdc2@0 {
 				allwinner,pins = "PC1","PC4", "PC5", "PC6", "PC7","PC8","PC9","PC10","PC11","PC12","PC13","PC14";
 				allwinner,function = "sdc2";

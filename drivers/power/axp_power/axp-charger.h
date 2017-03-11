@@ -17,6 +17,7 @@
 #define INTCHGCSTTIME   480         /* set initial pre-charging time */
 #define BATMAXVOL       4200000     /* set battery max design volatge */
 #define BATMINVOL       3500000     /* set battery min design volatge */
+#define UPDATEMINTIME   30          /* set bat percent update min time */
 
 #define OCVREG0         0x00        /* 2.99V */
 #define OCVREG1         0x00        /* 3.13V */
@@ -148,7 +149,11 @@ struct axp_config_info {
 	u32 pmu_hot_shutdown;
 	u32 pmu_inshort;
 	u32 power_start;
+	u32 pmu_as_slave;
 	u32 pmu_bat_unused;
+	u32 pmu_ocv_en;
+	u32 pmu_cou_en;
+	u32 pmu_update_min_time;
 
 	u32 pmu_bat_temp_enable;
 	u32 pmu_bat_charge_ltf;
@@ -195,6 +200,7 @@ struct axp_usb_info {
 	int det_offset;
 	int valid_bit;
 	int valid_offset;
+	int det_unused;
 	int usb_pc_vol;
 	int usb_pc_cur;
 	int usb_ad_vol;
@@ -273,6 +279,21 @@ struct axp_charger_dev {
 	bool usb_pc_charging;
 	bool usb_adapter_charging;
 	bool bat_current_direction;
+
+	void (*private_debug)(struct axp_charger_dev *cdev);
+};
+
+struct axp_adc_res {
+	uint16_t vbat_res;
+	uint16_t ocvbat_res;
+	uint16_t ibat_res;
+	uint16_t ichar_res;
+	uint16_t idischar_res;
+	uint16_t vac_res;
+	uint16_t iac_res;
+	uint16_t vusb_res;
+	uint16_t iusb_res;
+	uint16_t ts_res;
 };
 
 struct axp_charger_dev *axp_power_supply_register(struct device *dev,

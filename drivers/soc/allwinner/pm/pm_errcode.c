@@ -240,10 +240,11 @@ const char *pm_errstr(error_t error)
 		errstr_init();
 		inited = true;
 	}
+	if (module_id >= MOD_MAX_COUNT)
+		return "ERR_MODULE_ID_EXCEED_MOD_MAX_COUNT";
 
-	if (error_id > pm_errstr_array[module_id].last_err) {
+	if (error_id > pm_errstr_array[module_id].last_err)
 		return "ERR_ERRSTR_EXCEED_MAX_ID";
-	}
 
 	if ((NULL == pm_errstr_array[module_id].error_array)
 	    || (NULL == pm_errstr_array[module_id].error_array[error_id]))

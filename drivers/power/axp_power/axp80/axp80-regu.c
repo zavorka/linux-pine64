@@ -377,37 +377,37 @@ static s32 axp80_regu_dependence(const char *ldo_name)
 {
 	s32 axp80_dependence = 0;
 
-	if (strcmp("axp80_dcdc1", ldo_name) == 0)
+	if (strstr(ldo_name, "dcdca") != NULL)
 		axp80_dependence |= AXP806_808_DCDC1;
-	else if (strcmp("axp80_dcdc2", ldo_name) == 0)
+	else if (strstr(ldo_name, "dcdcb") != NULL)
 		axp80_dependence |= AXP806_808_DCDC2;
-	else if (strcmp("axp80_dcdc3", ldo_name) == 0)
+	else if (strstr(ldo_name, "dcdcc") != NULL)
 		axp80_dependence |= AXP806_808_DCDC3;
-	else if (strcmp("axp80_dcdc4", ldo_name) == 0)
+	else if (strstr(ldo_name, "dcdcd") != NULL)
 		axp80_dependence |= AXP806_808_DCDC4;
-	else if (strcmp("axp80_dcdc5", ldo_name) == 0)
+	else if (strstr(ldo_name, "dcdce") != NULL)
 		axp80_dependence |= AXP806_808_DCDC5;
-	else if (strcmp("axp80_aldo1", ldo_name) == 0)
+	else if (strstr(ldo_name, "aldo1") != NULL)
 		axp80_dependence |= AXP806_808_ALDO1;
-	else if (strcmp("axp80_aldo2", ldo_name) == 0)
+	else if (strstr(ldo_name, "aldo2") != NULL)
 		axp80_dependence |= AXP806_808_ALDO2;
-	else if (strcmp("axp80_aldo3", ldo_name) == 0)
+	else if (strstr(ldo_name, "aldo3") != NULL)
 		axp80_dependence |= AXP806_808_ALDO3;
-	else if (strcmp("axp80_bldo1", ldo_name) == 0)
+	else if (strstr(ldo_name, "bldo1") != NULL)
 		axp80_dependence |= AXP806_808_BLDO1;
-	else if (strcmp("axp80_bldo2", ldo_name) == 0)
+	else if (strstr(ldo_name, "bldo2") != NULL)
 		axp80_dependence |= AXP806_808_BLDO2;
-	else if (strcmp("axp80_bldo3", ldo_name) == 0)
+	else if (strstr(ldo_name, "bldo3") != NULL)
 		axp80_dependence |= AXP806_808_BLDO3;
-	else if (strcmp("axp80_bldo4", ldo_name) == 0)
+	else if (strstr(ldo_name, "bldo4") != NULL)
 		axp80_dependence |= AXP806_808_BLDO4;
-	else if (strcmp("axp80_cldo1", ldo_name) == 0)
+	else if (strstr(ldo_name, "cldo1") != NULL)
 		axp80_dependence |= AXP806_808_CLDO1;
-	else if (strcmp("axp80_cldo2", ldo_name) == 0)
+	else if (strstr(ldo_name, "cldo2") != NULL)
 		axp80_dependence |= AXP806_808_CLDO2;
-	else if (strcmp("axp80_cldo3", ldo_name) == 0)
+	else if (strstr(ldo_name, "cldo3") != NULL)
 		axp80_dependence |= AXP806_808_CLDO3;
-	else if (strcmp("axp80_sw", ldo_name) == 0)
+	else if (strstr(ldo_name, "sw") != NULL)
 		axp80_dependence |= AXP806_808_SW0;
 	else
 		return -1;
@@ -445,6 +445,7 @@ static int axp80_regulator_probe(struct platform_device *pdev)
 
 	for (i = 0; i < VCC_80_MAX; i++) {
 		info = &axp80_regulator_info[i];
+		info->pmu_num = axp_dev->pmu_num;
 		regu_data->regulators[i] = axp_regulator_register(
 				&pdev->dev, axp_dev->regmap,
 				&axp_regl_init_data[i], info);
@@ -485,7 +486,7 @@ static int axp80_regulator_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id axp80_regu_dt_ids[] = {
-	{ .compatible = "axp80-regulator", },
+	{ .compatible = "axp806-regulator", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, axp80_regu_dt_ids);

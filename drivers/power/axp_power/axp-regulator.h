@@ -249,6 +249,7 @@ struct axp_regulator_info {
 	s32 dvm_enable_bit;
 	s32 dvm_finish_flag;
 	s32 *vtable;
+	s32 pmu_num;
 };
 
 struct regulator {

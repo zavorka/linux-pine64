@@ -140,7 +140,7 @@ static int axp80_gpio_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id axp80_gpio_dt_ids[] = {
-	{ .compatible = "axp80-gpio", },
+	{ .compatible = "axp806-gpio", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, axp80_gpio_dt_ids);

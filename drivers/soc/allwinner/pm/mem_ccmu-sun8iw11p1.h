@@ -292,7 +292,9 @@ typedef struct __CCMU_REG_LIST {
 	volatile __u32 reserved30[9];	/*0x02dc-0x2fc, reserved */
 	volatile __u32 PsCtrl;	/*0x300, PS control register */
 	volatile __u32 PsCnt;	/*0x304, PS counter register */
-	volatile __u32 reserved31[6];	/*0x308-0x31c, reserved */
+	volatile __u32 reserved31[2];   /*0x308,0x30c reserved*/
+	volatile __u32 Sys32kClk;   /*0x310, system 32k clk reg*/
+	volatile __u32 reserved33[3];   /*0x314-0x31c, reserved*/
 	volatile __u32 PllLockCtrl;	/*0x320, Pll Lock Ctrl register */
 } __ccmu_reg_list_t;
 

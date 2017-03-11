@@ -256,7 +256,7 @@ int disp_sys_gpio_request(disp_gpio_set_t *gpio_list, u32 group_count_max)
 	ret = gpio_request(pin_cfg.gpio, NULL);
 	if (0 != ret) {
 		__wrn("%s failed, gpio_name=%s, gpio=%d, ret=%d\n", __func__, gpio_list->gpio_name, gpio_list->gpio, ret);
-		return ret;
+		return 0;
 	} else {
 		__inf("%s, gpio_name=%s, gpio=%d, <%d,%d,%d,%d>ret=%d\n", __func__, gpio_list->gpio_name, gpio_list->gpio,\
 			gpio_list->mul_sel, gpio_list->pull, gpio_list->drv_level, gpio_list->data, ret);
@@ -574,12 +574,10 @@ int disp_sys_pwm_config(uintptr_t p_handler, int duty_ns, int period_ns)
 		__wrn("disp_sys_pwm_Config, handle is NULL!\n");
 		ret = -1;
 	} else {
-        
-	    ret = pwm_config(pwm_dev, duty_ns, period_ns);
-        printk("disp_sys_pwm_config  ret: %d",ret);
+		ret = pwm_config(pwm_dev, duty_ns, period_ns);
 		__debug("disp_sys_pwm_Config pwm %d, <%d / %d> \n", pwm_dev->pwm, duty_ns, period_ns);
 	}
-    
+
 	return ret;
 }
 

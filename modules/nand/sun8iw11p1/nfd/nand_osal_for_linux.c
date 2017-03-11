@@ -41,6 +41,7 @@
 #include "nand_blk.h"
 #include <linux/regulator/consumer.h>
 #include <linux/of.h>
+#include <linux/sunxi-sid.h>
 
 #ifdef CONFIG_DMA_ENGINE
 #include <linux/dmaengine.h>
@@ -48,9 +49,9 @@
 #include <linux/dma/sunxi-dma.h>
 #endif
 
-#define  NAND_DRV_VERSION_0		0x2
-#define  NAND_DRV_VERSION_1		0x27
-#define  NAND_DRV_DATE			0x20160130
+#define  NAND_DRV_VERSION_0		0x03
+#define  NAND_DRV_VERSION_1		0x5003
+#define  NAND_DRV_DATE			0x20160830
 #define  NAND_DRV_TIME			0x1726
 
 #define GPIO_BASE_ADDR			0x01c20800
@@ -952,6 +953,11 @@ void NAND_Print_Version(void)
 
 	printk("kernel: nand version: %x %x %x %x\n", val[0],
 	       val[1], val[2], val[3]);
+}
+
+int NAND_Get_Version(void)
+{
+    return NAND_DRV_DATE;
 }
 
 void Dump_Gpio_Reg_Show(void)

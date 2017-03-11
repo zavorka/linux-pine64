@@ -97,6 +97,14 @@ int __cpuinit __cpu_up(unsigned int cpu, struct task_struct *idle)
 	__cpuc_flush_dcache_area(&secondary_data, sizeof(secondary_data));
 	outer_clean_range(__pa(&secondary_data), __pa(&secondary_data + 1));
 
+	#ifdef CONFIG_HAVE_UNSTABLE_SCHED_CLOCK
+	/*
+	 * sync timestamp before boot secondary cpu, to make the cpu_clock
+	 * of the secondary cpu be more resonable on early boot.
+	 */
+	cpu_clock(cpu);
+	#endif
+
 	/*
 	 * Now bring the CPU into our world.
 	 */

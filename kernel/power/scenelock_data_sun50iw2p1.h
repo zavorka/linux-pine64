@@ -49,19 +49,26 @@ scene_extended_standby_t extended_standby[] = {
 		.soc_pwr_dep.soc_pwr_dm_state.volt[VDD_SYS_BIT] = 980,
 		.soc_pwr_dep.soc_pwr_dm_state.volt[VCC_PLL_BIT] = 2500,
 		.soc_pwr_dep.soc_pwr_dm_state.volt[VCC_IO_BIT]  = 3000,
-		.soc_pwr_dep.cpux_clk_state.osc_en         = BITMAP(OSC_LOSC_BIT), /* mean all osc is off except losc */
-		.soc_pwr_dep.cpux_clk_state.init_pll_dis   = BITMAP(PM_PLL_DRAM),  /* mean pll5 is shutdowned & open by dram driver. */
+		.soc_pwr_dep.cpux_clk_state.osc_en         = BITMAP(OSC_LOSC_BIT) | \
+							     BITMAP(OSC_HOSC_BIT) | \
+							     BITMAP(OSC_LDO0_BIT) | \
+							     BITMAP(OSC_LDO1_BIT), /* mean all osc is on */
+		.soc_pwr_dep.cpux_clk_state.init_pll_dis   = BITMAP(PM_PLL_DRAM)  | \
+							     BITMAP(PM_PLL_PERIPH),  /* mean PLL_DRAM is shutdowned & open by dram driver. */
 										   /* hsic pll can be disabled, cpus can change cci400 clk from hsic_pll. */
 		.soc_pwr_dep.cpux_clk_state.exit_pll_en    = 0x0,
-		.soc_pwr_dep.cpux_clk_state.pll_change     = 0x0,
+		.soc_pwr_dep.cpux_clk_state.pll_change     = BITMAP(PM_PLL_PERIPH),
 		.soc_pwr_dep.cpux_clk_state.pll_factor[PM_PLL_PERIPH] = { /* PLL_PERIPH freq = 24*4*2/2= 24M */
 		    .factor1 = 1, /* M=2 */
 		    .factor2 = 1, /* K=2 */
 		    .factor3 = 0, /* N=25 */
 		},
-		.soc_pwr_dep.cpux_clk_state.bus_change     = BITMAP(BUS_AHB1) | BITMAP(BUS_AHB2) | BITMAP(BUS_APB1) | BITMAP(BUS_APB2),
+		.soc_pwr_dep.cpux_clk_state.bus_change     = BITMAP(BUS_AHB1) | \
+							     BITMAP(BUS_AHB2) | \
+							     BITMAP(BUS_APB1) | \
+							     BITMAP(BUS_APB2),
 		.soc_pwr_dep.cpux_clk_state.bus_factor[BUS_AHB1]     = {
-		    .src = CLK_SRC_LOSC,				/* need make sure losc is on. */
+		    .src = CLK_SRC_PLL6,				/* need make sure losc is on. */
 		    .pre_div = 0,
 		    .div_ratio = 0,
 		},

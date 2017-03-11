@@ -10,8 +10,39 @@
 #include <linux/regulator/machine.h>
 #include <linux/module.h>
 #include <linux/power/axp_depend.h>
+#if defined(CONFIG_SUNXI_ARISC)
+#include <linux/arisc/arisc.h>
+#endif
 #include "axp-core.h"
 #include "axp-regulator.h"
+
+#if defined(CONFIG_AW_AXPDUMMY) && defined(CONFIG_SUNXI_ARISC)
+struct ldo_type_name_mapping {
+	enum power_voltage_type ldo_type;
+	char *ldo_name;
+};
+
+static struct ldo_type_name_mapping mapping_list[] = {
+	{DUMMY_REGULATOR1, "axpdummy_ldo1"},
+	{DUMMY_REGULATOR2, "axpdummy_ldo2"},
+	{DUMMY_REGULATOR3, "axpdummy_ldo3"},
+	{DUMMY_REGULATOR4, "axpdummy_ldo4"},
+	{DUMMY_REGULATOR5, "axpdummy_ldo5"},
+	{DUMMY_REGULATOR6, "axpdummy_ldo6"},
+};
+
+static enum power_voltage_type get_ldo_type_by_name(const char *name)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(mapping_list); i++) {
+		if (!strcmp(mapping_list[i].ldo_name, name))
+			break;
+	}
+
+	return mapping_list[i].ldo_type;
+};
+#endif
 
 static struct axp_consumer_supply *consumer_supply_count;
 
@@ -43,12 +74,28 @@ static s32 axp_set_voltage(struct regulator_dev *rdev,
 	struct axp_regmap *regmap = info->regmap;
 	u8 val, mask;
 	s32 ret = -1;
-	struct axp_dev *cur_axp_dev = get_pmu_cur_dev();
+	int i, flag = 0;
+	struct axp_dev *cur_axp_dev;
 
-	if (cur_axp_dev->is_dummy) {
-		pr_err("pn_debug: %s\n", __func__);
-		return 0;
+	for (i = 0; i < AXP_ONLINE_SUM; i++) {
+		cur_axp_dev = get_pmu_cur_dev(i);
+		if (cur_axp_dev == NULL)
+			continue;
+
+		flag++;
+		if (cur_axp_dev->is_dummy) {
+#if defined(CONFIG_AW_AXPDUMMY) && defined(CONFIG_SUNXI_ARISC)
+			return arisc_pmu_set_voltage(
+				get_ldo_type_by_name(rdev->constraints->name),
+				min_uv / 1000);
+#endif
+			return 0;
+		} else {
+			continue;
+		}
 	}
+
+	BUG_ON(flag == 0);
 
 	if (check_range(info, min_uv, max_uv)) {
 		pr_err("invalid voltage range (%d, %d) uV\n", min_uv, max_uv);
@@ -109,7 +156,7 @@ static s32 axp_set_voltage(struct regulator_dev *rdev,
 		}
 	}
 
-	AXP_DEBUG(AXP_REGU, "set %s voltage: %duV\n",
+	AXP_DEBUG(AXP_REGU, info->pmu_num, "set %s voltage: %duV\n",
 				rdev->constraints->name, min_uv);
 
 	return ret;
@@ -121,12 +168,27 @@ static s32 axp_get_voltage(struct regulator_dev *rdev)
 	struct axp_regmap *regmap = info->regmap;
 	u8 val, mask;
 	s32 ret, switch_val, vol;
-	struct axp_dev *cur_axp_dev = get_pmu_cur_dev();
+	int i, flag = 0;
+	struct axp_dev *cur_axp_dev;
 
-	if (cur_axp_dev->is_dummy) {
-		pr_err("pn_debug: %s\n", __func__);
-		return INT_MAX;
+	for (i = 0; i < AXP_ONLINE_SUM; i++) {
+		cur_axp_dev = get_pmu_cur_dev(i);
+		if (cur_axp_dev == NULL)
+			continue;
+
+		flag++;
+		if (cur_axp_dev->is_dummy) {
+#if defined(CONFIG_AW_AXPDUMMY) && defined(CONFIG_SUNXI_ARISC)
+			return arisc_pmu_get_voltage(
+			get_ldo_type_by_name(rdev->constraints->name)) * 1000;
+#endif
+			return INT_MAX;
+		} else {
+			continue;
+		}
 	}
+
+	BUG_ON(flag == 0);
 
 	ret = axp_regmap_read(regmap, info->vol_reg, &val);
 	if (ret)
@@ -165,14 +227,30 @@ static s32 axp_enable(struct regulator_dev *rdev)
 {
 	struct axp_regulator_info *info = rdev_get_drvdata(rdev);
 	struct axp_regmap *regmap = info->regmap;
-	struct axp_dev *cur_axp_dev = get_pmu_cur_dev();
+	int i, flag = 0;
+	struct axp_dev *cur_axp_dev;
 
-	AXP_DEBUG(AXP_REGU, "enable %s\n", rdev->constraints->name);
+	AXP_DEBUG(AXP_REGU, info->pmu_num, "enable %s\n",
+				rdev->constraints->name);
 
-	if (cur_axp_dev->is_dummy) {
-		pr_err("pn_debug: %s\n", __func__);
-		return 0;
+	for (i = 0; i < AXP_ONLINE_SUM; i++) {
+		cur_axp_dev = get_pmu_cur_dev(i);
+		if (cur_axp_dev == NULL)
+			continue;
+
+		flag++;
+		if (cur_axp_dev->is_dummy) {
+#if defined(CONFIG_AW_AXPDUMMY) && defined(CONFIG_SUNXI_ARISC)
+			return arisc_pmu_set_voltage_state(
+			get_ldo_type_by_name(rdev->constraints->name), 1);
+#endif
+			return 0;
+		} else {
+			continue;
+		}
 	}
+
+	BUG_ON(flag == 0);
 
 	return axp_regmap_update(regmap, rdev->desc->enable_reg,
 			info->enable_val, rdev->desc->enable_mask);
@@ -182,14 +260,30 @@ static s32 axp_disable(struct regulator_dev *rdev)
 {
 	struct axp_regulator_info *info = rdev_get_drvdata(rdev);
 	struct axp_regmap *regmap = info->regmap;
-	struct axp_dev *cur_axp_dev = get_pmu_cur_dev();
+	int i, flag = 0;
+	struct axp_dev *cur_axp_dev;
 
-	AXP_DEBUG(AXP_REGU, "disable %s\n", rdev->constraints->name);
+	AXP_DEBUG(AXP_REGU, info->pmu_num, "disable %s\n",
+				rdev->constraints->name);
 
-	if (cur_axp_dev->is_dummy) {
-		pr_err("pn_debug: %s\n", __func__);
-		return 0;
+	for (i = 0; i < AXP_ONLINE_SUM; i++) {
+		cur_axp_dev = get_pmu_cur_dev(i);
+		if (cur_axp_dev == NULL)
+			continue;
+
+		flag++;
+		if (cur_axp_dev->is_dummy) {
+#if defined(CONFIG_AW_AXPDUMMY) && defined(CONFIG_SUNXI_ARISC)
+			return arisc_pmu_set_voltage_state(
+			get_ldo_type_by_name(rdev->constraints->name), 0);
+#endif
+			return 0;
+		} else {
+			continue;
+		}
 	}
+
+	BUG_ON(flag == 0);
 
 	return axp_regmap_update(regmap, rdev->desc->enable_reg,
 			info->disable_val, rdev->desc->enable_mask);
@@ -201,12 +295,27 @@ static s32 axp_is_enabled(struct regulator_dev *rdev)
 	struct axp_regmap *regmap = info->regmap;
 	u8 reg_val;
 	s32 ret;
-	struct axp_dev *cur_axp_dev = get_pmu_cur_dev();
+	int i, flag = 0;
+	struct axp_dev *cur_axp_dev;
 
-	if (cur_axp_dev->is_dummy) {
-		pr_err("pn_debug: %s\n", __func__);
-		return INT_MAX;
+	for (i = 0; i < AXP_ONLINE_SUM; i++) {
+		cur_axp_dev = get_pmu_cur_dev(i);
+		if (cur_axp_dev == NULL)
+			continue;
+
+		flag++;
+		if (cur_axp_dev->is_dummy) {
+#if defined(CONFIG_AW_AXPDUMMY) && defined(CONFIG_SUNXI_ARISC)
+			return arisc_pmu_get_voltage_state(
+			get_ldo_type_by_name(rdev->constraints->name));
+#endif
+			return INT_MAX;
+		} else {
+			continue;
+		}
 	}
+
+	BUG_ON(flag == 0);
 
 	/* rtc is always enabled, can't disable by software */
 	if (strstr(rdev->constraints->name, "rtc"))
@@ -226,12 +335,22 @@ static s32 axp_list_voltage(struct regulator_dev *rdev, unsigned selector)
 {
 	struct axp_regulator_info *info = rdev_get_drvdata(rdev);
 	s32 ret;
-	struct axp_dev *cur_axp_dev = get_pmu_cur_dev();
+	int i, flag = 0;
+	struct axp_dev *cur_axp_dev;
 
-	if (cur_axp_dev->is_dummy) {
-		pr_err("pn_debug: %s\n", __func__);
-		return INT_MAX;
+	for (i = 0; i < AXP_ONLINE_SUM; i++) {
+		cur_axp_dev = get_pmu_cur_dev(i);
+		if (cur_axp_dev == NULL)
+			continue;
+
+		flag++;
+		if (cur_axp_dev->is_dummy)
+			return 0;
+		else
+			continue;
 	}
+
+	BUG_ON(flag == 0);
 
 	ret = info->min_uv + info->step1_uv * selector;
 	if ((info->switch_uv != 0) && (info->step2_uv != 0) &&
@@ -254,12 +373,22 @@ static s32 axp_list_voltage(struct regulator_dev *rdev, unsigned selector)
 static s32 axp_enable_time_regulator(struct regulator_dev *rdev)
 {
 	struct axp_regulator_info *info = rdev_get_drvdata(rdev);
-	struct axp_dev *cur_axp_dev = get_pmu_cur_dev();
+	int i, flag = 0;
+	struct axp_dev *cur_axp_dev;
 
-	if (cur_axp_dev->is_dummy) {
-		pr_err("pn_debug: %s\n", __func__);
-		return INT_MAX;
+	for (i = 0; i < AXP_ONLINE_SUM; i++) {
+		cur_axp_dev = get_pmu_cur_dev(i);
+		if (cur_axp_dev == NULL)
+			continue;
+
+		flag++;
+		if (cur_axp_dev->is_dummy)
+			return 0;
+		else
+			continue;
 	}
+
+	BUG_ON(flag == 0);
 
 	/* Per-regulator power on delay from spec */
 	if (40 > info->desc.id)
@@ -274,7 +403,7 @@ static int axp_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
 	struct axp_regmap *regmap = info->regmap;
 	u8 mask;
 
-	AXP_DEBUG(AXP_REGU, "set %s voltage selector: %u\n",
+	AXP_DEBUG(AXP_REGU, info->pmu_num, "set %s voltage selector: %u\n",
 				rdev->constraints->name, selector);
 
 	selector <<= info->vol_shift;

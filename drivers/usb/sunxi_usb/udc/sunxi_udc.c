@@ -789,6 +789,8 @@ static int sunxi_udc_get_status(struct sunxi_udc *dev, struct usb_ctrlrequest *c
 	u8  ep_num  = crq->wIndex & 0x7F;
 	u8  is_in   = crq->wIndex & USB_DIR_IN;
 	void __iomem *fifo = 0;
+	u8 old_ep_index = 0;
+	int  ret = 0;
 
 	switch (crq->bRequestType & USB_RECIP_MASK) {
 	case USB_RECIP_INTERFACE:
@@ -807,15 +809,19 @@ static int sunxi_udc_get_status(struct sunxi_udc *dev, struct usb_ctrlrequest *c
 			return 1;
 		}
 
+		old_ep_index = USBC_GetActiveEp(g_sunxi_udc_io.usb_bsp_hdle);
 		USBC_SelectActiveEp(g_sunxi_udc_io.usb_bsp_hdle, ep_num);
 		if (ep_num == 0) {
 			status = USBC_Dev_IsEpStall(g_sunxi_udc_io.usb_bsp_hdle, USBC_EP_TYPE_EP0);
 		} else {
 			if (is_in) {
-				status = USBC_Dev_IsEpStall(g_sunxi_udc_io.usb_bsp_hdle, USBC_EP_TYPE_TX);
+				ret = readw(g_sunxi_udc_io.usb_vbase + USBC_REG_o_TXCSR);
+				status = ret & (0x1 << USBC_BP_TXCSR_D_SEND_STALL);
 			} else {
-				status = USBC_Dev_IsEpStall(g_sunxi_udc_io.usb_bsp_hdle, USBC_EP_TYPE_RX);
+				ret = readw(g_sunxi_udc_io.usb_vbase + USBC_REG_o_RXCSR);
+				status = ret & (0x1 << USBC_BP_RXCSR_D_SEND_STALL);
 			}
+
 		}
 		status = status ? 1 : 0;
 		if (status) {
@@ -825,6 +831,7 @@ static int sunxi_udc_get_status(struct sunxi_udc *dev, struct usb_ctrlrequest *c
 			buf[0] = 0x00;
 			buf[1] = 0x00;
 		}
+		USBC_SelectActiveEp(g_sunxi_udc_io.usb_bsp_hdle, old_ep_index);
 		break;
 
 	default:
@@ -843,7 +850,7 @@ static int sunxi_udc_get_status(struct sunxi_udc *dev, struct usb_ctrlrequest *c
 }
 
 static int sunxi_udc_set_halt(struct usb_ep *_ep, int value);
-static int sunxi_udc_set_halt_ex(struct usb_ep *_ep, int value);
+static int sunxi_udc_set_halt_ex(struct usb_ep *_ep, int value, int is_in);
 
 static void sunxi_udc_handle_ep0_idle(struct sunxi_udc *dev,
 						struct sunxi_udc_ep *ep,
@@ -851,6 +858,7 @@ static void sunxi_udc_handle_ep0_idle(struct sunxi_udc *dev,
 						u32 ep0csr)
 {
 	int len = 0, ret = 0, tmp = 0;
+	int is_in = 0;
 
 	/* start control request? */
 	if (!USBC_Dev_IsReadDataReady(g_sunxi_udc_io.usb_bsp_hdle, USBC_EP_TYPE_EP0)) {
@@ -937,7 +945,8 @@ static void sunxi_udc_handle_ep0_idle(struct sunxi_udc *dev,
 				}else{
 					int k = 0;
 					for(k = 0;k < SW_UDC_ENDPOINTS;k++){
-						sunxi_udc_set_halt_ex(&dev->ep[k].ep, 0);
+						is_in = crq->wIndex & USB_DIR_IN;
+						sunxi_udc_set_halt_ex(&dev->ep[k].ep, 0, is_in);
 					}
 				}
 
@@ -954,7 +963,8 @@ static void sunxi_udc_handle_ep0_idle(struct sunxi_udc *dev,
 				if(crq->wValue){
 					dev->devstatus &= ~(1 << USB_DEVICE_REMOTE_WAKEUP);
 				}else{
-					sunxi_udc_set_halt_ex(&dev->ep[crq->wIndex & 0x7f].ep, 0);
+					is_in = crq->wIndex & USB_DIR_IN;
+					sunxi_udc_set_halt_ex(&dev->ep[crq->wIndex & 0x7f].ep, 0, is_in);
 				}
 
 			}else{
@@ -1017,8 +1027,10 @@ static void sunxi_udc_handle_ep0_idle(struct sunxi_udc *dev,
 
 			}else if(crq->bRequestType == USB_RECIP_ENDPOINT){
 				//--<3>--forbidden ep
+
+				is_in = crq->wIndex & USB_DIR_IN;
 				USBC_Dev_ReadDataStatus(g_sunxi_udc_io.usb_bsp_hdle, USBC_EP_TYPE_EP0, 1);
-						sunxi_udc_set_halt_ex(&dev->ep[crq->wIndex & 0x7f].ep, 1);
+				sunxi_udc_set_halt_ex(&dev->ep[crq->wIndex & 0x7f].ep, 1, is_in);
 			}else{
 				DMSG_PANIC("PANIC : nonsupport set feature request. (%d)\n", crq->bRequestType);
 
@@ -1038,6 +1050,20 @@ static void sunxi_udc_handle_ep0_idle(struct sunxi_udc *dev,
 		}
 	}else{
 		USBC_Dev_ReadDataStatus(g_sunxi_udc_io.usb_bsp_hdle, USBC_EP_TYPE_EP0, 0);
+#ifdef CONFIG_USB_SUNXI_G_WEBCAM
+		/* getinfo request about exposure time asolute, iris absolute, brightness of webcam. */
+		if (crq->bRequest == 0x86
+		    && crq->bRequestType == 0xa1
+		    && crq->wLength == 0x1
+		    && ((crq->wValue == 0x400 && crq->wIndex == 0x100)
+			|| (crq->wValue == 0x900 && crq->wIndex == 0x100)
+			|| (crq->wValue == 0x200 && crq->wIndex == 0x200))) {
+			USBC_Dev_EpSendStall(g_sunxi_udc_io.usb_bsp_hdle,
+					USBC_EP_TYPE_EP0);
+			return;
+		}
+#endif
+
 	}
 
 	if(crq->bRequestType & USB_DIR_IN){
@@ -2069,16 +2095,18 @@ static int sunxi_udc_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t g
 		if (ep->bEndpointAddress == 0 /* ep0 */) {
 			switch (dev->ep0state) {
 			case EP0_IN_DATA_PHASE:
-				if (!USBC_Dev_IsWriteDataReady(g_sunxi_udc_io.usb_bsp_hdle, USBC_EP_TYPE_TX)
-					&& sunxi_udc_write_fifo(ep, req)) {
+				if (!USBC_Dev_IsWriteDataReady(g_sunxi_udc_io.usb_bsp_hdle,
+						USBC_EP_TYPE_EP0)
+				    && sunxi_udc_write_fifo(ep, req)) {
 					dev->ep0state = EP0_IDLE;
 					req = NULL;
 				}
 				break;
 			case EP0_OUT_DATA_PHASE:
 				if ((!_req->length)
-					|| (USBC_Dev_IsReadDataReady(g_sunxi_udc_io.usb_bsp_hdle, USBC_EP_TYPE_RX)
-					&& sunxi_udc_read_fifo(ep, req))) {
+				    || (USBC_Dev_IsReadDataReady(g_sunxi_udc_io.usb_bsp_hdle,
+						USBC_EP_TYPE_EP0)
+				    && sunxi_udc_read_fifo(ep, req))) {
 					dev->ep0state = EP0_IDLE;
 					req = NULL;
 				}
@@ -2089,9 +2117,35 @@ static int sunxi_udc_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t g
 			}
 		} else if ((ep->bEndpointAddress & USB_DIR_IN) != 0
 				&& !USBC_Dev_IsWriteDataReady(g_sunxi_udc_io.usb_bsp_hdle, USBC_EP_TYPE_TX)) {
+#if defined(CONFIG_USB_SUNXI_G_WEBCAM) && defined(CONFIG_SMP)
+{
+			/*
+			 * not execute req when only one in the queue, otherwise
+			 * it will be deadlocked for webcam on SMP.
+			 */
+			if ((ep->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK)
+			    == USB_ENDPOINT_XFER_ISOC) {
+				int ret = 0;
+				ret = USBC_Dev_WriteDataStatus(g_sunxi_udc_io.usb_bsp_hdle,
+						USBC_EP_TYPE_TX, 1);
+				if (ret != 0) {
+					DMSG_PANIC("ERR: USBC_Dev_WriteDataStatus, failed\n");
+					req->req.status = -EOVERFLOW;
+					USBC_SelectActiveEp(g_sunxi_udc_io.usb_bsp_hdle,
+						old_ep_index);
+					spin_unlock_irqrestore(&ep->dev->lock,
+						flags);
+					return req->req.status;
+				}
+			} else if (sunxi_udc_write_fifo(ep, req)) {
+				req = NULL;
+			}
+}
+#else
 			if (sunxi_udc_write_fifo(ep, req)) {
 				req = NULL;
 			}
+#endif
 		} else if ((ep->bEndpointAddress & USB_DIR_IN) == 0
 				&& USBC_Dev_IsReadDataReady(g_sunxi_udc_io.usb_bsp_hdle, USBC_EP_TYPE_RX)) {
 			if (sunxi_udc_read_fifo(ep, req)) {
@@ -2165,7 +2219,7 @@ static int sunxi_udc_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 	return retval;
 }
 
-static int sunxi_udc_set_halt_ex(struct usb_ep *_ep, int value)
+static int sunxi_udc_set_halt_ex(struct usb_ep *_ep, int value, int is_in)
 {
 	struct sunxi_udc_ep *ep = NULL;
 	u32 idx = 0;
@@ -2200,7 +2254,7 @@ static int sunxi_udc_set_halt_ex(struct usb_ep *_ep, int value)
 	if (idx == 0) {
 		USBC_Dev_EpClearStall(g_sunxi_udc_io.usb_bsp_hdle, USBC_EP_TYPE_EP0);
 	} else {
-		if ((ep->bEndpointAddress & USB_DIR_IN) != 0) {
+		if (is_in) {
 			if (value) {
 				USBC_Dev_EpSendStall(g_sunxi_udc_io.usb_bsp_hdle, USBC_EP_TYPE_TX);
 			} else {
@@ -2489,10 +2543,9 @@ static void sunxi_udc_enable(struct sunxi_udc *dev)
 	USBC_Dev_ConfigTransferMode(g_sunxi_udc_io.usb_bsp_hdle, USBC_TS_TYPE_BULK, USBC_TS_MODE_HS);
 
 	/* Enable reset and suspend interrupt interrupts */
-	USBC_INT_EnableUsbMiscUint(g_sunxi_udc_io.usb_bsp_hdle, USBC_BP_INTUSB_SUSPEND);
-	USBC_INT_EnableUsbMiscUint(g_sunxi_udc_io.usb_bsp_hdle, USBC_BP_INTUSB_RESUME);
-	USBC_INT_EnableUsbMiscUint(g_sunxi_udc_io.usb_bsp_hdle, USBC_BP_INTUSB_RESET);
-	USBC_INT_EnableUsbMiscUint(g_sunxi_udc_io.usb_bsp_hdle, USBC_BP_INTUSB_DISCONNECT);
+	USBC_INT_EnableUsbMiscUint(g_sunxi_udc_io.usb_bsp_hdle, USBC_INTUSB_SUSPEND);
+	USBC_INT_EnableUsbMiscUint(g_sunxi_udc_io.usb_bsp_hdle, USBC_INTUSB_RESUME);
+	USBC_INT_EnableUsbMiscUint(g_sunxi_udc_io.usb_bsp_hdle, USBC_INTUSB_RESET);
 
 	/* Enable ep0 interrupt */
 	USBC_INT_EnableEp(g_sunxi_udc_io.usb_bsp_hdle, USBC_EP_TYPE_TX, 0);
@@ -2706,7 +2759,7 @@ static struct sunxi_udc sunxi_udc = {
 		.ep = {
 			.name		= ep3_iso_name,
 			.ops		= &sunxi_udc_ep_ops,
-			.maxpacket	= SW_UDC_EP_FIFO_SIZE,
+			.maxpacket	= SW_UDC_EP_ISO_FIFO_SIZE,
 		},
 		.dev		        = &sunxi_udc,
 		//.fifo_size	        = SW_UDC_EP_FIFO_SIZE,

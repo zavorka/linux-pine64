@@ -53,7 +53,9 @@
 #define ARISC_AXP_REBOOT                 (ARISC_MESSAGE_BASE + 0x48)  /* reboot system for no pmu protocols      */
 #define ARISC_SET_PWR_TREE               (ARISC_MESSAGE_BASE + 0x49)  /* set power tree (ac327 to arisc)         */
 #define ARISC_CLR_NMI_STATUS             (ARISC_MESSAGE_BASE + 0x4a)  /* clear nmi status (ac327 to arisc)       */
-#define ARISC_SET_NMI_TRIGGER            (ARISC_MESSAGE_BASE + 0x4b)  /* set nmi trigger (ac327 to arisc)         */
+#define ARISC_SET_NMI_TRIGGER            (ARISC_MESSAGE_BASE + 0x4b)  /* set nmi trigger (ac327 to arisc)        */
+#define ARISC_SET_PMU_VOLT_STA           (ARISC_MESSAGE_BASE + 0x4c)  /* set pmu volt state(ac327 to arisc)      */
+#define ARISC_GET_PMU_VOLT_STA           (ARISC_MESSAGE_BASE + 0x4d)  /* get pmu volt state(ac327 to arisc)      */
 
 /* set arisc debug commands */
 #define ARISC_SET_DEBUG_LEVEL            (ARISC_MESSAGE_BASE + 0x50)  /* set arisc debug level  (ac327 to arisc)     */
@@ -130,7 +132,9 @@
 #define ARM_SVC_ARISC_AXP_REBOOT                 (ARM_SVC_ARISC_BASE + ARISC_AXP_REBOOT)               /* reboot system for no pmu protocols      */
 #define ARM_SVC_ARISC_SET_PWR_TREE               (ARM_SVC_ARISC_BASE + ARISC_SET_PWR_TREE)             /* set power tree (ac327 to arisc)         */
 #define ARM_SVC_ARISC_CLR_NMI_STATUS             (ARM_SVC_ARISC_BASE + ARISC_CLR_NMI_STATUS)           /* clear nmi status (ac327 to arisc)       */
-#define ARM_SVC_ARISC_SET_NMI_TRIGGER            (ARM_SVC_ARISC_BASE + ARISC_SET_NMI_TRIGGER)          /* set nmi trigger (ac327 to arisc)         */
+#define ARM_SVC_ARISC_SET_NMI_TRIGGER            (ARM_SVC_ARISC_BASE + ARISC_SET_NMI_TRIGGER)          /* set nmi trigger (ac327 to arisc)        */
+#define ARM_SVC_ARISC_SET_PMU_VOLT_STA           (ARM_SVC_ARISC_BASE + ARISC_SET_PMU_VOLT_STA)         /* set pmu volt state(ac327 to arisc)      */
+#define ARM_SVC_ARISC_GET_PMU_VOLT_STA           (ARM_SVC_ARISC_BASE + ARISC_GET_PMU_VOLT_STA)          /* get pmu volt state(ac327 to arisc)     */
 
 /* set arisc debug commands */
 #define ARM_SVC_ARISC_SET_DEBUG_LEVEL            (ARM_SVC_ARISC_BASE + ARISC_SET_DEBUG_LEVEL)          /* set arisc debug level  (ac327 to arisc)     */
@@ -212,40 +216,30 @@
 //pmu voltage types
 typedef enum power_voltage_type
 {
-	AXP809_POWER_VOL_DCDC1 = 0x0,
-	AXP809_POWER_VOL_DCDC2,
-	AXP809_POWER_VOL_DCDC3,
-	AXP809_POWER_VOL_DCDC4,
-	AXP809_POWER_VOL_DCDC5,
-	AXP809_POWER_VOL_DC5LDO,
-	AXP809_POWER_VOL_ALDO1,
-	AXP809_POWER_VOL_ALDO2,
-	AXP809_POWER_VOL_ALDO3,
-	AXP809_POWER_VOL_DLDO1,
-	AXP809_POWER_VOL_DLDO2,
-	AXP809_POWER_VOL_ELDO1,
-	AXP809_POWER_VOL_ELDO2,
-	AXP809_POWER_VOL_ELDO3,
-
-	AXP806_POWER_VOL_DCDCA,
-	AXP806_POWER_VOL_DCDCB,
-	AXP806_POWER_VOL_DCDCC,
-	AXP806_POWER_VOL_DCDCD,
-	AXP806_POWER_VOL_DCDCE,
-	AXP806_POWER_VOL_ALDO1,
-	AXP806_POWER_VOL_ALDO2,
-	AXP806_POWER_VOL_ALDO3,
-	AXP806_POWER_VOL_BLDO1,
-	AXP806_POWER_VOL_BLDO2,
-	AXP806_POWER_VOL_BLDO3,
-	AXP806_POWER_VOL_BLDO4,
-	AXP806_POWER_VOL_CLDO1,
-	AXP806_POWER_VOL_CLDO2,
-	AXP806_POWER_VOL_CLDO3,
-
-	OZ80120_POWER_VOL_DCDC,
-
-	POWER_VOL_MAX,
+	AW1657_POWER_DCDCA = 0x0,
+	AW1657_POWER_DCDCB,
+	AW1657_POWER_DCDCC,
+	AW1657_POWER_DCDCD,
+	AW1657_POWER_DCDCE,
+	AW1657_POWER_ALDO1,
+	AW1657_POWER_ALDO2,
+	AW1657_POWER_ALDO3,
+	AW1657_POWER_BLDO1,
+	AW1657_POWER_BLDO2,
+	AW1657_POWER_BLDO3,
+	AW1657_POWER_BLDO4,
+	AW1657_POWER_CLDO1,
+	AW1657_POWER_CLDO2,
+	AW1657_POWER_CLDO3,
+	AW1657_POWER_DC1SW,
+	AW1657_POWER_MAX,
+	DUMMY_REGULATOR1, /* AVCC/VCC3V3-PLL/VCC3V3-TV */
+	DUMMY_REGULATOR2, /* DRAM */
+	DUMMY_REGULATOR3, /* SYSTEM */
+	DUMMY_REGULATOR4, /* VCC-CPUX */
+	DUMMY_REGULATOR5, /* WIFI */
+	DUMMY_REGULATOR6, /* VCC-IO */
+	DUMMY_REGULATOR_MAX,
 } power_voltage_type_e;
 
 /* the pll of arisc dvfs */
@@ -543,6 +537,24 @@ int arisc_pmu_set_voltage(u32 type, u32 voltage);
  * return: pmu regulator voltage;
  */
 unsigned int arisc_pmu_get_voltage(u32 type);
+
+/**
+ * set pmu voltage state.
+ * @type:     pmu regulator type;
+ * @state:  pmu regulator voltage state;
+ *
+ * return: result, 0 - set pmu voltage state successed,
+ *                !0 - set pmu voltage state failed;
+ */
+int arisc_pmu_set_voltage_state(u32 type, u32 state);
+
+/**
+ * get pmu voltage state.
+ * @type:     pmu regulator type;
+ *
+ * return: pmu regulator voltage state;
+ */
+unsigned int arisc_pmu_get_voltage_state(u32 type);
 
 /* ====================================twi interface==================================== */
 /**

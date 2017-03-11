@@ -3002,6 +3002,49 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 #endif
 
 /**
+ * mmc_manual_remove_card- manual removed card
+ * @host: mmc host
+ * @card: mmc_card
+ * Use for some wifi that will respone even if it has been reseted
+ * In these situation,we can not remove it from system using mmc_detect_change
+ * So we use mmc_manual_remove_card instead
+ * add by sunxi
+ */
+void mmc_manual_remove_card(struct mmc_host *host , struct mmc_card *card)
+{
+		unsigned long flags = 0;
+		pr_info("%s: Starting manual remove\n", mmc_hostname(host));
+		/***disable any detect work,for that card->state may be change by rescan*****/
+		spin_lock_irqsave(&host->lock, flags);
+		host->rescan_disable = 1;
+		spin_unlock_irqrestore(&host->lock, flags);
+		if (cancel_delayed_work_sync(&host->detect)) {
+				wake_unlock(&host->detect_wake_lock);
+		}
+
+		mmc_claim_host(host);
+		/****maual set card remove****/
+		/*We maual set card remove for that some wifi will response to our cmd even it has been reseted*/
+		/*We claim host here for that card->state may be change by other theoretically,so we claim here for save*/
+		mmc_card_set_removed(card);
+		mmc_release_host(host);
+
+		/****use detect function to remove card*****/
+		mmc_bus_get(host);
+		if (host->bus_ops->detect && !host->bus_dead)
+			host->bus_ops->detect(host);
+		mmc_bus_put(host);
+
+		/***re-enalbe detect work*****/
+		spin_lock_irqsave(&host->lock, flags);
+		host->rescan_disable = 0;
+		spin_unlock_irqrestore(&host->lock, flags);
+		pr_info("%s: Manual remove completed\n", mmc_hostname(host));
+}
+EXPORT_SYMBOL(mmc_manual_remove_card);
+
+
+/**
  * mmc_init_context_info() - init synchronization context
  * @host: mmc host
  *

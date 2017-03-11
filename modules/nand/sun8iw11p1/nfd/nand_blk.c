@@ -1,3 +1,5 @@
+#include <linux/compat.h>
+#include <asm/uaccess.h>
 #include "nand_blk.h"
 #include "nand_dev.h"
 
@@ -25,6 +27,28 @@ struct burn_param_t {
 	void *buffer;
 	long length;
 };
+
+#ifdef CONFIG_COMPAT
+
+struct secblc_op_t32 {
+	int item;
+	compat_uptr_t buf;
+	unsigned int len;
+};
+
+struct burn_param_t32 {
+	compat_uptr_t buffer;
+	compat_size_t length;
+};
+
+struct hd_geometry32 {
+	unsigned char heads;
+	unsigned char sectors;
+	unsigned short cylinders;
+	compat_size_t start;
+};
+
+#endif
 
 /*****************************************************************************/
 extern int get_nand_secure_storage_max_item(void);
@@ -57,6 +81,10 @@ DEFINE_SEMAPHORE(nand_mutex);
 unsigned char volatile IS_IDLE = 1;
 static int nand_ioctl(struct block_device *bdev, fmode_t mode, unsigned int cmd,
 		      unsigned long arg);
+#ifdef CONFIG_COMPAT
+static int nand_compat_ioctl(struct block_device *bdev, fmode_t mode,
+			     unsigned int cmd, unsigned long arg);
+#endif
 long max_r_io_response = 1;
 long max_w_io_response = 1;
 
@@ -150,7 +178,9 @@ int end_time(int data, int time, int par)
 		return -1;
 
 	do_gettimeofday(&tpend);
-	timeuse = 1000 * (tpend.tv_sec - tpstart.tv_sec) * 1000 + (tpend.tv_usec - tpstart.tv_usec);
+	timeuse =
+	    1000 * (tpend.tv_sec - tpstart.tv_sec) * 1000 + (tpend.tv_usec -
+							     tpstart.tv_usec);
 	if (timeuse > time) {
 		nand_dbg_err("%ld %d\n", timeuse, par);
 		return 1;
@@ -193,8 +223,6 @@ static int do_blktrans_request(struct nand_blk_ops *tr,
 	}
 
 	if (req->cmd_flags & REQ_DISCARD) {
-		/*nand_dbg_err("REQ_DISCARD block: %d nsect: %d\n", block,nsect);*/
-		/*rq_flush_dcache_pages(req);*/
 		nand_dev->discard(nand_dev, block, nsect);
 		goto request_exit;
 	}
@@ -243,9 +271,10 @@ request_exit:
 *****************************************************************************/
 static int mtd_blktrans_thread(void *arg)
 {
-	struct nand_blk_dev *dev = arg;
-	struct request_queue *rq = dev->rq;
+	struct nand_blk_ops *tr = arg;
+	struct request_queue *rq = tr->rq;
 	struct request *req = NULL;
+	struct nand_blk_dev *dev;
 	int background_done = 0;
 
 	spin_lock_irq(rq->queue_lock);
@@ -253,28 +282,28 @@ static int mtd_blktrans_thread(void *arg)
 	while (!kthread_should_stop()) {
 		int res;
 
-		dev->bg_stop = false;
-
+		tr->bg_stop = false;
 		if (!req) {
 			req = blk_fetch_request(rq);
 			if (!req) {
 				set_current_state(TASK_INTERRUPTIBLE);
-
 				if (kthread_should_stop())
 					set_current_state(TASK_RUNNING);
 
 				spin_unlock_irq(rq->queue_lock);
-				dev->rq_null++;
+				tr->rq_null++;
 				schedule();
 				spin_lock_irq(rq->queue_lock);
 				continue;
 			}
 		}
 
+		dev = req->rq_disk->private_data;
+
 		spin_unlock_irq(rq->queue_lock);
-		dev->rq_null = 0;
+		tr->rq_null = 0;
 		mutex_lock(&dev->lock);
-		res = do_blktrans_request(dev->nandr, dev, req);
+		res = do_blktrans_request(tr, dev, req);
 		mutex_unlock(&dev->lock);
 
 		spin_lock_irq(rq->queue_lock);
@@ -302,17 +331,17 @@ static int mtd_blktrans_thread(void *arg)
 *****************************************************************************/
 static void mtd_blktrans_request(struct request_queue *rq)
 {
-	struct nand_blk_dev *dev;
+	struct nand_blk_ops *nandr;
 	struct request *req = NULL;
 
-	dev = rq->queuedata;
+	nandr = rq->queuedata;
 
-	if (!dev)
+	if (!nandr)
 		while ((req = blk_fetch_request(rq)) != NULL)
 			__blk_end_request_all(req, -ENODEV);
 	else {
-		dev->bg_stop = true;
-		wake_up_process(dev->thread);
+		nandr->bg_stop = true;
+		wake_up_process(nandr->thread);
 	}
 }
 
@@ -361,7 +390,6 @@ static void nand_release(struct gendisk *disk, fmode_t mode)
 {
 	struct nand_blk_dev *dev;
 	struct nand_blk_ops *nandr;
-
 	int ret = 0;
 
 	dev = disk->private_data;
@@ -371,7 +399,6 @@ static void nand_release(struct gendisk *disk, fmode_t mode)
 
 	if (!ret)
 		module_put(nandr->owner);
-
 }
 
 /*****************************************************************************
@@ -400,7 +427,7 @@ static int nand_ioctl(struct block_device *bdev, fmode_t mode, unsigned int cmd,
 	struct burn_param_t *burn_param;
 	struct secblc_op_t *sec_op;
 	int ret = 0;
-	char *buf_secure = NULL;
+	unsigned char *buf_secure = NULL;
 
 	burn_param = (struct burn_param_t *)arg;
 
@@ -542,6 +569,136 @@ static int nand_ioctl(struct block_device *bdev, fmode_t mode, unsigned int cmd,
 	}
 }
 
+#ifdef CONFIG_COMPAT
+int nand_burnboot_compat(struct block_device *bdev, fmode_t mode,
+			  unsigned int cmd, struct burn_param_t32 __user *arg)
+{
+	struct burn_param_t32 burn_param32;
+	struct burn_param_t __user *burn_param;
+	int ret;
+
+	if (copy_from_user(&burn_param32, arg, sizeof(burn_param32)))
+		return -EFAULT;
+
+	burn_param = compat_alloc_user_space(sizeof(*burn_param));
+	if (!access_ok(VERIFY_WRITE, burn_param, sizeof(*burn_param)))
+		return -EFAULT;
+
+	if (put_user(compat_ptr(burn_param32.buffer), &burn_param->buffer) ||
+	    put_user(burn_param32.length, &burn_param->length))
+		return -EFAULT;
+
+	ret = nand_ioctl(bdev, mode, cmd, (unsigned long)burn_param);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+int nand_drangonboard_compat(struct block_device *bdev, fmode_t mode,
+			     unsigned int cmd, unsigned long __user *arg)
+{
+	int ret;
+
+	ret = nand_ioctl(bdev, mode, cmd, (unsigned long)arg);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+int nand_securestorage_compat(struct block_device *bdev, fmode_t mode,
+			      unsigned int cmd,
+			      struct secblc_op_t32 __user *arg)
+{
+	struct secblc_op_t32 secblc_op32;
+	struct secblc_op_t __user *secblc_op;
+	int ret;
+
+	if (copy_from_user(&secblc_op32, arg, sizeof(secblc_op32)))
+		return -EFAULT;
+
+	secblc_op = compat_alloc_user_space(sizeof(*secblc_op));
+	if (!access_ok(VERIFY_WRITE, secblc_op, sizeof(*secblc_op)))
+		return -EFAULT;
+
+	if (put_user(secblc_op32.item, &secblc_op->item) ||
+	    put_user(compat_ptr(secblc_op32.buf), &secblc_op->buf) ||
+	    put_user(secblc_op32.len, &secblc_op->len))
+		return -EFAULT;
+
+	ret = nand_ioctl(bdev, mode, cmd, (unsigned long)secblc_op);
+	if (ret < 0)
+		return ret;
+
+	if (copy_in_user(&arg->item, &secblc_op->item, sizeof(arg->item)) ||
+	    copy_in_user(&arg->len, &secblc_op->len, sizeof(arg->len)))
+		return -EFAULT;
+
+	return 0;
+}
+
+int nand_getgeo_compat(struct block_device *bdev, fmode_t mode,
+		       unsigned int cmd, struct hd_geometry32 __user *arg)
+{
+	struct hd_geometry32 getgeo32;
+	struct hd_geometry __user *getgeo;
+	int ret;
+
+	if (copy_from_user(&getgeo32, arg, sizeof(getgeo32)))
+		return -EFAULT;
+
+	getgeo = compat_alloc_user_space(sizeof(*getgeo));
+	if (!access_ok(VERIFY_WRITE, getgeo, sizeof(*getgeo)))
+		return -EFAULT;
+
+	if (put_user(getgeo32.heads, &getgeo->heads) ||
+	    put_user(getgeo32.sectors, &getgeo->sectors) ||
+	    put_user(getgeo32.cylinders, &getgeo->cylinders) ||
+	    put_user(getgeo32.start, &getgeo->start))
+		return -EFAULT;
+
+	ret = nand_ioctl(bdev, mode, cmd, (unsigned long)getgeo);
+	if (ret < 0)
+		return ret;
+
+	if (copy_in_user(&arg->heads, &getgeo->heads, sizeof(arg->heads)) ||
+	    copy_in_user(&arg->sectors, &getgeo->sectors, sizeof(arg->sectors))
+	    || copy_in_user(&arg->cylinders, &getgeo->cylinders,
+			    sizeof(arg->cylinders))
+	    || copy_in_user(&arg->start, &getgeo->start, sizeof(arg->start)))
+		return -EFAULT;
+
+	return 0;
+}
+
+static int nand_compat_ioctl(struct block_device *bdev, fmode_t mode,
+			     unsigned int cmd, unsigned long arg)
+{
+	nand_dbg_err("start nand_compat_ioctl\n");
+	switch (cmd) {
+	case HDIO_GETGEO:
+		return nand_getgeo_compat(bdev, mode, cmd, compat_ptr(arg));
+
+	case BLKBURNBOOT0:
+	case BLKBURNBOOT1:
+		return nand_burnboot_compat(bdev, mode, cmd, compat_ptr(arg));
+
+	case DRAGON_BOARD_TEST:
+		return nand_drangonboard_compat(bdev, mode, cmd,
+						compat_ptr(arg));
+
+	case SECBLK_READ:
+	case SECBLK_WRITE:
+		return nand_securestorage_compat(bdev, mode, cmd,
+						 compat_ptr(arg));
+
+	default:
+		return nand_ioctl(bdev, mode, cmd, arg);
+	}
+}
+#endif
+
 /*****************************************************************************
 *Name         :
 *Description  :
@@ -555,6 +712,10 @@ const struct block_device_operations nand_blktrans_ops = {
 	.open = nand_open,
 	.release = nand_release,
 	.ioctl = nand_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = nand_compat_ioctl,
+#endif
+
 };
 
 /*****************************************************************************
@@ -605,8 +766,14 @@ static int nand_blk_release(struct nand_blk_dev *dev)
 *****************************************************************************/
 int del_nand_blktrans_dev(struct nand_blk_dev *dev)
 {
+/*
+	if (!down_trylock(&nand_mutex)) {
+		up(&nand_mutex);
+		BUG();
+    }
 	blk_cleanup_queue(dev->rq);
 	kthread_stop(dev->thread);
+*/
 	list_del(&dev->list);
 	dev->disk->queue = NULL;
 	del_gendisk(dev->disk);
@@ -641,7 +808,7 @@ static int nand_getgeo(struct nand_blk_dev *dev, struct hd_geometry *geo)
 struct nand_blk_ops mytr = {
 	.name = "nand",
 	.major = 93,
-	.minorbits = 3,
+	.minorbits = 4,
 	.blksize = 512,
 	.blkshift = 9,
 	.open = nand_blk_open,
@@ -761,51 +928,17 @@ added:
 
 	gd->private_data = dev;
 	dev->disk = gd;
-	gd->queue = dev->rq;
+	tr->rq->bypass_depth++;
+	gd->queue = tr->rq;
 
 	dev->disable_access = 0;
 	dev->readonly = 0;
 	dev->writeonly = 0;
-
 	mutex_init(&dev->lock);
-	spin_lock_init(&dev->queue_lock);
-	dev->rq = blk_init_queue(mtd_blktrans_request, &dev->queue_lock);
-	if (!dev->rq)
-		goto error3;
-
-#if 0
-	ret = elevator_change(dev->rq, "deadline");
-	if (ret) {
-		blk_cleanup_queue(dev->rq);
-		return ret;
-	}
-#endif
-	dev->rq->queuedata = dev;
-	blk_queue_logical_block_size(dev->rq, tr->blksize);
-
-	queue_flag_set_unlocked(QUEUE_FLAG_DISCARD, dev->rq);
-	dev->rq->limits.max_discard_sectors = UINT_MAX;
-
-	gd->queue = dev->rq;
-
-	dev->thread =
-	    kthread_run(mtd_blktrans_thread, dev, "%s%d", tr->name,
-			dev->devnum);
-	if (IS_ERR(dev->thread)) {
-		ret = PTR_ERR(dev->thread);
-		goto error4;
-	}
-
 	add_disk(gd);
 
 	return 0;
 
-error4:
-	nand_dbg_err("\nerror4\n");
-	blk_cleanup_queue(dev->rq);
-error3:
-	nand_dbg_err("\nerror3\n");
-	put_disk(dev->disk);
 error2:
 	nand_dbg_err("\nerror2\n");
 	list_del(&dev->list);
@@ -829,12 +962,12 @@ int add_nand_blktrans_dev_for_dragonboard(struct nand_blk_dev *dev)
 	gd->fops = &nand_blktrans_ops;
 
 	snprintf(gd->disk_name, sizeof(gd->disk_name),
-		 "%s%c", tr->name, (1 ? 'a' : '0') + dev->devnum);
+		"%s%c", tr->name, (1 ? 'a' : '0') + dev->devnum);
 	set_capacity(gd, 512);
 
 	gd->private_data = dev;
 	dev->disk = gd;
-	gd->queue = dev->rq;
+	gd->queue = tr->rq;
 
 	dev->disable_access = 0;
 	dev->readonly = 0;
@@ -842,16 +975,16 @@ int add_nand_blktrans_dev_for_dragonboard(struct nand_blk_dev *dev)
 
 	mutex_init(&dev->lock);
 
-	/*Create the request queue */
-	spin_lock_init(&dev->queue_lock);
-	dev->rq = blk_init_queue(null_for_dragonboard, &dev->queue_lock);
-	if (!dev->rq)
+    /* Create the request queue */
+	spin_lock_init(&tr->queue_lock);
+	tr->rq = blk_init_queue(null_for_dragonboard, &tr->queue_lock);
+	if (!tr->rq)
 		goto error3;
 
-	dev->rq->queuedata = dev;
-	blk_queue_logical_block_size(dev->rq, tr->blksize);
+	tr->rq->queuedata = dev;
+	blk_queue_logical_block_size(tr->rq, tr->blksize);
 
-	gd->queue = dev->rq;
+	gd->queue = tr->rq;
 	add_disk(gd);
 
 	return 0;
@@ -862,6 +995,7 @@ error3:
 error2:
 	nand_dbg_err("\nerror2\n");
 	list_del(&dev->list);
+
 	return ret;
 }
 
@@ -886,9 +1020,39 @@ int nand_blk_register(struct nand_blk_ops *tr)
 		return -1;
 	}
 
+	spin_lock_init(&tr->queue_lock);
 	init_completion(&tr->thread_exit);
 	init_waitqueue_head(&tr->thread_wq);
 	sema_init(&tr->nand_ops_mutex, 1);
+
+	tr->rq = blk_init_queue(mtd_blktrans_request, &tr->queue_lock);
+	if (!tr->rq) {
+		unregister_blkdev(tr->major, tr->name);
+		up(&nand_mutex);
+		return -1;
+	}
+/*
+		ret = elevator_change(tr->rq, "noop");
+		if(ret){
+			blk_cleanup_queue(tr->rq);
+			return ret;
+		}
+*/
+	tr->rq->queuedata = tr;
+	blk_queue_logical_block_size(tr->rq, tr->blksize);
+	blk_queue_max_hw_sectors(tr->rq, 128);
+
+	tr->thread = kthread_run(mtd_blktrans_thread, tr, "%s", tr->name);
+	if (IS_ERR(tr->thread)) {
+		ret = PTR_ERR(tr->thread);
+		blk_cleanup_queue(tr->rq);
+		unregister_blkdev(tr->major, tr->name);
+		up(&nand_mutex);
+		return ret;
+	}
+
+	queue_flag_set_unlocked(QUEUE_FLAG_DISCARD, tr->rq);
+	tr->rq->limits.max_discard_sectors = UINT_MAX;
 
 	INIT_LIST_HEAD(&tr->devs);
 	tr->nftl_blk_head.nftl_blk_next = NULL;
@@ -900,7 +1064,7 @@ int nand_blk_register(struct nand_blk_ops *tr)
 		tr->add_dev(tr, phy_partition);
 		phy_partition = get_next_phy_partition(phy_partition);
 	}
-
+	tr->rq->bypass_depth--;
 	up(&nand_mutex);
 
 	return 0;
@@ -926,7 +1090,7 @@ void nand_blk_unregister(struct nand_blk_ops *tr)
 	tr->remove_dev(tr);
 
 	unregister_blkdev(tr->major, tr->name);
-
+	blk_cleanup_queue(tr->rq);
 	up(&nand_mutex);
 
 	if (!list_empty(&tr->devs))

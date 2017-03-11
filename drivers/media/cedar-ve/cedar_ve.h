@@ -1,3 +1,15 @@
+/*
+* Copyright (c) 2008-2016 Allwinner Technology Co. Ltd.
+* All rights reserved.
+*
+* File : cedarv_ve.h
+* Description : Video engine driver API, Don't modify it in user space.
+* History :
+*   Author  : xyliu <xyliu@allwinnertech.com>
+*   Date    : 2016/04/13
+*   Comment :
+*/
+/* Notice: It's video engine driver API, Don't modify it in user space. */
 #ifndef _CEDAR_VE_H_
 #define _CEDAR_VE_H_
 
@@ -24,74 +36,28 @@ enum IOCTL_CMD {
 	IOCTL_ADJUST_AVS2_ABS,
 	IOCTL_FLUSH_CACHE,
 	IOCTL_SET_REFCOUNT,
+	IOCTL_FLUSH_CACHE_ALL,
+	IOCTL_TEST_VERSION,
 
-	IOCTL_READ_REG = 0x300,
-	IOCTL_WRITE_REG,
+	IOCTL_GET_LOCK = 0x310,
+	IOCTL_RELEASE_LOCK,
+	
 	IOCTL_SET_VOL = 0x400,
 
 	IOCTL_WAIT_JPEG_DEC = 0x500,
-
+	/*for get the ve ref_count for ipc to delete the semphore*/
 	IOCTL_GET_REFCOUNT,
 };
+
+#define VE_LOCK_VDEC 0x01
+#define VE_LOCK_VENC 0x02
+#define VE_LOCK_JDEC 0x04
+#define VE_LOCK_ERR  0x80
 
 struct cedarv_env_infomation{
 	unsigned int phymem_start;
 	int  phymem_total_size;
 	unsigned long  address_macc;
 };
-
-struct cedarv_cache_range{
-	long start;
-	long end;
-};
-
-struct __cedarv_task {
-	int task_prio;
-	int ID;
-	unsigned long timeout;	
-	unsigned int frametime;
-	unsigned int block_mode;
-};
-
-struct cedarv_engine_task {
-	struct __cedarv_task t;	
-	struct list_head list;
-	struct task_struct *task_handle;
-	unsigned int status;
-	unsigned int running;
-	unsigned int is_first_task;
-};
-
-struct cedarv_engine_task_info {
-	int task_prio;
-	unsigned int frametime;
-	unsigned int total_time;
-};
-
-struct cedarv_regop {
-    unsigned long addr;
-    unsigned int value;
-};
-
-struct cedarv_env_infomation_compat {
-	unsigned int phymem_start;
-	int  phymem_total_size;
-	u32  address_macc;
-};
-
-struct __cedarv_task_compat {
-	int task_prio;
-	int ID;
-	u32 timeout;
-	unsigned int frametime;
-	unsigned int block_mode;
-};
-
-struct cedarv_regop_compat {
-	u32 addr;
-    unsigned int value;
-};
-/*--------------------------------------------------------------------------------*/
-
 
 #endif

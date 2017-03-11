@@ -19,7 +19,7 @@
 static irqreturn_t axp_key_up_handler(int irq, void *data)
 {
 	struct axp_powerkey_info *info = (struct axp_powerkey_info *)data;
-	AXP_DEBUG(AXP_INT, "power key up\n");
+	AXP_DEBUG(AXP_INT, info->chip->pmu_num, "power key up\n");
 	input_report_key(info->idev, KEY_POWER, 0);
 	input_sync(info->idev);
 	return IRQ_HANDLED;
@@ -28,7 +28,7 @@ static irqreturn_t axp_key_up_handler(int irq, void *data)
 static irqreturn_t axp_key_down_handler(int irq, void *data)
 {
 	struct axp_powerkey_info *info = (struct axp_powerkey_info *)data;
-	AXP_DEBUG(AXP_INT, "power key down\n");
+	AXP_DEBUG(AXP_INT, info->chip->pmu_num, "power key down\n");
 	input_report_key(info->idev, KEY_POWER, 1);
 	input_sync(info->idev);
 	return IRQ_HANDLED;
@@ -37,7 +37,7 @@ static irqreturn_t axp_key_down_handler(int irq, void *data)
 static irqreturn_t axp_presslong_handler(int irq, void *data)
 {
 	struct axp_powerkey_info *info = (struct axp_powerkey_info *)data;
-	AXP_DEBUG(AXP_INT, "power key long\n");
+	AXP_DEBUG(AXP_INT, info->chip->pmu_num, "power key long\n");
 	input_report_key(info->idev, KEY_POWER, 1);
 	input_sync(info->idev);
 	ssleep(2);
@@ -49,7 +49,7 @@ static irqreturn_t axp_presslong_handler(int irq, void *data)
 static irqreturn_t axp_pressshort_handler(int irq, void *data)
 {
 	struct axp_powerkey_info *info = (struct axp_powerkey_info *)data;
-	AXP_DEBUG(AXP_INT, "power key short\n");
+	AXP_DEBUG(AXP_INT, info->chip->pmu_num, "power key short\n");
 	input_report_key(info->idev, KEY_POWER, 1);
 	input_sync(info->idev);
 	msleep(100);

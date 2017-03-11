@@ -8,8 +8,6 @@ static bool		video_enable = 0;
 static bool		audio_enable = false;
 static u32		cts_enable = 0;
 static u32		hdcp_enable = 0;
-static u8		isHDMI = 0;
-static u8		YCbCr444_Support = 0;
 static s32		HPD = 0;
 static struct audio_para glb_audio_para;
 static struct video_para glb_video_para;
@@ -51,7 +49,8 @@ struct disp_video_timings video_timing[] =
 	{HDMI720P_60_3D_FP,  0,148500000, 0,  1280,  1440,  1650,  220,  110,  40,  750,   20,  5,  5,  1,   1,   0,   30,  1},
 	{HDMI3840_2160P_30,  0,297000000, 0,  3840,  2160,  4400,  296,  176,  88,  2250,  72,  8, 10,  1,   1,   0,    0,  0},
 	{HDMI3840_2160P_25,  0,297000000, 0,  3840,  2160,  5280,  296, 1056,  88,  2250,  72,  8, 10,  1,   1,   0,    0,  0},
-	{HDMI_EDID,},
+	{HDMI3840_2160P_24,  0, 297000000, 0,  3840,  2160,  5500,  296, 1276,  88,  2250,  72,  8, 10,  1,   1,   0,    0,  0},
+	{HDMI4096_2160P_24,  0, 297000000, 0,  4096,  2160,  5500,  296, 1020,  88,  2250,  72,  8, 10,  1,   1,   0,    0,  0},
 };
 
 static void hdmi_para_reset(void)
@@ -80,7 +79,6 @@ static void hdmi_para_init(void)
 
 static s32 hdmi_core_view_on(void)
 {
-#if 0
 	char buf[2];
 
 	buf[0] = 0;
@@ -89,9 +87,6 @@ static s32 hdmi_core_view_on(void)
 	bsp_hdmi_cec_send(buf, 2);
 
 	return 0;
-#else
-  return -1;
-#endif
 }
 
 s32 hdmi_core_initial(bool sw_only)
@@ -361,7 +356,8 @@ u32 hdmi_core_get_csc_type(void)
 		|| (glb_video_para.vic == HDMI1080P_24_3D_FP)
 		|| (glb_video_para.vic == HDMI3840_2160P_24)
 		|| (glb_video_para.vic == HDMI3840_2160P_30)
-		|| (glb_video_para.vic == HDMI3840_2160P_25))
+		|| (glb_video_para.vic == HDMI3840_2160P_25)
+		|| (glb_video_para.vic == HDMI4096_2160P_24))
 	) {
 		csc = 0;
 	}
@@ -403,6 +399,8 @@ bool hdmi_core_get_audio_enable(void)
 
 static s32 audio_config_internal(void)
 {
+	u8 isHDMI = hdmi_edid_is_hdmi();
+
 	__inf("audio_config_internal, type code:%d\n", glb_audio_para.type);
 	__inf("audio_config_internal, sample_rate:%d\n", glb_audio_para.sample_rate);
 	__inf("audio_config_internal, sample_bit:%d\n", glb_audio_para.sample_bit);
@@ -540,9 +538,8 @@ s32 hdmi_core_get_list_num(void)
 static s32 video_config(u32 vic)
 {
 	int ret = 0;
-
-	isHDMI = hdmi_edid_is_hdmi();
-	YCbCr444_Support = hdmi_edid_is_yuv();
+	u8 isHDMI = hdmi_edid_is_hdmi();
+	u8 YCbCr444_Support = hdmi_edid_is_yuv();
 
 	__inf("video_config, vic:%d,cts_enable:%d,isHDMI:%d,YCbCr444_Support:%d,hdcp_enable:%d\n",
 		vic,cts_enable,isHDMI,YCbCr444_Support,hdcp_enable);

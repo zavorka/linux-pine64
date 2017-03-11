@@ -150,7 +150,8 @@ static inline void arch_timer_evtstrm_enable(int divider)
 #endif
 }
 
-#ifdef  CONFIG_ARCH_SUN50I
+#if defined(CONFIG_ARCH_SUN50IW1P1) \
+	|| defined(CONFIG_ARCH_SUN50IW2P1)
 #define ARCH_VCNT_TRY_MAX_TIME (12)
 #define ARCH_VCNT_MAX_DELTA    (8)
 static inline u64 arch_counter_get_cntvct(void)
@@ -193,7 +194,8 @@ static inline u64 arch_counter_get_cntvct(void)
 }
 #endif /* CONFIG_ARCH_SUN50I */
 
-#ifdef  CONFIG_ARCH_SUN50I
+#if defined(CONFIG_ARCH_SUN50IW1P1) \
+	|| defined(CONFIG_ARCH_SUN50IW2P1)
 #define ARCH_PCNT_TRY_MAX_TIME (12)
 #define ARCH_PCNT_MAX_DELTA    (8)
 static inline u64 arch_counter_get_cntpct(void)

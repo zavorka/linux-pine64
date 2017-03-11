@@ -65,6 +65,7 @@ extern aw_private_data aw_private;
 extern void set_freq_wrap(int freq);
 extern void set_voltage(int vol);
 extern void dvfs_change(u8 level);
+extern void revise_current_level(void);
 
 static struct dentry *mali_debugfs_dir = NULL;
 
@@ -1197,7 +1198,7 @@ static int get_value(char *cmd, char *buf, int cmd_size, int total_size)
 	if (!strncmp(buf, cmd, cmd_size)) {
 		for (i = 0; i < total_size; i++) {
 			if (*(buf+i) == ':') {
-				for (j = 0; j < total_size - i -1; j++)
+				for (j = 0; j < total_size - i - 1; j++)
 					data[j] = *(buf + i + 1 + j);
 				data[j] = '\0';
 				break;
@@ -1231,23 +1232,26 @@ static ssize_t write_write(struct file *filp, const char __user *buf, size_t cou
 	for (i = 0; i < count; i++) {
 		if (*(buffer+i) == ';') {
 			val = get_value("enable", buffer + token, 6, i - token);
-			if (val >= 0 && val <= 1) {
+			if (val == 0 || val == 1) {
 				aw_private.debug.enable = val;
 				break;
 			}
 
 			val = get_value("frequency", buffer + token, 9, i - token);
 			if (val >= 0) {
-				if (val >= 0 && val <= 1)
+				if (val == 0 || val == 1) {
 					aw_private.debug.frequency = val;
-				else
+				} else {
 					set_freq_wrap(val);
+
+					revise_current_level();
+				}
 				break;
 			}
 
 			val = get_value("voltage", buffer + token, 7, i - token);
 			if (val >= 0) {
-				if (val >= 0 && val <= 1)
+				if (val == 0 || val == 1)
 					aw_private.debug.voltage = val;
 				else
 					set_voltage(val);
@@ -1256,10 +1260,10 @@ static ssize_t write_write(struct file *filp, const char __user *buf, size_t cou
 
 			val = get_value("tempctrl", buffer + token, 8, i - token);
 			if (val >= 0 && val <= 3) {
-				if (val >= 0 || val <= 1)
+				if (val == 0 || val == 1)
 					aw_private.debug.tempctrl = val;
 				else
-					aw_private.tempctrl.tempctrl_status = val - 2;
+					aw_private.tempctrl.temp_ctrl_status = val - 2;
 				break;
 			}
 
@@ -1307,26 +1311,27 @@ static const struct file_operations write_fops = {
 static int dump_debugfs_show(struct seq_file *s, void *private_data)
 {
 	int i;
+
 	if (aw_private.debug.enable) {
 		if (aw_private.debug.frequency)
 			seq_printf(s, "frequency: %3dMHz; ", aw_private.pm.clk[0].freq);
 		if (aw_private.debug.voltage)
-			seq_printf(s, "voltage: %4dmV; ", regulator_get_voltage(aw_private.pm.regulator)/1000);
+			seq_printf(s, "voltage: %4dmV; ", aw_private.pm.current_vol);
 		if (aw_private.debug.tempctrl)
-			seq_printf(s, "tempctrl: %s; ", aw_private.tempctrl.tempctrl_status ? "on" : "off");
+			seq_printf(s, "tempctrl: %s; ", aw_private.tempctrl.temp_ctrl_status ? "on" : "off");
 		if (aw_private.debug.scenectrl)
 			seq_printf(s, "scenectrl: %s; ", aw_private.pm.scene_ctrl_status ? "on" : "off");
 		if (aw_private.debug.dvfs)
 			seq_printf(s, "dvfs: %s; ", aw_private.pm.dvfs_status ? "on" : "off");
 		if (aw_private.debug.level) {
 			seq_printf(s, "\nmax_available_level: %d\n", aw_private.pm.max_available_level);
+			seq_printf(s, "current_level: %d\n", aw_private.pm.current_level);
 			seq_printf(s, "cool_freq: %dMHz\n", aw_private.pm.cool_freq);
 			seq_printf(s, "scene_ctrl_cmd: %d\n", aw_private.pm.scene_ctrl_cmd);
-			seq_printf(s, "%-6s %-8s %-10s\n", " level", " voltage", " frequency");
-			for (i = 0; i <= aw_private.pm.max_level; i++) {
-				seq_printf(s, "%s%d      %dmV      %dMHz\n", i == aw_private.pm.current_level ? "-> " : "   ",
-									i, aw_private.pm.vf_table[i].vol, aw_private.pm.vf_table[i].freq);
-			}
+			seq_printf(s, "   level  voltage  frequency\n");
+			for (i = 0; i <= aw_private.pm.max_level; i++)
+				seq_printf(s, "%s%3d   %4dmV      %3dMHz\n", i == aw_private.pm.current_level ? "-> " : "   ",
+							i, aw_private.pm.vf_table[i].vol, aw_private.pm.vf_table[i].freq);
 			seq_printf(s, "=========================================");
 		}
 		seq_printf(s, "\n");
@@ -1535,8 +1540,8 @@ int mali_sysfs_register(const char *mali_dev_name)
 				MALI_DEBUG_PRINT(2, ("Failed to create user setting debugfs files. Ignoring...\n"));
 			}
 
-			debugfs_create_file("dump", 0666, mali_debugfs_dir, NULL, &dump_fops);
-			debugfs_create_file("write", 0666, mali_debugfs_dir, NULL, &write_fops);
+			debugfs_create_file("dump", 0440, mali_debugfs_dir, NULL, &dump_fops);
+			debugfs_create_file("write", 0220, mali_debugfs_dir, NULL, &write_fops);
 		}
 	}
 

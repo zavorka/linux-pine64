@@ -818,7 +818,6 @@ static int sta32x_set_bias_level(struct snd_soc_codec *codec,
 		snd_soc_update_bits(codec, STA32X_CONFF,
 				    STA32X_CONFF_PWDN | STA32X_CONFF_EAPD,
 				    STA32X_CONFF_PWDN);
-		msleep(300);
 		sta32x_watchdog_stop(sta32x);
 		regulator_bulk_disable(ARRAY_SIZE(sta32x->supplies),
 				       sta32x->supplies);
@@ -853,11 +852,26 @@ static int sta32x_suspend(struct snd_soc_codec *codec)
 	if (gpio_is_valid(power_gpio)) {
 		gpio_set_value(power_gpio, 0);
 	}
+	gpio_free(reset_gpio);
 	return 0;
 }
 
 static int sta32x_resume(struct snd_soc_codec *codec)
 {
+	int ret;
+	if (gpio_is_valid(reset_gpio)) {
+		ret = gpio_request(reset_gpio, "RESET");
+		if (ret) {
+			pr_debug("failed to request gpio-reset gpio\n");
+		} else {
+			gpio_direction_output(reset_gpio, 1);
+			gpio_set_value(reset_gpio, 0);
+			gpio_set_value(reset_gpio, 1);
+		}
+	}
+	if (gpio_is_valid(power_gpio)) {
+		gpio_set_value(power_gpio, 1);
+	}
 	sta32x_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
 	if (gpio_is_valid(power_gpio)) {
 		gpio_set_value(power_gpio, 1);
@@ -900,12 +914,10 @@ static int sta32x_probe(struct snd_soc_codec *codec)
 	 * so the write to the these registers are suppressed by the cache
 	 * restore code when it skips writes of default registers.
 	 */
-	regcache_cache_only(sta32x->regmap, true);
 	snd_soc_write(codec, STA32X_CONFC, 0xc2);
 	snd_soc_write(codec, STA32X_CONFE, 0xc2);
 	snd_soc_write(codec, STA32X_CONFF, 0x5d);
 	snd_soc_write(codec, STA32X_MVOL, 0xff);
-	snd_soc_write(codec, STA32X_CONFA, 0x61);
 	snd_soc_write(codec, STA32X_MMUTE, 0x10);
 	snd_soc_write(codec, STA32X_AUTO1, 0x80);
 	snd_soc_write(codec, STA32X_AUTO2, 0xC0);
@@ -914,7 +926,6 @@ static int sta32x_probe(struct snd_soc_codec *codec)
 	snd_soc_write(codec, STA32X_AUTO3, 0x00);
 	snd_soc_write(codec, STA32X_C3CFG, 0x84);
 	snd_soc_write(codec, STA32X_B0CF1, 0x0);
-	regcache_cache_only(sta32x->regmap, false);
 #ifndef CONFIG_ARCH_SUN8IW10
 	/* set thermal warning adjustment and recovery */
 	if (!(sta32x->pdata->thermal_conf & STA32X_THERMAL_ADJUSTMENT_ENABLE))
@@ -1043,7 +1054,7 @@ static int sta32x_i2c_probe(struct i2c_client *i2c,
 	if (!gpio_is_valid(reset_gpio)) {
 		pr_debug("failed to get gpio-reset gpio from dts,reset:%d\n", reset_gpio);
 	} else {
-		ret = devm_gpio_request(&i2c->dev, reset_gpio, "RESET");
+		ret = gpio_request(reset_gpio, "RESET");
 		if (ret) {
 			pr_debug("failed to request gpio-reset gpio\n");
 		} else {
@@ -1058,7 +1069,7 @@ static int sta32x_i2c_probe(struct i2c_client *i2c,
 	if (!gpio_is_valid(power_gpio)) {
 		pr_err("failed to get power_gpio gpio from dts,power_gpio:%d\n", power_gpio);
 	} else {
-		ret = devm_gpio_request(&i2c->dev, power_gpio, "power_gpio");
+		ret = gpio_request(power_gpio, "power_gpio");
 		if (ret) {
 			pr_err("failed to request power_gpio  gpio\n");
 		} else {

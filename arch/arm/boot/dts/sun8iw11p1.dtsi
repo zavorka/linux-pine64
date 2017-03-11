@@ -38,6 +38,7 @@
 		spi1 = &spi1;
 		spi2 = &spi2;
 		spi3 = &spi3;
+		gmac0 = &gmac0;
 		global_timer0  = &soc_timer0;
 		cci0 = &csi_cci0;
 		csi_res0 = &csi_res0;
@@ -78,6 +79,7 @@
 					600000
 					720000
 					816000
+					912000
 					1008000
 					1104000
 					1152000
@@ -252,6 +254,14 @@
 	uboot: uboot {
 	};
 
+	gpu_mali400_0: gpu@0x01c40000 {
+		compatible = "arm,mali-400", "arm,mali-utgard";
+		reg = <0x0 0x01c40000 0x0 0x10000>;
+		interrupts = <GIC_SPI 69 4>, <GIC_SPI 70 4>, <GIC_SPI 71 4>, <GIC_SPI 72 4>, <GIC_SPI 74 4>, <GIC_SPI 75 4>;
+		interrupt-names = "IRQGP", "IRQGPMMU", "IRQPP0", "IRQPPMMU0", "IRQPP1", "IRQPPMMU1";
+		clocks = <&clk_pll_gpu>, <&clk_gpu>;
+	};
+
 	soc: soc@01c00000 {
 		compatible = "simple-bus";
 		#address-cells = <2>;
@@ -342,8 +352,8 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&ir0_pins_a>;
 			clocks = <&clk_hosc>,<&clk_ir0>;
-			supply = "vcc-pl";
-			supply_vol = <3300000>;
+			supply = "";
+			supply_vol = "";
 			status = "okay";
 		};
 
@@ -354,8 +364,8 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&ir1_pins_a>;
 			clocks = <&clk_hosc>,<&clk_ir1>;
-			supply = "vcc-pl";
-			supply_vol = <3300000>;
+			supply = "";
+			supply_vol = "";
 			status = "disabled";
 		};
 
@@ -1086,6 +1096,9 @@
 			clocks = <&clk_de>,<&clk_tcon_top>,
 						<&clk_tcon0>,<&clk_tcon1>,
 						<&clk_tcon_tv0>,<&clk_tcon_tv1>,<&clk_lvds>,<&clk_mipidsi>;
+			boot_disp = <0>;
+			fb_base = <0>;
+
 			status = "okay";
 		};
 
@@ -1169,6 +1182,19 @@
 			clocks = <&clk_tvd3>;
 			tvd_used = <1>;
 			tvd_if = <0>;
+			status = "okay";
+		};
+
+		v4in1: v4in1@01c30000 {
+			compatible = "allwinner,sunxi-v4in1";
+			reg = <0x0 0x01c30000 0x0 0x00010000>,/*tvd top*/
+				  <0x0 0x01c31000 0x0 0x00010000>,/*tvd0*/
+				  <0x0 0x01c32000 0x0 0x00010000>,/*tvd1*/
+				  <0x0 0x01c33000 0x0 0x00010000>,/*tvd2*/
+				  <0x0 0x01c34000 0x0 0x00010000>;/*tvd3*/
+			clocks = <&clk_tvd_top>, <&clk_tvd0>, <&clk_tvd1>,
+					 <&clk_tvd2>, <&clk_tvd3>;
+			interrupts = <GIC_SPI 97 0x0104>;
 			status = "okay";
 		};
 
@@ -1499,12 +1525,12 @@
 		};
 		cryptoengine: ce@1c15000 {
 			compatible = "allwinner,sunxi-ce";
+			device_name = "ce";
 			reg = <0x0 0x01c15000 0x0 0x80>, /* non-secure space */
 				  <0x0 0x01c15800 0x0 0x80>; /* secure space */
 			interrupts = <GIC_SPI 94 0xff01>, /* non-secure space */
 						 <GIC_SPI 80 0xff01>; /* secure space */
-			clock-frequency = <300000000>, /* 300MHz */
-							  <200000000>; /* 200MHz for RSA */
+			clock-frequency = <300000000>; /* 300MHz */
 			clocks = <&clk_ce>, <&clk_pll_periph0x2>;
 		};
 		di:deinterlace@0x01400000{
@@ -1516,16 +1542,17 @@
 			clocks = <&clk_deinterlace> ,<&clk_pll_periph0>;
 			status = "okay";
 		};
-		smc:smartcard@0x01c2c400{
+		scr0:smartcard@0x01c2c400{
 			#address-cells = <1>;
 			#size-cells = <0>;
 			compatible = "allwinner,sunxi-scr";
 			reg = <0x0 0x01c2c400 0x0 0x400>;
 			interrupts = <GIC_SPI 41 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk_scr>, <&clk_apb2>;
+			clocks = <&clk_scr0>, <&clk_apb2>;
 			clock-frequency = <24000000>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&scr_pins_a>;
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&scr0_pins_a>;
+			pinctrl-1 = <&scr0_pins_b>;
 			status = "okay";
 		};
 		nmi:nmi@0{
@@ -1613,17 +1640,17 @@
 
 				trips{
 					cpu_trip0:t0{
-						temperature = <80>;
-						type = "passive";
-						hysteresis = <0>;
-					};
-					cpu_trip1:t1{
 						temperature = <95>;
 						type = "passive";
 						hysteresis = <0>;
 					};
-					cpu_trip2:t2{
+					cpu_trip1:t1{
 						temperature = <105>;
+						type = "passive";
+						hysteresis = <0>;
+					};
+					cpu_trip2:t2{
+						temperature = <112>;
 						type = "passive";
 						hysteresis = <0>;
 					};
@@ -1700,11 +1727,106 @@
 			interrupts = <GIC_SPI 31 IRQ_TYPE_NONE>;
 			status = "okay";
 			key_cnt = <5>;
-			key1 = <240 115>;
-			key2 = <500 114>;
-			key3 = <700 139>;
-			key4 = <890 28>;
-			key5 = <2000 102>;
+			key0 = <190 115>;
+			key1 = <390 114>;
+			key2 = <600 139>;
+			key3 = <800 28>;
+			key4 = <980 102>;
+		};
+		keypad0:keypad{
+			compatible = "allwinner,keypad";
+			reg = <0x0 0x01c23000 0x0 0x400>;
+			interrupts = <GIC_SPI 21 IRQ_TYPE_NONE>;
+			clocks = <&clk_losc>,<&clk_keypad>;
+			keypad_power_key_code = <0x00>;
+
+			/* need to add keypad pinctrl */
+			/* pinctrl-names = "default"; */
+			/* pinctrl-0 = <&keypad pinctrl>; */
+			status = "okay";
+		};
+		sata:sata@01c18000{
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "allwinner,sun8i-sata";
+			device_type = "sata";
+			reg = <0x0 0x01c18000 0x0 0x200>;
+			interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk_pll_sata>, <&clk_sata>;
+			sata_regulator0="vdd-sata-25";
+			sata_regulator1="vdd-sata-12";
+			sata_power_en;
+			status = "okay";
+		};
+
+		ps20: ps2@01c2a000 {
+			compatible = "allwinner,sun4i-a10-ps2";
+			reg = <0x0 0x01c2a000 0x0 0x400>;
+			interrupts = <GIC_SPI 62 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk_ps20>;
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&ps20_pins_a>;
+			status = "disabled";
+		};
+
+		ps21: ps2@01c2a400 {
+			compatible = "allwinner,sun4i-a10-ps2";
+			reg = <0x0 0x01c2a400 0x0 0x400>;
+			interrupts = <GIC_SPI 63 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk_ps21>;
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&ps21_pins_a>;
+			status = "disabled";
+		};
+
+		gmac0: eth@01c50000 {
+			compatible = "allwinner,sunxi-gmac";
+			reg = <0x0 0x01c50000 0x0 0x40000>,
+			    <0x0 0x01c20164 0x0 0x04>;
+			pinctrl-names = "default";
+			pinctrl-0     = <&gmac_pins_a>;
+			interrupts      = <GIC_SPI 85 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "gmacirq";
+			clocks   = <&clk_gmac>;
+			clock-names = "gmac";
+			phy-mode = "mii";
+			tx-delay = <7>;
+			rx-delay = <31>;
+			phy-rst;
+			gmac-power0;
+			gmac-power1;
+			gmac-power2;
+			status = "disabled";
+		};
+
+		emac0: eth@01c0B000 {
+			compatible = "allwinner,sun4i-emac";
+			reg = <0x0 0x01c0b000 0x0 0x0c000>;
+			pinctrl-names = "default";
+			pinctrl-0     = <&emac_pins_a>;
+			interrupts      = <GIC_SPI 55 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "emacirq";
+			clocks   = <&clk_emac>;
+			clock-names = "emac";
+			phy = <&phy1>;
+			phy-rst;
+			allwinner,sram = <&emac_sram 1>;
+			emac_power1 = "";
+			emac_power2 = "";
+			emac_power3 = "";
+			status = "disabled";
+		};
+
+		mdio: mdio@01c0b080 {
+			compatible = "allwinner,sun4i-a10-mdio";
+			reg = <0x0 0x01c0b080 0x0 0x14>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			phy1: ethernet-phy@1 {
+				reg = <1>;
+			};
 		};
 		keypad0:keypad{
 			compatible = "allwinner,keypad";

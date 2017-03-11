@@ -13,14 +13,13 @@
 #include <linux/power/aw_pm.h>
 #include "../axp-core.h"
 
-#define AXP_NAME "axpdummy"
 static struct axp_dev *axpdummy_pm_power;
 struct axp_config_info axpdummy_config;
+static int axpdummy_pmu_num;
 
 static struct mfd_cell axpdummy_cells[] = {
 	{
 		.name          = "axpdummy-regulator",
-		.of_compatible = "axpdummy-regulator",
 	},
 };
 
@@ -64,9 +63,9 @@ static int axpdummy_cfg_pmux_para(int num, struct aw_pm_info *api, int *pmu_id)
 	return 0;
 }
 
-static char *axpdummy_get_pmu_name(void)
+static const char *axpdummy_get_pmu_name(void)
 {
-	return AXP_NAME;
+	return axp_name[axpdummy_pmu_num];
 }
 
 static struct axp_dev *axpdummy_get_pmu_dev(void)
@@ -80,13 +79,27 @@ struct axp_platform_ops axpdummy_platform_ops = {
 	.cfg_pmux_para = axpdummy_cfg_pmux_para,
 	.get_pmu_name = axpdummy_get_pmu_name,
 	.get_pmu_dev  = axpdummy_get_pmu_dev,
+	.regulator_name = {"axpdummy-regulator"},
 };
+
+static const struct of_device_id axpdummy_dt_ids[] = {
+	{ .compatible = "axpdummy", },
+	{},
+};
+MODULE_DEVICE_TABLE(of, axpdummy_dt_ids);
 
 static int axpdummy_probe(struct platform_device *pdev)
 {
 	int ret;
 	struct axp_dev *axpdummy;
 	struct device_node *node = pdev->dev.of_node;
+
+	axpdummy_pmu_num = axp_get_pmu_num(axpdummy_dt_ids,
+				ARRAY_SIZE(axpdummy_dt_ids));
+	if (axpdummy_pmu_num < 0) {
+		pr_err("%s get pmu num failed\n", __func__);
+		return axpdummy_pmu_num;
+	}
 
 	if (node) {
 		/* get dt and sysconfig */
@@ -97,7 +110,8 @@ static int axpdummy_probe(struct platform_device *pdev)
 			return -EPERM;
 		} else {
 			axpdummy_config.pmu_used = 1;
-			ret = axp_dt_parse(node, &axpdummy_config);
+			ret = axp_dt_parse(node, axpdummy_pmu_num,
+				&axpdummy_config);
 			if (ret) {
 				pr_err("%s parse device tree err\n", __func__);
 				return -EINVAL;
@@ -114,6 +128,13 @@ static int axpdummy_probe(struct platform_device *pdev)
 	axpdummy->dev = &pdev->dev;
 	axpdummy->nr_cells = ARRAY_SIZE(axpdummy_cells);
 	axpdummy->cells = axpdummy_cells;
+	axpdummy->pmu_num = axpdummy_pmu_num;
+
+	ret = axp_mfd_cell_name_init(&axpdummy_platform_ops,
+				ARRAY_SIZE(axpdummy_dt_ids), axpdummy->pmu_num,
+				axpdummy->nr_cells, axpdummy->cells);
+	if (ret)
+		return ret;
 
 	platform_set_drvdata(pdev, axpdummy);
 	ret = axp_mfd_add_devices(axpdummy);
@@ -126,7 +147,7 @@ static int axpdummy_probe(struct platform_device *pdev)
 	if (!pm_power_off)
 		pm_power_off = axpdummy_power_off;
 
-	axp_platform_ops_set(&axpdummy_platform_ops);
+	axp_platform_ops_set(axpdummy->pmu_num, &axpdummy_platform_ops);
 
 	return 0;
 fail_init:
@@ -148,15 +169,10 @@ static int axpdummy_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static const struct of_device_id axpdummy_dt_ids[] = {
-	{ .compatible = AXP_NAME, },
-	{},
-};
-MODULE_DEVICE_TABLE(of, axpdummy_dt_ids);
 
 static struct platform_driver axpdummy_driver = {
 	.driver = {
-		.name   = AXP_NAME,
+		.name   = "axpdummy",
 		.owner  = THIS_MODULE,
 		.of_match_table = axpdummy_dt_ids,
 	},

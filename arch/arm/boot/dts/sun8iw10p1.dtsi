@@ -207,7 +207,7 @@
 	 };
 
 	pmu {
-		compatible = "arm,armv8-pmuv3";
+		compatible = "arm,cortex-a7-pmu";
 		interrupts = <GIC_SPI 120 4>,
 			     <GIC_SPI 121 4>,
 			     <GIC_SPI 122 4>,
@@ -264,7 +264,7 @@
 		};
 
 		mbus0:mbus-controller@01c62000 {
-			compatible = "allwinner,sun8i-b100-mbus";
+			compatible = "allwinner,sun8i-mbus";
 			reg = <0x0 0x01c62000 0x0 0x110>;
 			#mbus-cells = <1>;
 		};
@@ -414,6 +414,21 @@
 				};
 
 				charger0: charger@0{
+					status = "okay";
+				};
+			};
+
+			pmu1: pmu@1{
+				#address-cells = <1>;
+				#size-cells = <0>;
+				interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
+				status = "okay";
+
+				powerkey1: powerkey@1{
+					status = "okay";
+				};
+
+				charger1: charger@1{
 					status = "okay";
 				};
 			};
@@ -732,7 +747,7 @@
 		};
 
 		sdc2: sdmmc@01C11000 {
-			compatible = "allwinner,sun8iw10p1-sdmmc2";
+			compatible = "allwinner,sunxi-mmc-v5px";
 			device_type = "sdc2";
 			reg = <0x0 0x01C11000 0x0 0x1000>;
 			interrupts = <GIC_SPI 62 0x0104>;  /*  */
@@ -836,9 +851,6 @@
 			interrupts = <GIC_SPI 61 0x0104>;  /*  */
 			clocks = <&clk_hosc>,<&clk_pll_periph1x2>,<&clk_sdmmc1_mod>,<&clk_sdmmc1_bus>,<&clk_sdmmc1_rst>;
 			clock-names = "osc24m","pll_periph","mmc","ahb","rst";
-			pinctrl-names = "default","sleep";
-			pinctrl-0 = <&sdc1_pins_a>;
-			pinctrl-1 = <&sdc1_pins_b>;
 			max-frequency = <50000000>;
 			bus-width = <4>;
 			/*broken-cd;*/
@@ -881,7 +893,8 @@
 			interrupts = <GIC_SPI 86 0x0104>, <GIC_SPI 95 0x0104>,
 				<GIC_SPI 106 0x0104>;/* for ee */
 			clocks = <&clk_de>,<&clk_tcon0>,<&clk_ee>,<&clk_edma>;
-
+			boot_disp = <0>;
+			fb_base = <0>;
 			status = "okay";
 		};
 
@@ -1185,16 +1198,6 @@
 			test-gpios = <&pio PB 2 1 2 2 1>;
 			status = "okay";
 		};
-		cryptoengine: ce@1c15000 {
-			compatible = "allwinner,sunxi-ce";
-			reg = <0x0 0x01c15000 0x0 0x80>, /* non-secure space */
-				  <0x0 0x01c15800 0x0 0x80>; /* secure space */
-			interrupts = <GIC_SPI 94 0xff01>, /* non-secure space */
-						 <GIC_SPI 80 0xff01>; /* secure space */
-			clock-frequency = <300000000>, /* 300MHz */
-							  <200000000>; /* 200MHz for RSA */
-			clocks = <&clk_pll_periph0x2>;
-		};
 		nmi:nmi@0{
 			compatible = "allwinner,sunxi-nmi";
 			reg = <0x0 0x01c00000 0x0 0x100>;
@@ -1299,15 +1302,15 @@
 			clocks = <&clk_keyadc>;
 			status = "okay";
 			key_cnt = <9>;
-			key1 = <240 115>;
-			key2 = <500 114>;
-			key3 = <700 0x1ac>;
-			key4 = <890 28>;
-			key5 = <1100 102>;
-			key6 = <1300 0x192>;
-			key7 = <1500 0x193>;
-			key8 = <1700 9>;
-			key9 = <2000 10>;
+			key0 = <190 115>;
+			key1 = <390 114>;
+			key2 = <600 0x1ac>;
+			key3 = <800 28>;
+			key4 = <980 102>;
+			key5 = <1180 0x192>;
+			key6 = <1400 0x193>;
+			key7 = <1600 9>;
+			key8 = <1800 10>;
 		};
 
 		wlan:wlan {

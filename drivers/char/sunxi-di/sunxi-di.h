@@ -27,6 +27,7 @@ typedef struct {
 #ifdef CONFIG_PM
 	struct dev_pm_domain di_pm_domain;
 #endif
+	unsigned int users;
 }di_struct, *pdi_struct;
 
 #define	DI_IOC_MAGIC		'D'

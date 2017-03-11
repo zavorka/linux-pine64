@@ -2,7 +2,6 @@
 #define AXP20_H_
 
 /*For AXP22*/
-#define AXP_NAME                      "axp20"
 #define AXP20_STATUS                  (0x00)
 #define AXP20_MODE_CHGSTATUS          (0x01)
 #define AXP20_OTG_STATUS              (0x02)

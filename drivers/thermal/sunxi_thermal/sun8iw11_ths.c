@@ -27,6 +27,7 @@
 #include <linux/of_address.h>
 #include "sunxi_ths.h"
 #include "sun8iw11_ths.h"
+#include <linux/sunxi-sid.h>
 
 struct sunxi_ths_data {
 	void __iomem *base_addr;
@@ -80,6 +81,8 @@ static u32 sun8_th_temp_to_reg(long temp)
 static void ths_sensor_init(struct sunxi_ths_data *ths_data)
 {
 	u32 reg_value, i;
+	u32 ths_cal_data;
+	u32 ths_cal_data_legacy[2];
 
 	thsprintk(DEBUG_INIT, "ths_sensor_init: ths setup start!!\n");
 
@@ -87,6 +90,26 @@ static void ths_sensor_init(struct sunxi_ths_data *ths_data)
 	writel(THS_CTRL2_VALUE, ths_data->base_addr + THS_CTRL2_REG);
 	writel(THS_CLEAR_INT_STA, ths_data->base_addr + THS_INT_STA_REG);
 	writel(THS_FILT_CTRL_VALUE, ths_data->base_addr + THS_FILT_CTRL_REG);
+
+	sunxi_efuse_readn(EFUSE_THM_SENSOR_NAME, (void *)(&ths_cal_data),
+			  sizeof(ths_cal_data));
+	if (0 != ths_cal_data) {
+		writel(ths_cal_data, ths_data->base_addr + THS_0_1_CDATA_REG);
+		thsprintk(DEBUG_INIT, "get thm sensor cal value from 0x40.\n");
+	} else {
+		sunxi_efuse_readn(EFUSE_FT_ZONE_NAME,
+				  (void *)(ths_cal_data_legacy),
+				  sizeof(ths_cal_data_legacy));
+		if (0 != ths_cal_data_legacy[1]) {
+			writel(ths_cal_data_legacy[1],
+			       ths_data->base_addr + THS_0_1_CDATA_REG);
+			thsprintk(DEBUG_INIT,
+				  "get thm sensor cal value from 0x48.\n");
+		} else {
+			pr_err("%s: warning for u need thermal calibration. \n",
+			       __func__);
+		}
+	}
 
 	reg_value = sun8_th_temp_to_reg(ths_data->shut_temp);
 	reg_value = (reg_value << 16);
@@ -111,7 +134,8 @@ static void ths_sensor_init(struct sunxi_ths_data *ths_data)
 		  readl(ths_data->base_addr + THS_INT_STA_REG));
 	thsprintk(DEBUG_INIT, "THS_FILT_CTRL_REG = 0x%x\n",
 		  readl(ths_data->base_addr + THS_FILT_CTRL_REG));
-
+	thsprintk(DEBUG_INIT, "THS_0_1_CDATA_REG = 0x%x\n",
+		  readl(ths_data->base_addr + THS_0_1_CDATA_REG));
 	thsprintk(DEBUG_INIT, "ths_sensor_init: ths setup end!!\n");
 	return;
 }
@@ -223,8 +247,9 @@ static int sun8i_th_get_temp(struct sunxi_ths_controller *controller, u32 id,
 	if (reg_data & (0x100 << id)) {
 		reg_data = readl(ths_data->base_addr + THS_DATA_REG0 + id * 4);
 		t = sun8_th_reg_to_temp(reg_data);
-		thsprintk(DEBUG_DATA_INFO, "THS data[%d] for %s = 0x%x, temp is %ld\n",
-				id, id_name_mapping[id], reg_data, t);
+		thsprintk(DEBUG_DATA_INFO,
+			  "THS data[%d] for %s = 0x%x, temp is %ld\n", id,
+			  id_name_mapping[id], reg_data, t);
 		if (-40 > t || 180 < t)
 			return -1;
 		*temp = t;
@@ -326,7 +351,7 @@ static struct of_device_id sunxi_ths_of_match[] = {
 };
 
 MODULE_DEVICE_TABLE(of, sunxi_ths_of_match);
-#else				/* !CONFIG_OF */
+#else /* !CONFIG_OF */
 #endif
 
 static struct platform_driver sunxi_ths_driver = {

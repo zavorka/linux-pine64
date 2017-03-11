@@ -350,27 +350,27 @@ static s32 axp15_regu_dependence(const char *ldo_name)
 {
 	s32 axp15_dependence = 0;
 
-	if (strcmp("axp15_dcdc1", ldo_name) == 0)
+	if (strstr(ldo_name, "dcdc1") != NULL)
 		axp15_dependence |= AXP15X_DCDC1;
-	else if (strcmp("axp15_dcdc2", ldo_name) == 0)
+	else if (strstr(ldo_name, "dcdc2") != NULL)
 		axp15_dependence |= AXP15X_DCDC2;
-	else if (strcmp("axp15_dcdc3", ldo_name) == 0)
+	else if (strstr(ldo_name, "dcdc3") != NULL)
 		axp15_dependence |= AXP15X_DCDC3;
-	else if (strcmp("axp15_dcdc4", ldo_name) == 0)
+	else if (strstr(ldo_name, "dcdc4") != NULL)
 		axp15_dependence |= AXP15X_DCDC4;
-	else if (strcmp("axp15_aldo1", ldo_name) == 0)
+	else if (strstr(ldo_name, "aldo1") != NULL)
 		axp15_dependence |= AXP15X_ALDO1;
-	else if (strcmp("axp15_aldo2", ldo_name) == 0)
+	else if (strstr(ldo_name, "aldo2") != NULL)
 		axp15_dependence |= AXP15X_ALDO2;
-	else if (strcmp("axp15_dldo1", ldo_name) == 0)
+	else if (strstr(ldo_name, "dldo1") != NULL)
 		axp15_dependence |= AXP15X_DLDO1;
-	else if (strcmp("axp15_dldo2", ldo_name) == 0)
+	else if (strstr(ldo_name, "dldo2") != NULL)
 		axp15_dependence |= AXP15X_DLDO2;
-	else if (strcmp("axp15_ldoio0", ldo_name) == 0)
+	else if (strstr(ldo_name, "ldoio0") != NULL)
 		axp15_dependence |= AXP15X_LDOIO0;
-	else if (strcmp("axp15_ldo0", ldo_name) == 0)
+	else if (strstr(ldo_name, "ldo0") != NULL)
 		axp15_dependence |= AXP15X_LDO0;
-	else if (strcmp("axp15_rtc", ldo_name) == 0)
+	else if (strstr(ldo_name, "rtc") != NULL)
 		axp15_dependence |= AXP15X_RTC;
 	else
 		return -1;
@@ -408,6 +408,7 @@ static int axp15_regulator_probe(struct platform_device *pdev)
 
 	for (i = 0; i < VCC_15_MAX; i++) {
 		info = &axp15_regulator_info[i];
+		info->pmu_num = axp_dev->pmu_num;
 		if (info->desc.id == AXP15_ID_LDO4
 				|| info->desc.id == AXP15_ID_LDO5
 				|| info->desc.id == AXP15_ID_DCDC2
@@ -462,8 +463,30 @@ static int axp15_regulator_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int axp15_regulator_suspend(struct platform_device *pdev,
+				pm_message_t state)
+{
+	struct axp15_regulators *regu_data = platform_get_drvdata(pdev);
+	struct axp_dev *axp15 = regu_data->chip;
+
+	/* disable dcdc2 dvm */
+	axp_regmap_clr_bits(axp15->regmap, AXP15_DCDC2_DVM_CTRL, 0x04);
+	return 0;
+}
+
+static int axp15_regulator_resume(struct platform_device *pdev)
+{
+	struct axp15_regulators *regu_data = platform_get_drvdata(pdev);
+	struct axp_dev *axp15 = regu_data->chip;
+
+	/* enable dcdc2 dvm */
+	axp_regmap_set_bits(axp15->regmap, AXP15_DCDC2_DVM_CTRL, 0x04);
+	return 0;
+}
+
+
 static const struct of_device_id axp15_regu_dt_ids[] = {
-	{ .compatible = "axp15-regulator", },
+	{ .compatible = "axp157-regulator", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, axp15_regu_dt_ids);
@@ -475,6 +498,8 @@ static struct platform_driver axp15_regulator_driver = {
 	},
 	.probe      = axp15_regulator_probe,
 	.remove     = axp15_regulator_remove,
+	.suspend    = axp15_regulator_suspend,
+	.resume     = axp15_regulator_resume,
 };
 
 static int __init axp15_regulator_initcall(void)

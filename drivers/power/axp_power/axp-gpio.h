@@ -99,7 +99,7 @@ struct axp_pinctrl *axp_pinctrl_register(struct device *dev,
 			struct axp_pinctrl_desc *desc,
 			struct axp_gpio_ops *ops);
 int axp_pinctrl_unregister(struct axp_pinctrl *pctl);
-void axp_gpio_irq_ops_set(struct axp_gpio_irq_ops *ops);
+void axp_gpio_irq_ops_set(int pmu_num, struct axp_gpio_irq_ops *ops);
 int axp_gpio_irq_valid(struct axp_pinctrl_desc *desc, int gpio_no);
 
 extern s32 axp_debug;

@@ -249,13 +249,18 @@ int main(int argc, char *argv[])
 			die("Couldn't open output file %s: %s\n",
 			    outname, strerror(errno));
 	}
+
 	/* add by huangshr.
 	 * here we parser script file and
 	 * insert mainkey info into bi struct.
 	 */
-
 	if (fexname) {
 		dt_update_source(fexname, outf, bi);
+
+		/* recheck bi struct */
+		fill_fullpaths(bi->dt, "");
+		dirty_checks();
+		process_checks(force, bi);
 	}
 
 	if (streq(outform, "dts")) {

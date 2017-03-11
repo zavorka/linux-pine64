@@ -229,3 +229,24 @@ unsigned int arisc_pmu_get_voltage(u32 type)
 	return voltage;
 }
 EXPORT_SYMBOL(arisc_pmu_get_voltage);
+
+int arisc_pmu_set_voltage_state(u32 type, u32 state)
+{
+	int result;
+
+	result = invoke_scp_fn_smc(ARM_SVC_ARISC_SET_PMU_VOLT_STA, type, state, 0);
+
+	return result;
+}
+EXPORT_SYMBOL(arisc_pmu_set_voltage_state);
+
+unsigned int arisc_pmu_get_voltage_state(u32 type)
+{
+	u32 state;
+
+	invoke_scp_fn_smc(ARM_SVC_ARISC_GET_PMU_VOLT_STA, type,
+			virt_to_phys(&state), 0);
+
+	return state;
+}
+EXPORT_SYMBOL(arisc_pmu_get_voltage_state);

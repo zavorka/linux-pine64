@@ -322,7 +322,7 @@ build_ramfs()
 		--kernel_offset ${KERNEL_OFFSET} \
 		--ramdisk_offset ${RAMDISK_OFFSET} \
 		-o output/boot.img
-	
+
 	# If uboot use *bootm* to boot kernel, we should use uImage.
 	echo build_ramfs
 	echo "Copy boot.img to output directory ..."
@@ -338,12 +338,19 @@ build_ramfs()
 	fi
 	cp output/arisc    ${LICHEE_PLAT_OUT}
 
-	if [ ! -f arch/${ARCH}/boot/dts/${LICHEE_CHIP}-${LICHEE_BOARD}.dtb ]; then
-		echo "sunxi.dtb" > output/sunxi.dtb
-	else
+	if [ -f arch/${ARCH}/boot/dts/${LICHEE_CHIP}-${LICHEE_BOARD}.dtb ]; then
 		cp arch/${ARCH}/boot/dts/${LICHEE_CHIP}-${LICHEE_BOARD}.dtb output/sunxi.dtb
+	elif [ -f arch/${ARCH}/boot/dts/${LICHEE_CHIP}-soc.dtb ]; then
+		cp arch/${ARCH}/boot/dts/${LICHEE_CHIP}-soc.dtb output/sunxi.dtb
+	else
+		echo "sunxi.dtb" > output/sunxi.dtb
 	fi
-	cp output/sunxi.dtb    ${LICHEE_PLAT_OUT}
+
+	# It's used for dtb debug
+	./scripts/dtc/dtc -I dtb -O dts -o output/.sunxi.dts output/sunxi.dtb
+
+	cp output/.sunxi.dts ${LICHEE_PLAT_OUT}
+	cp output/sunxi.dtb ${LICHEE_PLAT_OUT}
 }
 
 gen_output()

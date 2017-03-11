@@ -1350,14 +1350,12 @@ s32 disp_lcd_set_bright(struct disp_device *lcd, u32 bright)
 		if (backlight_bright != 0)	{
 			backlight_bright += 1;
 		}
-
 		backlight_bright = disp_lcd_bright_get_adjust_value(lcd, backlight_bright);
 
 		lcdp->lcd_cfg.backlight_dimming = (0 == lcdp->lcd_cfg.backlight_dimming)? 256:lcdp->lcd_cfg.backlight_dimming;
 		backlight_dimming = lcdp->lcd_cfg.backlight_dimming;
 		period_ns = lcdp->pwm_info.period_ns;
 		duty_ns = (backlight_bright * backlight_dimming *  period_ns/256 + 128) / 256;
-        printk("backlight_bright :%llu backlight_dimming:%llu period_ns : %llu duty_ns: %llu",(unsigned long long )backlight_bright,(unsigned long long )backlight_dimming,(unsigned long long )period_ns,(unsigned long long )duty_ns);
 		lcdp->pwm_info.duty_ns = duty_ns;
 		disp_sys_pwm_config(lcdp->pwm_info.dev, duty_ns, period_ns);
 	}
@@ -1365,7 +1363,7 @@ s32 disp_lcd_set_bright(struct disp_device *lcd, u32 bright)
 	if (lcdp->lcd_panel_fun.set_bright && lcdp->enabled) {
 		lcdp->lcd_panel_fun.set_bright(lcd->disp,disp_lcd_bright_get_adjust_value(lcd,bright));
 	}
-    printk("DIS_SUCCESS  :  %ld",(long)DIS_SUCCESS);
+
 	return DIS_SUCCESS;
 }
 
@@ -1424,10 +1422,9 @@ static s32 disp_lcd_event_proc(void *parg)
 {
 	struct disp_device *lcd = (struct disp_device*)parg;
 	struct disp_lcd_private_data *lcdp = NULL;
+	struct disp_manager *mgr = NULL;
 #if defined(SUPPORT_EINK) && defined(CONFIG_EINK_PANEL_USED)
 	struct disp_eink_manager* eink_manager = NULL;
-#else
-	struct disp_manager *mgr = NULL;
 #endif
 	u32 hwdev_index;
 	u32 irq_flag = 0;

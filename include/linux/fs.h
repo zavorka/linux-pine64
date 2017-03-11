@@ -427,6 +427,10 @@ struct address_space {
 	struct mutex		i_mmap_mutex;	/* protect tree, count, list */
 	/* Protected by tree_lock together with the radix tree */
 	unsigned long		nrpages;	/* number of total pages */
+#ifdef CONFIG_FILE_DIRTY_LIMIT
+	unsigned long		nrdirty;	/* number of dirty pages */
+	unsigned long		nrwriteback;	/* number of writeback pages */
+#endif
 	pgoff_t			writeback_index;/* writeback starts here */
 	const struct address_space_operations *a_ops;	/* methods */
 	unsigned long		flags;		/* error bits/gfp mask */

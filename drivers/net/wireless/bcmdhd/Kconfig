@@ -56,4 +56,3 @@ config BCMDHD_SDIO_IRQ
 	---help---
 	  Interrupt from SDIO DAT[1]
 endchoice
-

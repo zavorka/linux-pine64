@@ -35,6 +35,8 @@ config ARM64
 	select HARDIRQS_SW_RESEND
 	select HAVE_ARCH_JUMP_LABEL
 	select HAVE_ARCH_KGDB
+	select HAVE_ARCH_MMAP_RND_BITS
+	select HAVE_ARCH_MMAP_RND_COMPAT_BITS if COMPAT
 	select HAVE_ARCH_AUDITSYSCALL
 	select HAVE_ARCH_SECCOMP_FILTER
 	select HAVE_ARCH_TRACEHOOK
@@ -86,6 +88,24 @@ config MMU
 
 config NO_IOPORT
 	def_bool y
+
+config ARCH_MMAP_RND_BITS_MIN                    
+       default 14 if ARM64_64K_PAGES             
+       default 18                                
+                                                 
+# max bits determined by the following formula:  
+#  VA_BITS - PAGE_SHIFT - 3                      
+#  VA_BITS is always 39                          
+config ARCH_MMAP_RND_BITS_MAX                    
+       default 20 if ARM64_64K_PAGES             
+       default 24                                
+                                                 
+config ARCH_MMAP_RND_COMPAT_BITS_MIN             
+       default 11                                
+                                                 
+config ARCH_MMAP_RND_COMPAT_BITS_MAX             
+       default 16                                
+                                                 
 
 config STACKTRACE_SUPPORT
 	def_bool y
@@ -196,6 +216,16 @@ config ARCH_SUN50IW2
 	bool "Allwinner SUN50IW2 SoCs"
 	help
 	  Support for Allwinner SUN50IW2 SoC family
+
+config ARCH_SUN50IW3
+	bool "Allwinner SUN50IW3 SoCs"
+	help
+	  Support for Allwinner SUN50IW3 SoC family
+
+config ARCH_SUN50IW6
+	bool "Allwinner SUN50IW6 SoCs"
+	help
+	  Support for Allwinner SUN50IW6 SoC family
 endchoice
 endif
 
@@ -224,6 +254,34 @@ choice
 
 config ARCH_SUN50IW2P1
 	bool "Allwinner SUN50IW2P1"
+	select HAVE_UNSTABLE_SCHED_CLOCK
+	select SUNXI_SMC
+endchoice
+endif
+
+if ARCH_SUN50IW3
+choice
+	prompt "Select the SoC with wafer ARCH_SUN50IW3"
+	default ARCH_SUN50IW3P1
+	help
+	  Select the SoC with wafer ARCH_SUN50IW3
+
+config ARCH_SUN50IW3P1
+	bool "Allwinner SUN50IW3P1"
+	select HAVE_UNSTABLE_SCHED_CLOCK
+	select SUNXI_SMC
+endchoice
+endif
+
+if ARCH_SUN50IW6
+choice
+	prompt "Select the SoC with wafer ARCH_SUN50IW6"
+	default ARCH_SUN50IW6P1
+	help
+	  Select the SoC with wafer ARCH_SUN50IW6
+
+config ARCH_SUN50IW6P1
+	bool "Allwinner SUN50IW6P1"
 	select HAVE_UNSTABLE_SCHED_CLOCK
 	select SUNXI_SMC
 endchoice
@@ -294,6 +352,15 @@ config ARM64_ERRATUM_845719
 	  If unsure, say Y.
 
 endmenu
+
+config ARCH_MMAP_RND_BITS_MIN                   
+	default 8                                    
+                                                
+config ARCH_MMAP_RND_BITS_MAX                   
+	default 14 if PAGE_OFFSET=0x40000000         
+	default 15 if PAGE_OFFSET=0x80000000         
+	default 16                                   
+                                                
 
 
 config ARM64_64K_PAGES

@@ -62,8 +62,8 @@ static struct sunxi_rtc_data_year data_year_param[] = {
 		.leap_shift	= 22,
 	},
 	[3] = {
-		.min		= 1970,
-		.max		= 2097,
+		.min		= 2010,
+		.max		= 2137,
 		.mask		= 0x7f,
 		.yshift		= 16,
 		.leap_shift	= 23,
@@ -74,7 +74,7 @@ static struct sunxi_rtc_data_year data_year_param[] = {
 static int alarm_in_booting = 0;
 module_param_named(alarm_in_booting, alarm_in_booting, int, S_IRUGO | S_IWUSR);
 
-static int sunxi_rtc_alarm_in_boot(struct sunxi_rtc_dev *rtc)
+static void sunxi_rtc_alarm_in_boot(struct sunxi_rtc_dev *rtc)
 {
 	unsigned int cnt, cur, en, int_ctrl, int_stat;
 
@@ -92,6 +92,77 @@ static int sunxi_rtc_alarm_in_boot(struct sunxi_rtc_dev *rtc)
 		alarm_in_booting = 1;
 }
 #endif
+
+#ifdef SUNXI_RTC_DYNAMIC_YEAR_RANGE
+void sunxi_rtc_set_dynamic_year_range(struct sunxi_rtc_data_year *data)
+{
+	s8 year_str[16] = "";
+	u32 min_year = 0;
+	u32 max_year = 0;
+
+	strncpy(year_str, __DATE__, 16);
+	if (kstrtou32(&year_str[strlen(year_str) - 4], 10, &min_year)) {
+		pr_err("Failed to get min_year: %d\n", min_year);
+		return;
+	}
+	max_year = min_year - data->min + data->max;
+	data->min = min_year;
+	data->max = max_year;
+	pr_debug("Set dynamic range: [%d, %d]\n", min_year, max_year);
+}
+#endif
+
+static int sunxi_rtc_wait(struct sunxi_rtc_dev *chip, int offset,
+			  unsigned int mask, unsigned int ms_timeout)
+{
+	const unsigned long timeout = jiffies + msecs_to_jiffies(ms_timeout);
+	u32 reg;
+
+	do {
+		reg = readl(chip->base + offset);
+		reg &= mask;
+
+		if (reg == mask)
+			return 0;
+
+	} while (time_before(jiffies, timeout));
+
+	return -ETIMEDOUT;
+}
+
+static int sunxi_rtc_verify_ymd(struct sunxi_rtc_dev *rtc)
+{
+	u32 date = readl(rtc->base + SUNXI_RTC_YMD);
+
+	if ((SUNXI_DATE_GET_DAY_VALUE(date) != 0)
+		&& (SUNXI_DATE_GET_MON_VALUE(date) != 0))
+		return 0;
+
+	/* If rtc YY-MM-DD registr is error, set it to the initial date */
+	date = SUNXI_DATE_SET_DAY_VALUE(1) |
+		SUNXI_DATE_SET_MON_VALUE(1)  |
+		SUNXI_DATE_SET_YEAR_VALUE(0, rtc->data_year);
+
+	if (is_leap_year(rtc->data_year->min))
+		date |= SUNXI_LEAP_SET_VALUE(1, rtc->data_year->leap_shift);
+
+	writel(0, rtc->base + SUNXI_RTC_YMD);
+	writel(date, rtc->base + SUNXI_RTC_YMD);
+
+	if (sunxi_rtc_wait(rtc, SUNXI_LOSC_CTRL,
+				SUNXI_LOSC_CTRL_RTC_YMD_ACC, 50)) {
+		pr_err("Failed to set vaild hardware RTC date\n");
+		return -EIO;
+	}
+
+	pr_info("Set vaild hardware RTC date %04d-%02d-%02d\n",
+			rtc->data_year->min
+			+ SUNXI_DATE_GET_YEAR_VALUE(date, rtc->data_year),
+			SUNXI_DATE_GET_MON_VALUE(date),
+			SUNXI_DATE_GET_DAY_VALUE(date));
+
+	return 0;
+}
 
 static irqreturn_t sunxi_rtc_alarmirq(int irq, void *id)
 {
@@ -316,24 +387,6 @@ static int sunxi_rtc_setalarm(struct device *dev, struct rtc_wkalrm *wkalrm)
 	return 0;
 }
 
-static int sunxi_rtc_wait(struct sunxi_rtc_dev *chip, int offset,
-			  unsigned int mask, unsigned int ms_timeout)
-{
-	const unsigned long timeout = jiffies + msecs_to_jiffies(ms_timeout);
-	u32 reg;
-
-	do {
-		reg = readl(chip->base + offset);
-		reg &= mask;
-
-		if (reg == mask)
-			return 0;
-
-	} while (time_before(jiffies, timeout));
-
-	return -ETIMEDOUT;
-}
-
 static int sunxi_rtc_settime(struct device *dev, struct rtc_time *rtc_tm)
 {
 	struct sunxi_rtc_dev *chip = dev_get_drvdata(dev);
@@ -431,6 +484,8 @@ static const struct of_device_id sunxi_rtc_dt_ids[] = {
 	{ .compatible = "allwinner,sun8iw10-rtc", .data = &data_year_param[2] },
 	{ .compatible = "allwinner,sun8iw11p1-rtc", .data = &data_year_param[3] },
 	{ .compatible = "allwinner,sun50i-rtc", .data = &data_year_param[0] },
+	{ .compatible = "allwinner,sun50iw3-rtc", .data = &data_year_param[3] },
+	{ .compatible = "allwinner,sun50iw6-rtc", .data = &data_year_param[3] },
 	{ /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, sunxi_rtc_dt_ids);
@@ -489,10 +544,21 @@ static int sunxi_rtc_probe(struct platform_device *pdev)
 	pm_runtime_get_sync(&pdev->dev);
 
 	chip->data_year = (struct sunxi_rtc_data_year *) of_id->data;
+#ifdef SUNXI_RTC_DYNAMIC_YEAR_RANGE
+	sunxi_rtc_set_dynamic_year_range(chip->data_year);
+#endif
+
+	/* verify hardware rtc YY-MM-DD register */
+	ret = sunxi_rtc_verify_ymd(chip);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to set vaild rtc date\n");
+		goto fail;
+	}
 
 #ifdef CONFIG_RTC_SHUTDOWN_ALARM
 	sunxi_rtc_alarm_in_boot(chip);
 #else
+
 	/*
 	 * to support RTC shutdown alarm, we should not clear alarm for android
 	 * will restart in charge mode.
@@ -519,12 +585,10 @@ static int sunxi_rtc_probe(struct platform_device *pdev)
 	writel(SUNXI_ALRM_WAKEUP_OUTPUT_EN, chip->base +
 	       SUNXI_ALARM_CONFIG);
 	/*
-	 * Step1: select RTC clock source
+	 * select RTC clock source, use default auto switch mode
+	 * and set Crystal oscillator strength
 	 */
-	tmp_data = readl(chip->base + SUNXI_LOSC_CTRL);
-	tmp_data &= (~REG_CLK32K_AUTO_SWT_EN);
-	tmp_data |= (RTC_SOURCE_EXTERNAL | REG_LOSCCTRL_MAGIC);
-	tmp_data |= (EXT_LOSC_GSM);
+	tmp_data = REG_CLK32K_AUTO_SWT_EN | EXT_LOSC_GSM;
 	writel(tmp_data, chip->base + SUNXI_LOSC_CTRL);
 	device_init_wakeup(&pdev->dev, 1);
 

@@ -23,6 +23,7 @@
 #include "axp15-gpio.h"
 
 static struct axp_gpio_irqchip *axp15_gpio_irqchip;
+static int axp15_pmu_num;
 
 static int axp15_gpio_get_data(struct axp_dev *axp_dev, int gpio)
 {
@@ -267,7 +268,7 @@ static int axp15_gpio_irq_free(int gpio_no)
 
 static int axp15_gpio_irq_ack(int gpio_no)
 {
-	struct axp_dev *cur_axp_dev = get_pmu_cur_dev();
+	struct axp_dev *cur_axp_dev = get_pmu_cur_dev(axp15_pmu_num);
 	struct axp_regmap *map = cur_axp_dev->regmap;
 	int gpio = gpio_no - AXP_PIN_BASE;
 
@@ -283,7 +284,7 @@ static int axp15_gpio_irq_ack(int gpio_no)
 
 static int axp15_gpio_irq_enable(int gpio_no)
 {
-	struct axp_dev *cur_axp_dev = get_pmu_cur_dev();
+	struct axp_dev *cur_axp_dev = get_pmu_cur_dev(axp15_pmu_num);
 	struct axp_regmap *map = cur_axp_dev->regmap;
 	int gpio = gpio_no - AXP_PIN_BASE;
 	u8 regval;
@@ -302,7 +303,7 @@ static int axp15_gpio_irq_enable(int gpio_no)
 
 static int axp15_gpio_irq_disable(int gpio_no)
 {
-	struct axp_dev *cur_axp_dev = get_pmu_cur_dev();
+	struct axp_dev *cur_axp_dev = get_pmu_cur_dev(axp15_pmu_num);
 	struct axp_regmap *map = cur_axp_dev->regmap;
 	int gpio = gpio_no - AXP_PIN_BASE;
 	u8 regval;
@@ -321,7 +322,7 @@ static int axp15_gpio_irq_disable(int gpio_no)
 
 static int axp15_gpio_set_type(int gpio_no, unsigned long type)
 {
-	struct axp_dev *cur_axp_dev = get_pmu_cur_dev();
+	struct axp_dev *cur_axp_dev = get_pmu_cur_dev(axp15_pmu_num);
 	struct axp_regmap *map = cur_axp_dev->regmap;
 	int gpio = gpio_no - AXP_PIN_BASE;
 	int reg = 0;
@@ -396,11 +397,13 @@ static irqreturn_t axp15_gpio_isr(int irq, void *data)
 		return IRQ_NONE;
 	}
 
-	AXP_DEBUG(AXP_INT, "gpio%d input edge\n", gpio);
+	AXP_DEBUG(AXP_INT, axp15_pmu_num, "gpio%d input edge\n", gpio);
 
-	axp15_gpio_irqchip[gpio].handler(gpio + AXP_PIN_BASE,
+	if (axp15_gpio_irqchip[gpio].handler != NULL) {
+		axp15_gpio_irqchip[gpio].handler(gpio + AXP_PIN_BASE,
 				axp15_gpio_irqchip[gpio].data);
-	axp15_gpio_irq_ack(gpio + AXP_PIN_BASE);
+		axp15_gpio_irq_ack(gpio + AXP_PIN_BASE);
+	}
 
 	return IRQ_HANDLED;
 }
@@ -449,7 +452,8 @@ static int axp15_gpio_probe(struct platform_device *pdev)
 		goto out_irq;
 	}
 
-	axp_gpio_irq_ops_set(&axp15_gpio_irq_ops);
+	axp15_pmu_num = axp_dev->pmu_num;
+	axp_gpio_irq_ops_set(axp15_pmu_num, &axp15_gpio_irq_ops);
 
 	platform_set_drvdata(pdev, axp15_pin);
 
@@ -486,7 +490,7 @@ static int axp15_gpio_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id axp15_gpio_dt_ids[] = {
-	{ .compatible = "axp15-gpio", },
+	{ .compatible = "axp157-gpio", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, axp15_gpio_dt_ids);

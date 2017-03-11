@@ -370,6 +370,18 @@ s32 tvd_irq_status_clear(u32 sel,TVD_IRQ_T irq_id)
 	return 0;
 }
 
+s32 tvd_dma_irq_status_get(u32 sel, u32 *irq_status)
+{
+	*irq_status = tvd_device[sel]->tvd_irq_status.dwval;
+	return 0;
+}
+
+s32 tvd_dma_irq_status_clear_err_flag(u32 sel, u32 irq_status)
+{
+	tvd_device[sel]->tvd_irq_status.dwval = irq_status;
+	return 0;
+}
+
 s32 tvd_set_saturation(u32 sel, u32 saturation)
 {
 	tvd_device[sel]->tvd_enhance2.bits.saturation_gain = saturation;

@@ -36,6 +36,7 @@
 		spi1 = &spi1;
 		scr0 = &scr0;
 		scr1 = &scr1;
+		gmac0 = &gmac0;
 
 		global_timer0  = &soc_timer0;
 		cci0 = &csi_cci0;
@@ -74,9 +75,10 @@
 			reg = <0x0 0x0>;
 			enable-method = "psci";
 			cpufreq_tbl = < 480000
-					600000
+					648000
 					720000
 					816000
+					912000
 					1008000
 					1104000
 					1152000
@@ -258,10 +260,16 @@
 		interrupts = <GIC_PPI 9 0xf04>; /* GIC Maintenence IRQ */
 	};
 
+	sid: sunxi-sid@1c14000 {
+		compatible = "allwinner,sunxi-sid";
+		device_type = "sid";
+		reg = <0x0 0x01c14000 0 0x0200>;
+	};
+
 	chipid: sunxi-chipid@1c14200 {
 		compatible = "allwinner,sunxi-chipid";
 		device_type = "chipid";
-		reg = <0x0 0x01c14200 0 0x0200>; /* chipid */
+		reg = <0x0 0x01c14200 0 0x0200>;
 	};
 
 	timer {
@@ -309,6 +317,7 @@
 		reg = <0x0 0x01c62000 0x0 0x1000>,
 		      <0x0 0x01c63000 0x0 0x1000>,
 		      <0x0 0x01c20000 0x0 0x800>;
+		interrupts = <GIC_SPI 69 0x4>;
 		clocks = <&clk_pll_ddr>, <&clk_pll_periph0>, <&clk_ahb1>;
 		status = "okay";
 	};
@@ -445,6 +454,12 @@
 			interrupts = <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
 			gpr_offset = <0x100>;
 			gpr_len	   = <4>;
+		};
+
+		wdt: watchdog@01c20ca0 {
+			compatible = "allwinner,sun50i-wdt";
+			reg = <0x0 0x01c20ca0 0x0 0x20>;
+			interrupts = <GIC_SPI 25 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
 		ve@01c0e000 {
@@ -997,6 +1012,8 @@
 			      <0x0 0x01c0d000 0x0 0x07fc>;/*tcon1*/
 			interrupts = <GIC_SPI 86 0x0104>, <GIC_SPI 87 0x0104>;
 			clocks = <&clk_de>, <&clk_tcon0>, <&clk_tcon1>;
+			boot_disp = <0>;
+			fb_base = <0>;
 
 			status = "okay";
 		};
@@ -1229,12 +1246,12 @@
 
 		cryptoengine: ce@1c15000 {
 			compatible = "allwinner,sunxi-ce";
+			device_name = "ce";
 			reg = <0x0 0x01c15000 0x0 0x80>, /* non-secure space */
 			      <0x0 0x01c15800 0x0 0x80>; /* secure space */
 			interrupts = <GIC_SPI 94 0xff01>, /* non-secure space */
 				     <GIC_SPI 80 0xff01>; /* secure space */
-			clock-frequency = <300000000>, /* 300MHz */
-					  <200000000>; /* 200MHz for RSA */
+			clock-frequency = <300000000>; /* 300MHz */
 			clocks = <&clk_ce>, <&clk_pll_periph0>;
 		};
 
@@ -1338,20 +1355,42 @@
 			status = "okay";
 		};
 
+	   ts0@01c06000 {
+		   compatible = "allwinner,sun50i-tsc";
+		   device_type = "ts0";
+		   reg = <0x0 0x01c06000 0x0 0x1000>;
+		   interrupts = <GIC_SPI 81 4>;
+		   clocks = <&clk_pll_periph0>,<&clk_ts>;
+		   pinctrl-names = "ts0-default","ts1-default","ts2-default","ts3-default",
+				"ts0-sleep","ts1-sleep","ts2-sleep","ts3-sleep";
+		   pinctrl-0 = <&ts0_pins_a>;
+		   pinctrl-1 = <&ts1_pins_a>;
+		   pinctrl-2 = <&ts2_pins_a>;
+		   pinctrl-3 = <&ts3_pins_a>;
+		   pinctrl-4 = <&ts0_pins_b>;
+		   pinctrl-5 = <&ts1_pins_b>;
+		   pinctrl-6 = <&ts2_pins_b>;
+		   pinctrl-7 = <&ts3_pins_b>;
+		   ts0config = <0x1>;
+		   ts1config = <0x0>;
+		   ts2config = <0x1>;
+		   ts3config = <0x0>;
+		   status = "okay";
+	   };
 		sunxi_thermal_sensor:thermal_sensor{
 			compatible = "allwinner,thermal_sensor";
-			reg = <0x0 0x01c25000 0x0 0x400>;
+			reg = <0x0 0x01c25000 0x0 0x84>;
 			interrupts = <GIC_SPI 31 IRQ_TYPE_NONE>;
 			clocks = <&clk_hosc>,<&clk_ths>;
-			sensor_num = <3>;
-			shut_temp= <120>;
+			sensor_num = <2>;
+			shut_temp= <110>;
 			status = "okay";
 
 			combine0:combine0{
 				#thermal-sensor-cells = <1>;
-				combine_cnt = <3>;
+				combine_cnt = <2>;
 				combine_type = "max";
-				combine_chn = <0 1 2>;
+				combine_chn = <0 1>;
 			};
 		};
 
@@ -1361,10 +1400,10 @@
 			status = "okay";
 			state_cnt = <7>;
 			cluster_num = <1>;
-			state0 = <1152000 4>;
-			state1 = <1104000 4>;
-			state2 = <1008000 4>;
-			state3 = <816000 4>;
+			state0 = <1008000 4>;
+			state1 = <912000 4>;
+			state2 = <816000 4>;
+			state3 = <720000 4>;
 			state4 = <648000 4>;
 			state5 = <648000 2>;
 			state6 = <648000 1>;
@@ -1375,17 +1414,18 @@
 			reg = <0x0 0x0 0x0 0x0>;
 			#cooling-cells = <2>;
 			status = "okay";
-			state_cnt = <3>;
-			state0 = <0>;
-			state1 = <360>;
-			state2 = <144>;
+			state_cnt = <4>;
+			state0 = <456>;
+			state1 = <384>;
+			state2 = <264>;
+			state3 = <144>;
 		};
 
 		thermal-zones{
 			soc_thermal{
 
-				polling-delay-passive = <500>;
-				polling-delay = <2000>;
+				polling-delay-passive = <1000>;
+				polling-delay = <10000>;
 				thermal-sensors = <&combine0 0>;
 
 				trips{
@@ -1395,31 +1435,41 @@
 						hysteresis = <0>;
 					};
 					cpu_trip1:t1{
-						temperature = <80>;
+						temperature = <75>;
 						type = "passive";
 						hysteresis = <0>;
 					};
 					cpu_trip2:t2{
-						temperature = <90>;
-						type = "passive";
-						hysteresis = <0>;
-					};
-					cpu_trip3:t3{
-						temperature = <100>;
-						type = "passive";
-						hysteresis = <0>;
-					};
-					gpu_trip0:t4{
 						temperature = <85>;
 						type = "passive";
 						hysteresis = <0>;
 					};
-					gpu_trip1:t5{
+					cpu_trip3:t3{
 						temperature = <95>;
 						type = "passive";
 						hysteresis = <0>;
 					};
-					crt_trip:t6{
+					cpu_trip4:t4{
+						temperature = <105>;
+						type = "passive";
+						hysteresis = <0>;
+					};
+					gpu_trip0:t5{
+						temperature = <80>;
+						type = "passive";
+						hysteresis = <0>;
+					};
+					gpu_trip1:t6{
+						temperature = <90>;
+						type = "passive";
+						hysteresis = <0>;
+					};
+					gpu_trip2:t7{
+						temperature = <100>;
+						type = "passive";
+						hysteresis = <0>;
+					};
+					crt_trip:t8{
 						temperature = <110>;
 						type = "critical";
 						hysteresis = <0>;
@@ -1445,17 +1495,27 @@
 					bind3{
 						contribution = <0>;
 						trip = <&cpu_trip3>;
-						cooling-device = <&cpu_budget_cooling 5 6>;
+						cooling-device = <&cpu_budget_cooling 5 5>;
 					};
 					bind4{
+						contribution = <0>;
+						trip = <&cpu_trip4>;
+						cooling-device = <&cpu_budget_cooling 6 6>;
+					};
+					bind5{
 						contribution = <0>;
 						trip = <&gpu_trip0>;
 						cooling-device = <&gpu_cooling 1 1>;
 					};
-					bind5{
+					bind6{
 						contribution = <0>;
 						trip = <&gpu_trip1>;
 						cooling-device = <&gpu_cooling 2 2>;
+					};
+					bind7{
+						contribution = <0>;
+						trip = <&gpu_trip2>;
+						cooling-device = <&gpu_cooling 3 3>;
 					};
 				};
 			};
@@ -1467,11 +1527,11 @@
 			interrupts = <GIC_SPI 30 IRQ_TYPE_NONE>;
 			status = "okay";
 			key_cnt = <5>;
-			key1 = <240 115>;
-			key2 = <500 114>;
-			key3 = <700 139>;
-			key4 = <890 28>;
-			key5 = <2000 102>;
+			key0 = <190 115>;
+			key1 = <390 114>;
+			key2 = <600 139>;
+			key3 = <800 28>;
+			key4 = <980 102>;
 		};
 
 		gmac0: eth@01c30000 {
@@ -1485,9 +1545,10 @@
 			phy-mode = "rgmii";
 			tx-delay = <7>;
 			rx-delay = <31>;
-			gmac_power1 = "axp81x_dldo2:2500000";
-			gmac_power2 = "axp81x_eldo2:1800000";
-			gmac_power3 = "axp81x_fldo1:1200000";
+			phy-rst;
+			gmac-power0;
+			gmac-power1;
+			gmac-power2;
 			status = "disable";
 		};
 	};

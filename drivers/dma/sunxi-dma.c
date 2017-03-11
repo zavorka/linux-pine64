@@ -42,10 +42,12 @@
 #include "virt-dma.h"
 
 #if defined(CONFIG_ARCH_SUN8IW1) \
-	|| defined(CONFIG_ARCH_SUN8IW11)
+	|| defined(CONFIG_ARCH_SUN8IW11) \
+	|| defined(CONFIG_ARCH_SUN50IW6)
 #define NR_MAX_CHAN	16			/* total of channels */
 #elif defined(CONFIG_ARCH_SUN8IW7) \
-	|| defined(CONFIG_ARCH_SUN50IW2P1)
+	|| defined(CONFIG_ARCH_SUN50IW2) \
+	|| defined(CONFIG_ARCH_SUN50IW3)
 #define NR_MAX_CHAN	12			/* total of channels */
 #else
 #define NR_MAX_CHAN	8			/* total of channels */
@@ -111,7 +113,7 @@
 
 #define DMA_OP_MODE(x)	(0x128 + ((x) << 6))	/* DMA mode options register */
 #define SRC_HS_MASK	(0x1 << 2)		/* bit 2: Source handshark mode */
-#define DST_HS_MASK	(0x2 << 3)		/* bit 3: Destination handshark mode */
+#define DST_HS_MASK	(0x1 << 3)		/* bit 3: Destination handshark mode */
 
 #define SET_OP_MODE(d, x, val)	({	\
 		writel(val, d->base + DMA_OP_MODE(x));	\
@@ -141,8 +143,15 @@
 #else
 #define SRC_BURST(x)	((x) << 6)
 #endif
+
+#if defined(CONFIG_ARCH_SUN50IW3) \
+	|| defined(CONFIG_ARCH_SUN50IW6)
+#define SRC_IO_MODE	(0x01 << 8)
+#define SRC_LINEAR_MODE	(0x00 << 8)
+#else
 #define SRC_IO_MODE	(0x01 << 5)
 #define SRC_LINEAR_MODE	(0x00 << 5)
+#endif
 #define SRC_DRQ(x)	((x) << 0)
 
 #define DST_WIDTH(x)	((x) << 25)
@@ -156,8 +165,15 @@
 #else
 #define DST_BURST(x)	((x) << 22)
 #endif
+
+#if defined(CONFIG_ARCH_SUN50IW3) \
+	|| defined(CONFIG_ARCH_SUN50IW6)
+#define DST_IO_MODE	(0x01 << 24)
+#define DST_LINEAR_MODE	(0x00 << 24)
+#else
 #define DST_IO_MODE	(0x01 << 21)
 #define DST_LINEAR_MODE	(0x00 << 21)
+#endif
 #define DST_DRQ(x)	((x) << 16)
 
 #define CHAN_START	1
@@ -1134,7 +1150,7 @@ static int sunxi_probe(struct platform_device *pdev)
 	struct resource *res;
 	int irq;
 	int ret, i;
-	
+
 #ifdef CONFIG_OF
 	pdev->dev.dma_mask = &sunxi_dma_mask;
 	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32);

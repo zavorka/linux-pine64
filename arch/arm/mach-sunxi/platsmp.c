@@ -68,6 +68,7 @@ static void sunxi_smp_init_cpus(void)
 	switch (chip_ver) {
 	case SUN8IW11P2_REV_A:
 	case SUN8IW11P3_REV_A:
+	case SUN8IW11P4_REV_A:
 		ncores = 4;
 		break;
 	case SUN8IW11P1_REV_A:

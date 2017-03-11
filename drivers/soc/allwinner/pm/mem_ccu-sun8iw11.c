@@ -123,7 +123,7 @@ __s32 mem_ccu_restore(struct ccm_state *ccm_reg)
 	/*ccm_reg->ccm_reg->PllDram1BiasReg = ccm_reg->ccm_reg_backup.PllDram1BiasReg;*/ /*0x24c,  pll dram1 bias */
 
 	/*tune & pattern: */
-	/*ccm_reg->ccm_reg->Pll1Tun = ccm_reg->ccm_reg_backup.Pll1Tun;*/  /*0x250, pll1 tun,cpux tuning reg */
+	ccm_reg->ccm_reg->Pll1Tun = ccm_reg->ccm_reg_backup.Pll1Tun;  /*0x250, pll1 tun,cpux tuning reg */
 	/*ccm_reg->ccm_reg->PllDdr0Tun = ccm_reg->ccm_reg_backup.PllDdr0Tun;*/ /*0x260, pll ddr0 tuning */
 	ccm_reg->ccm_reg->pllMipiTun = ccm_reg->ccm_reg_backup.pllMipiTun; /*0x70, mipi tuning reg*/
 	/*ccm_reg->ccm_reg->PllPeriph1Pattern = ccm_reg->ccm_reg_backup.PllPeriph1Pattern;*/ /*0x27c, pll pre1ph1 pattern control reg */
@@ -241,6 +241,10 @@ __s32 mem_ccu_restore(struct ccm_state *ccm_reg)
 
 	ccm_reg->ccm_reg->PsCtrl = ccm_reg->ccm_reg_backup.PsCtrl;
 	ccm_reg->ccm_reg->PsCnt = ccm_reg->ccm_reg_backup.PsCnt;
+	ccm_reg->ccm_reg->Sys32kClk = ccm_reg->ccm_reg_backup.Sys32kClk | (0x16aa << 16);
+
+	change_runtime_env();
+	delay_us(10);
 	ccm_reg->ccm_reg->PllLockCtrl = ccm_reg->ccm_reg_backup.PllLockCtrl;
 
 	change_runtime_env();

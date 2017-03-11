@@ -27,6 +27,9 @@ config AXP_TWI_USED
 config AXP_NMI_USED
 	bool "AXP use NMI as IRQ SRC"
 
+config DUAL_AXP_USED
+	bool "support dual axp online"
+
 config AW_AXP15
 	bool "AXP15x driver"
 	depends on ARCH_SUN8IW10 || ARCH_SUN8IW11
@@ -40,6 +43,14 @@ config AW_AXP22
 	depends on AXP_TWI_USED
 	help
 	  AXP22x driver
+
+config AW_AXP259
+	bool "AXP259 driver"
+	depends on ARCH_SUN8IW10
+	depends on AXP_TWI_USED
+	depends on DUAL_AXP_USED
+	help
+	  AXP259 driver
 
 config AW_AXP81X
 	bool "AXP81X driver"

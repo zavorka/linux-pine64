@@ -16,6 +16,7 @@
 static struct axp_dev *axp15_pm_power;
 struct axp_config_info axp15_config;
 struct wakeup_source *axp15_ws;
+static int axp15_pmu_num;
 
 static struct axp_regmap_irq_chip axp15_regmap_irq_chip = {
 	.name        = "axp15_irq_chip",
@@ -42,17 +43,14 @@ static struct mfd_cell axp15_cells[] = {
 		.name          = "axp15-powerkey",
 		.num_resources = ARRAY_SIZE(axp15_pek_resources),
 		.resources     = axp15_pek_resources,
-		.of_compatible = "axp15-powerkey",
 	},
 	{
 		.name          = "axp15-regulator",
-		.of_compatible = "axp15-regulator",
 	},
 	{
 		.name          = "axp15-gpio",
 		.num_resources = ARRAY_SIZE(axp15_gpio_resources),
 		.resources     = axp15_gpio_resources,
-		.of_compatible = "axp15-gpio",
 	},
 };
 
@@ -70,23 +68,28 @@ static int axp15_init_chip(struct axp_dev *axp15)
 
 	err = axp_regmap_read(axp15->regmap, AXP15_IC_TYPE, &chip_id);
 	if (err) {
-		pr_err("[AXP15] try to read chip id failed!\n");
+		pr_err("[%s] try to read chip id failed!\n",
+				axp_name[axp15_pmu_num]);
 		return err;
 	}
 
 	if ((chip_id & 0xff) == 0x5)
-		pr_info("[AXP15] chip id detect 0x%x !\n", chip_id);
+		pr_info("[%s] chip id detect 0x%x !\n",
+				axp_name[axp15_pmu_num], chip_id);
 	else
-		pr_info("[AXP15] chip id not detect 0x%x !\n", chip_id);
+		pr_info("[%s] chip id not detect 0x%x !\n",
+				axp_name[axp15_pmu_num], chip_id);
 
 	/* enable dcdc2 dvm */
 	err = axp_regmap_update(axp15->regmap, AXP15_DCDC2_DVM_CTRL,
 				0x4, 0x4);
 	if (err) {
-		pr_err("[AXP15] enable dcdc2 dvm failed!\n");
+		pr_err("[%s] enable dcdc2 dvm failed!\n",
+				axp_name[axp15_pmu_num]);
 		return err;
 	} else {
-		pr_info("[AXP15] enable dcdc2 dvm.\n");
+		pr_info("[%s] enable dcdc2 dvm.\n",
+				axp_name[axp15_pmu_num]);
 	}
 
 	/*init irq wakeup en*/
@@ -153,9 +156,9 @@ static int axp15_cfg_pmux_para(int num, struct aw_pm_info *api, int *pmu_id)
 	return 0;
 }
 
-static char *axp15_get_pmu_name(void)
+static const char *axp15_get_pmu_name(void)
 {
-	return AXP_NAME;
+	return axp_name[axp15_pmu_num];
 }
 
 static struct axp_dev *axp15_get_pmu_dev(void)
@@ -163,13 +166,33 @@ static struct axp_dev *axp15_get_pmu_dev(void)
 	return axp15_pm_power;
 }
 
-struct axp_platform_ops axp15_usb_ops = {
+struct axp_platform_ops axp15_platform_ops = {
 	.usb_det = axp15_usb_det,
 	.usb_vbus_output = axp15_usb_vbus_output,
 	.cfg_pmux_para = axp15_cfg_pmux_para,
 	.get_pmu_name = axp15_get_pmu_name,
 	.get_pmu_dev  = axp15_get_pmu_dev,
+	.powerkey_name = {
+		"axp157-powerkey"
+	},
+	.regulator_name = {
+		"axp157-regulator"
+	},
+	.gpio_name = {
+		"axp157-gpio"
+	},
 };
+
+static const struct i2c_device_id axp15_id_table[] = {
+	{ "axp157", 0 },
+	{}
+};
+
+static const struct of_device_id axp15_dt_ids[] = {
+	{ .compatible = "axp157", },
+	{},
+};
+MODULE_DEVICE_TABLE(of, axp15_dt_ids);
 
 static int axp15_probe(struct i2c_client *client,
 				const struct i2c_device_id *id)
@@ -177,6 +200,12 @@ static int axp15_probe(struct i2c_client *client,
 	int ret;
 	struct axp_dev *axp15;
 	struct device_node *node = client->dev.of_node;
+
+	axp15_pmu_num = axp_get_pmu_num(axp15_dt_ids, ARRAY_SIZE(axp15_dt_ids));
+	if (axp15_pmu_num < 0) {
+		pr_err("%s: get pmu num failed\n", __func__);
+		return axp15_pmu_num;
+	}
 
 	if (node) {
 		/* get dt and sysconfig */
@@ -187,7 +216,7 @@ static int axp15_probe(struct i2c_client *client,
 			return -EPERM;
 		} else {
 			axp15_config.pmu_used = 1;
-			ret = axp_dt_parse(node, &axp15_config);
+			ret = axp_dt_parse(node, axp15_pmu_num, &axp15_config);
 			if (ret) {
 				pr_err("%s parse device tree err\n", __func__);
 				return -EINVAL;
@@ -205,6 +234,14 @@ static int axp15_probe(struct i2c_client *client,
 	axp15->dev = &client->dev;
 	axp15->nr_cells = ARRAY_SIZE(axp15_cells);
 	axp15->cells = axp15_cells;
+	axp15->pmu_num = axp15_pmu_num;
+	axp15->is_slave = axp15_config.pmu_as_slave;
+
+	ret = axp_mfd_cell_name_init(&axp15_platform_ops,
+				ARRAY_SIZE(axp15_dt_ids), axp15->pmu_num,
+				axp15->nr_cells, axp15->cells);
+	if (ret)
+		return ret;
 
 	axp15->regmap = axp_regmap_init_i2c(&client->dev);
 	if (IS_ERR(axp15->regmap)) {
@@ -217,36 +254,49 @@ static int axp15_probe(struct i2c_client *client,
 	if (ret)
 		return ret;
 
-	axp15->irq_data = axp_irq_chip_register(axp15->regmap, client->irq,
-						IRQF_SHARED
-						| IRQF_DISABLED
-						| IRQF_NO_SUSPEND,
-						&axp15_regmap_irq_chip,
-						axp15_wakeup_event);
+	ret = axp_mfd_add_devices(axp15);
+	if (ret) {
+		dev_err(axp15->dev, "failed to add MFD devices: %d\n", ret);
+		return ret;
+	}
+
+	if (axp15->is_slave) {
+		axp15->irq_data = axp_irq_chip_register(axp15->regmap,
+				client->irq,
+				IRQF_SHARED
+				| IRQF_DISABLED
+				| IRQF_NO_SUSPEND,
+				&axp15_regmap_irq_chip,
+				NULL);
+	} else {
+		axp15->irq_data = axp_irq_chip_register(axp15->regmap,
+				client->irq,
+				IRQF_SHARED
+				| IRQF_DISABLED
+				| IRQF_NO_SUSPEND,
+				&axp15_regmap_irq_chip,
+				axp15_wakeup_event);
+	}
+
 	if (IS_ERR(axp15->irq_data)) {
 		ret = PTR_ERR(axp15->irq_data);
 		dev_err(&client->dev, "axp init irq failed: %d\n", ret);
 		return ret;
 	}
 
-	ret = axp_mfd_add_devices(axp15);
-	if (ret)
-		goto fail_init;
-
 	axp15_pm_power = axp15;
 
-	if (!pm_power_off)
-		pm_power_off = axp15_power_off;
+	if (!axp15->is_slave) {
+		if (!pm_power_off)
+			pm_power_off = axp15_power_off;
+	}
 
-	axp_platform_ops_set(&axp15_usb_ops);
+	axp_platform_ops_set(axp15->pmu_num, &axp15_platform_ops);
 
-	axp15_ws = wakeup_source_register("axp15_wakeup_source");
+	if (!axp15->is_slave)
+		axp15_ws = wakeup_source_register("axp15_wakeup_source");
 
 	return 0;
-fail_init:
-	dev_err(axp15->dev, "failed to add MFD devices: %d\n", ret);
-	axp_irq_chip_unregister(client->irq, axp15->irq_data);
-	return ret;
 }
 
 static int axp15_remove(struct i2c_client *client)
@@ -264,20 +314,9 @@ static int axp15_remove(struct i2c_client *client)
 	return 0;
 }
 
-static const struct i2c_device_id axp15_id_table[] = {
-	{ AXP_NAME, 0 },
-	{}
-};
-
-static const struct of_device_id axp15_dt_ids[] = {
-	{ .compatible = AXP_NAME, },
-	{},
-};
-MODULE_DEVICE_TABLE(of, axp15_dt_ids);
-
 static struct i2c_driver axp15_driver = {
 	.driver = {
-		.name   = AXP_NAME,
+		.name   = "axp15",
 		.owner  = THIS_MODULE,
 		.of_match_table = axp15_dt_ids,
 	},

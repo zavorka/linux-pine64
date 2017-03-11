@@ -434,45 +434,45 @@ static s32 axp22_regu_dependence(const char *ldo_name)
 {
 	s32 axp22_dependence = 0;
 
-	if (strcmp("axp22_dcdc1", ldo_name) == 0)
+	if (strstr(ldo_name, "dcdc1") != NULL)
 		axp22_dependence |= AXP22X_DCDC1;
-	else if (strcmp("axp22_dcdc2", ldo_name) == 0)
+	else if (strstr(ldo_name, "dcdc2") != NULL)
 		axp22_dependence |= AXP22X_DCDC2;
-	else if (strcmp("axp22_dcdc3", ldo_name) == 0)
+	else if (strstr(ldo_name, "dcdc3") != NULL)
 		axp22_dependence |= AXP22X_DCDC3;
-	else if (strcmp("axp22_dcdc4", ldo_name) == 0)
+	else if (strstr(ldo_name, "dcdc4") != NULL)
 		axp22_dependence |= AXP22X_DCDC4;
-	else if (strcmp("axp22_dcdc5", ldo_name) == 0)
+	else if (strstr(ldo_name, "dcdc5") != NULL)
 		axp22_dependence |= AXP22X_DCDC5;
-	else if (strcmp("axp22_aldo1", ldo_name) == 0)
+	else if (strstr(ldo_name, "aldo1") != NULL)
 		axp22_dependence |= AXP22X_ALDO1;
-	else if (strcmp("axp22_aldo2", ldo_name) == 0)
+	else if (strstr(ldo_name, "aldo2") != NULL)
 		axp22_dependence |= AXP22X_ALDO2;
-	else if (strcmp("axp22_aldo3", ldo_name) == 0)
+	else if (strstr(ldo_name, "aldo3") != NULL)
 		axp22_dependence |= AXP22X_ALDO3;
-	else if (strcmp("axp22_dldo1", ldo_name) == 0)
+	else if (strstr(ldo_name, "dldo1") != NULL)
 		axp22_dependence |= AXP22X_DLDO1;
-	else if (strcmp("axp22_dldo2", ldo_name) == 0)
+	else if (strstr(ldo_name, "dldo2") != NULL)
 		axp22_dependence |= AXP22X_DLDO2;
-	else if (strcmp("axp22_dldo3", ldo_name) == 0)
+	else if (strstr(ldo_name, "dldo3") != NULL)
 		axp22_dependence |= AXP22X_DLDO3;
-	else if (strcmp("axp22_dldo4", ldo_name) == 0)
+	else if (strstr(ldo_name, "dldo4") != NULL)
 		axp22_dependence |= AXP22X_DLDO4;
-	else if (strcmp("axp22_eldo1", ldo_name) == 0)
+	else if (strstr(ldo_name, "eldo1") != NULL)
 		axp22_dependence |= AXP22X_ELDO1;
-	else if (strcmp("axp22_eldo2", ldo_name) == 0)
+	else if (strstr(ldo_name, "eldo2") != NULL)
 		axp22_dependence |= AXP22X_ELDO2;
-	else if (strcmp("axp22_eldo3", ldo_name) == 0)
+	else if (strstr(ldo_name, "eldo3") != NULL)
 		axp22_dependence |= AXP22X_ELDO3;
-	else if (strcmp("axp22_dc5ldo", ldo_name) == 0)
+	else if (strstr(ldo_name, "dc5ldo") != NULL)
 		axp22_dependence |= AXP22X_DC5LDO;
-	else if (strcmp("axp22_ldoio0", ldo_name) == 0)
+	else if (strstr(ldo_name, "ldoio0") != NULL)
 		axp22_dependence |= AXP22X_LDOIO0;
-	else if (strcmp("axp22_ldoio1", ldo_name) == 0)
+	else if (strstr(ldo_name, "ldoio1") != NULL)
 		axp22_dependence |= AXP22X_LDOIO1;
-	else if (strcmp("axp22_dc1sw", ldo_name) == 0)
+	else if (strstr(ldo_name, "dc1sw") != NULL)
 		axp22_dependence |= AXP22X_DC1SW;
-	else if (strcmp("axp22_rtc", ldo_name) == 0)
+	else if (strstr(ldo_name, "rtc") != NULL)
 		axp22_dependence |= AXP22X_RTC;
 	else
 		return -1;
@@ -615,6 +615,7 @@ static int axp22_regulator_probe(struct platform_device *pdev)
 
 	for (i = 0; i < VCC_22X_MAX; i++) {
 		info = &axp22_regulator_info[i];
+		info->pmu_num = axp_dev->pmu_num;
 		regu_data->regulators[i] = axp_regulator_register(&pdev->dev,
 				axp_dev->regmap, &axp_regl_init_data[i], info);
 
@@ -676,7 +677,8 @@ static int axp22_regulator_remove(struct platform_device *pdev)
 	return 0;
 }
 static const struct of_device_id axp22_regu_dt_ids[] = {
-	{ .compatible = "axp22-regulator", },
+	{ .compatible = "axp221s-regulator", },
+	{ .compatible = "axp227-regulator", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, axp22_regu_dt_ids);

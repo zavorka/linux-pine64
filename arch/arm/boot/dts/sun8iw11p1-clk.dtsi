@@ -226,7 +226,7 @@ clocks {
 		clk_ahb1: ahb1 {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
-			assigned-clock-parents = <&clk_pll_periph0>;
+			assigned-clock-parents = <&clk_pll_periphahb0>;
 			assigned-clock-rates = <200000000>;
 			clock-output-names = "ahb1";
 		};
@@ -574,6 +574,7 @@ clocks {
 		clk_outa: outa {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
+			assigned-clock-parents = <&clk_losc>;
 			clock-output-names = "outa";
 		};
 		clk_outb: outb {
@@ -686,10 +687,10 @@ clocks {
 			compatible = "allwinner,sunxi-periph-clock";
 			clock-output-names = "uart7";
 		};
-		clk_scr: scr {
+		clk_scr0: scr0 {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
-			clock-output-names = "scr";
+			clock-output-names = "scr0";
 		};
 		clk_twi0: twi0 {
 			#clock-cells = <0>;

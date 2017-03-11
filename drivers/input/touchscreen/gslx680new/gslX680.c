@@ -61,6 +61,7 @@
 #include <linux/init-input.h>
 
 #include "gslX680.h"
+#include "gsl1680e_86OGS.h"
 #include "gslX680_inetd71.h"
 #include "gsl1680e_p2.h"
 #include "gslX680_m86hd.h"
@@ -85,6 +86,7 @@ struct gslX680_fw_array {
 	unsigned int size;
 	const struct fw_data *fw;
 } gslx680_fw_grp[] = {
+	{"gsl1680e_86OGS"  ,  ARRAY_SIZE(GSL1680E_86OGS_FW),GSL1680E_86OGS_FW},
 	{"gslX680_inetd71"  ,  ARRAY_SIZE(GSLX680_FW_INETD71),GSLX680_FW_INETD71},
 	{"gsl1680e_p2"  ,  ARRAY_SIZE(GSL1680E_FW_P2),GSL1680E_FW_P2},
 	{"gsl_m86_hd"  ,  ARRAY_SIZE(GSLX680_FW_M86HD),GSLX680_FW_M86HD},
@@ -104,6 +106,7 @@ struct gslX680_fw_array {
 };
 
 unsigned int *gslX680_config_data[16] = {
+    gsl_config_data_id_86OGS,
     gsl_config_data_id_K71_OGS_1024600,     
     gsl_config_data_id_P2,
     gsl_config_data_id_m86_1024600,
@@ -123,9 +126,9 @@ unsigned int *gslX680_config_data[16] = {
 };
 
 #define FOR_TSLIB_TEST
-//#define TPD_PROC_DEBUG 1
+#define TPD_PROC_DEBUG 1
 
-/*#define HAVE_TOUCH_KEY*/
+#define HAVE_TOUCH_KEY
 #ifdef TPD_PROC_DEBUG
 #include <linux/proc_fs.h>
 #include <asm/uaccess.h>
@@ -189,7 +192,7 @@ const u16 key_array[]={
 
 struct key_data gsl_key_data[MAX_KEY_NUM] = {
 	{KEY_BACK,  816, 836,115, 125},
-	{KEY_HOME,  64278, 64298,64758 ,64778},	
+	{KEY_HOME,  5, 35,1375 ,1405},	
 	{KEY_MENU,  816, 836,398, 410},
 	{KEY_SEARCH, 2048, 2048, 2048, 2048},
 };
@@ -1004,7 +1007,8 @@ static int gsl_config_read_proc(struct seq_file *m,void *v)
 		else 
 		{
 			gsl_ts_write(glsX680_i2c,0xf0,&gsl_data_proc[4],4);
-			gsl_read_interface(glsX680_i2c,gsl_data_proc[0],temp_data,4);
+			gsl_ts_read(glsX680_i2c,gsl_data_proc[0],temp_data,4);
+			gsl_ts_read(glsX680_i2c,gsl_data_proc[0],temp_data,4);
 			//ptr +=sprintf(ptr,"offset : {0x%02x,0x",gsl_data_proc[0]);
 			//ptr +=sprintf(ptr,"%02x",temp_data[3]);
 			//ptr +=sprintf(ptr,"%02x",temp_data[2]);
@@ -1154,6 +1158,7 @@ static void report_data(struct gsl_ts *ts, u16 x, u16 y, u8 pressure, u8 id)
 	input_report_abs(ts->input, ABS_MT_POSITION_Y, y);	
 	input_report_abs(ts->input, ABS_MT_WIDTH_MAJOR, 1);
 #else
+	input_report_key(ts->input, BTN_TOUCH, 1);
 	input_report_abs(ts->input, ABS_MT_TRACKING_ID, id);
 	input_report_abs(ts->input, ABS_MT_TOUCH_MAJOR, pressure);
 	input_report_abs(ts->input, ABS_MT_POSITION_X,x);
@@ -1262,6 +1267,7 @@ static void process_gslX680_data(struct gsl_ts *ts)
 	if(0 == touches){
 		input_report_abs(ts->input, ABS_MT_TOUCH_MAJOR, 0);
 	        input_report_abs(ts->input, ABS_MT_WIDTH_MAJOR, 0);
+			input_report_key(ts->input, BTN_TOUCH, 0);
 		input_mt_sync(ts->input);
 	#ifdef HAVE_TOUCH_KEY
 	if(key_state_flag){

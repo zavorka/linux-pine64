@@ -369,8 +369,7 @@ int __init nand_init(void)
 		return 0;
 	}
 
-	ret =
-	    of_property_read_u32(ndfc_dev->of_node, "nand0_cache_level",
+	ret = of_property_read_u32(ndfc_dev->of_node, "nand0_cache_level",
 				 &nand_cache_level);
 	if (ret) {
 		nand_dbg_err("Failed to get nand0_cache_level\n");
@@ -382,8 +381,7 @@ int __init nand_init(void)
 		}
 	}
 
-	ret =
-	    of_property_read_u32(ndfc_dev->of_node, "nand0_flush_cache_num",
+	ret = of_property_read_u32(ndfc_dev->of_node, "nand0_flush_cache_num",
 				 &nand_flush_cache_num);
 	if (ret) {
 		nand_dbg_err("Failed to get nand_flush_cache_num\n");
@@ -395,8 +393,7 @@ int __init nand_init(void)
 		}
 	}
 
-	ret =
-	    of_property_read_u32(ndfc_dev->of_node, "nand0_capacity_level",
+	ret = of_property_read_u32(ndfc_dev->of_node, "nand0_capacity_level",
 				 &nand_capacity_level);
 	if (ret) {
 		nand_dbg_err("Failed to get nand_capacity_level\n");
@@ -408,44 +405,6 @@ int __init nand_init(void)
 		}
 	}
 
-#if 0
-
-	type = script_get_item("nand0_para", "nand0_used", &nand0_used_flag);
-	if (SCIRPT_ITEM_VALUE_TYPE_INT != type)
-		nand_dbg_err("nand type err! %d", type);
-	nand_dbg_err("nand init start, nand0_used_flag is %d\n",
-		     nand0_used_flag.val);
-
-	nand_cache_level.val = 0;
-	type =
-	    script_get_item("nand0_para", "nand_cache_level",
-			    &nand_cache_level);
-	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
-		NAND_Print_DBG("nand_cache_level err! %d", type);
-		nand_cache_level.val = 0;
-	}
-
-	nand_flush_cache_num.val = 8;
-	type =
-	    script_get_item("nand0_para", "nand_flush_cache_num",
-			    &nand_flush_cache_num);
-	if (SCIRPT_ITEM_VALUE_TYPE_INT != type)
-		nand_flush_cache_num.val = 8;
-
-	nand_capacity_level.val = 0;
-	type =
-	    script_get_item("nand0_para", "nand_capacity_level",
-			    &nand_capacity_level);
-	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
-		NAND_Print_DBG("nand_capacity_level err! %d\n", type);
-		nand_capacity_level.val = 0;
-	}
-
-	if (nand0_used_flag.val == 0) {
-		nand_dbg_err("nand driver is disabled\n");
-		return 0;
-	}
-#endif
 
 	dragonboard_flag = NAND_Get_Dragonboard_Flag();
 
@@ -477,6 +436,7 @@ int __init nand_init(void)
 		    ("dragonboard_flag=%d,run nand test for dragonboard\n",
 		     dragonboard_flag);
 		init_blklayer_for_dragonboard();
+		return 0;
 	}
 
 	kthread_run(nand_thread, &mytr, "%sd", "nand_rc");
@@ -494,18 +454,6 @@ int __init nand_init(void)
 *****************************************************************************/
 void __exit nand_exit(void)
 {
-#if 0
-	script_item_u nand0_used_flag;
-	script_item_value_type_e type;
-
-	type = script_get_item("nand0_para", "nand0_used", &nand0_used_flag);
-	if (SCIRPT_ITEM_VALUE_TYPE_INT != type)
-		nand_dbg_err("nand type err!");
-	nand_dbg_err("nand0_used_flag is %d\n", nand0_used_flag.val);
-
-	if (nand0_used_flag.val == 0)
-		nand_dbg_err("nand driver is disabled\n");
-#endif
 
 	exit_blklayer();
 

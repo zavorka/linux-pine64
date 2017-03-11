@@ -772,7 +772,7 @@ static const char *sdram_parents[]	= {"pll_ddr0", "pll_ddr1", "", ""};
  */
 static const char *losc_parents[]	= {"losc_rc", "losc_ext", ""};
 
-static const char *mipi_parents[]	= {"pll_video0", ""};
+static const char *mipi_parents[]	= {"pll_video0", "pll_video1"};
 static const char *hosc_parents[]	= {"hosc"};
 static const char *usbohci12m_parents[] = {"hoscx2", "hosc", "losc", ""};
 
@@ -790,7 +790,7 @@ struct factor_init_data sunxi_factos[] = {
 		.name		= "pll_cpu",
 		.parent_names 	= hosc_parents,
 		.num_parents 	= 1,
-		.flags		= CLK_IGNORE_DISABLE | CLK_GET_RATE_NOCACHE,
+		.flags		= CLK_GET_RATE_NOCACHE,
 		.reg		= PLL_CPU,
 		.lock_reg 	= PLL_CPU,
 		.lock_bit 	= LOCKBIT(28),
@@ -806,7 +806,7 @@ struct factor_init_data sunxi_factos[] = {
 		.name		= "pll_audio",
 		.parent_names 	= hosc_parents,
 		.num_parents 	= 1,
-		.flags		= CLK_IGNORE_DISABLE,
+		.flags		= 0,
 		.reg		= PLL_AUDIO,
 		.lock_reg 	= PLL_AUDIO,
 		.lock_bit 	= LOCKBIT(28),
@@ -822,7 +822,7 @@ struct factor_init_data sunxi_factos[] = {
 		.name		= "pll_video0",
 		.parent_names 	= hosc_parents,
 		.num_parents 	= 1,
-		.flags		= CLK_IGNORE_DISABLE,
+		.flags		= 0,
 		.reg		= PLL_VIDEO0,
 		.lock_reg 	= PLL_VIDEO0,
 		.lock_bit 	= LOCKBIT(28),
@@ -838,7 +838,7 @@ struct factor_init_data sunxi_factos[] = {
 		.name		= "pll_ve",
 		.parent_names 	= hosc_parents,
 		.num_parents 	= 1,
-		.flags		= CLK_IGNORE_DISABLE,
+		.flags		= 0,
 		.reg 		= PLL_VE,
 		.lock_reg 	= PLL_VE,
 		.lock_bit 	= LOCKBIT(28),
@@ -854,7 +854,7 @@ struct factor_init_data sunxi_factos[] = {
 		.name		= "pll_ddr0",
 		.parent_names 	= hosc_parents,
 		.num_parents 	= 1,
-		.flags		= CLK_IGNORE_DISABLE | CLK_GET_RATE_NOCACHE,
+		.flags		= CLK_GET_RATE_NOCACHE,
 		.reg 		= PLL_DDR0,
 		.lock_reg 	= PLL_DDR0,
 		.lock_bit 	= LOCKBIT(28),
@@ -870,7 +870,7 @@ struct factor_init_data sunxi_factos[] = {
 		.name		= "pll_periph0",
 		.parent_names 	= hosc_parents,
 		.num_parents 	= 1,
-		.flags		= CLK_IGNORE_DISABLE,
+		.flags		= 0,
 		.reg 		= PLL_PERIPH0,
 		.lock_reg 	= PLL_PERIPH0,
 		.lock_bit 	= LOCKBIT(28),
@@ -886,7 +886,7 @@ struct factor_init_data sunxi_factos[] = {
 		.name		= "pll_periph1",
 		.parent_names 	= hosc_parents,
 		.num_parents 	= 1,
-		.flags		= CLK_IGNORE_DISABLE,
+		.flags		= 0,
 		.reg 		= PLL_PERIPH1,
 		.lock_reg 	= PLL_PERIPH1,
 		.lock_bit 	= LOCKBIT(28),
@@ -902,7 +902,7 @@ struct factor_init_data sunxi_factos[] = {
 		.name		= "pll_video1",
 		.parent_names 	= hosc_parents,
 		.num_parents 	= 1,
-		.flags		= CLK_IGNORE_DISABLE,
+		.flags		= 0,
 		.reg 		= PLL_VIDEO1,
 		.lock_reg 	= PLL_VIDEO1,
 		.lock_bit 	= LOCKBIT(28),
@@ -918,7 +918,7 @@ struct factor_init_data sunxi_factos[] = {
 		.name		= "pll_sata",
 		.parent_names 	= hosc_parents,
 		.num_parents 	= 1,
-		.flags		= CLK_IGNORE_DISABLE,
+		.flags		= 0,
 		.reg 		= PLL_SATA,
 		.lock_reg 	= PLL_SATA,
 		.lock_bit 	= LOCKBIT(28),
@@ -934,7 +934,7 @@ struct factor_init_data sunxi_factos[] = {
 		.name		= "pll_gpu",
 		.parent_names 	= hosc_parents,
 		.num_parents 	= 1,
-		.flags		= CLK_IGNORE_DISABLE,
+		.flags		= 0,
 		.reg 		= PLL_GPU,
 		.lock_reg 	= PLL_GPU,
 		.lock_bit 	= LOCKBIT(28),
@@ -950,7 +950,7 @@ struct factor_init_data sunxi_factos[] = {
 		.name		= "pll_mipi",
 		.parent_names 	= mipi_parents,
 		.num_parents 	= 2,
-		.flags		= CLK_IGNORE_DISABLE,
+		.flags		= 0,
 		.reg 		= MIPI_PLL,
 		.lock_reg 	= MIPI_PLL,
 		.lock_bit 	= LOCKBIT(28),
@@ -966,7 +966,7 @@ struct factor_init_data sunxi_factos[] = {
 		.name		= "pll_de",
 		.parent_names 	= hosc_parents,
 		.num_parents 	= 1,
-		.flags		= CLK_IGNORE_DISABLE,
+		.flags		= 0,
 		.reg 		= PLL_DE,
 		.lock_reg 	= PLL_DE,
 		.lock_bit 	= LOCKBIT(28),
@@ -982,7 +982,7 @@ struct factor_init_data sunxi_factos[] = {
 		.name		= "pll_ddr1",
 		.parent_names 	= hosc_parents,
 		.num_parents 	= 1,
-		.flags		= CLK_IGNORE_DISABLE | CLK_GET_RATE_NOCACHE,
+		.flags		= CLK_GET_RATE_NOCACHE,
 		.reg		= PLL_DDR1,
 		.lock_reg 	= PLL_DDR1,
 		.lock_bit 	= LOCKBIT(28),
@@ -1271,7 +1271,7 @@ SUNXI_CLK_PERIPH(gmac, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, BUS_RST1, BUS_GATE1,
 SUNXI_CLK_PERIPH(can, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, BUS_RST4,
 			BUS_GATE3, 0, 0, 4, 4, 0, &clk_lock, NULL, 0);
 
-SUNXI_CLK_PERIPH(scr, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, BUS_RST4,
+SUNXI_CLK_PERIPH(scr0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, BUS_RST4,
 			BUS_GATE3, 0, 0, 5, 5, 0, &clk_lock, NULL, 0);
 
 SUNXI_CLK_PERIPH(pio, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, BUS_GATE2,
@@ -1466,7 +1466,7 @@ struct periph_init_data sunxi_periphs_init[] = {
 
 	{"can", 0, apb2mod_parents, ARRAY_SIZE(apb2mod_parents), &sunxi_clk_periph_can},
 
-	{"scr", 0, apb2mod_parents, ARRAY_SIZE(apb2mod_parents), &sunxi_clk_periph_scr},
+	{"scr0", 0, apb2mod_parents, ARRAY_SIZE(apb2mod_parents), &sunxi_clk_periph_scr0},
 
 	{"pio", 0, apb1mod_parents, ARRAY_SIZE(apb1mod_parents), &sunxi_clk_periph_pio},
 

@@ -2959,11 +2959,9 @@ static int vfe_s_ctrl(struct v4l2_ctrl *ctrl)
 	int ret = 0;
 	struct actuator_ctrl_word_t vcm_ctrl;
 	struct v4l2_control c;
-	unsigned long flags = 0;
 	c.id = ctrl->id;
 	c.value = ctrl->val;
 	vfe_dbg(0,"s_ctrl: %s, set value: 0x%x\n",ctrl->name,ctrl->val);
-	spin_lock_irqsave(&dev->slock, flags);
 	if(dev->is_isp_used && dev->is_bayer_raw) {
 		switch (ctrl->id) {
 		case V4L2_CID_BRIGHTNESS:
@@ -3176,7 +3174,6 @@ static int vfe_s_ctrl(struct v4l2_ctrl *ctrl)
 		if (ret < 0)
 			vfe_warn("v4l2 sensor s_ctrl fail!\n");
 	}
-	spin_unlock_irqrestore(&dev->slock, flags);
 	return ret;
 }
 #ifdef CONFIG_COMPAT

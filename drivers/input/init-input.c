@@ -145,7 +145,7 @@ static void ctp_free_platform_resource(enum input_sensor_type *ctp_type)
 	if(data->ctp_power_ldo) {
 		regulator_put(data->ctp_power_ldo);
 		data->ctp_power_ldo= NULL;
-	} else if(0 != data->ctp_power_io.gpio) {
+	} else if (gpio_is_valid(data->ctp_power_io.gpio)) {
 		gpio_free(data->ctp_power_io.gpio);
 	}
 	return;
@@ -173,7 +173,7 @@ static int ctp_init_platform_resource(enum input_sensor_type *ctp_type)
 			regulator_set_voltage(data->ctp_power_ldo,
 					(int)(data->ctp_power_vol)*1000,
 					(int)(data->ctp_power_vol)*1000);
-	} else if(0 != data->ctp_power_io.gpio) {
+	} else if (gpio_is_valid(data->ctp_power_io.gpio)) {
 		if(0 != gpio_request(data->ctp_power_io.gpio, NULL))
 			pr_err("ctp_power_io gpio_request is failed,"
 					"check if ctp independent power supply by gpio,"
@@ -575,7 +575,7 @@ static int motor_init_platform_resource(enum input_sensor_type *motor_type)
 {
 	struct motor_config_info *data = container_of(motor_type,
 						struct motor_config_info, input_type);
-	if (0 != data->motor_gpio.gpio) {
+	if (gpio_is_valid(data->motor_gpio.gpio)) {
 		if(0 != gpio_request(data->motor_gpio.gpio, "vibe")) {
 			pr_err("ERROR: vibe Gpio_request is failed\n");
 			goto exit;
@@ -695,7 +695,7 @@ int input_set_power_enable(enum input_sensor_type *input_type, u32 enable)
 			if (regulator_is_enabled(ldo))
 				regulator_disable(ldo);		
 		}
-	} else if(power_io) {
+	} else if (gpio_is_valid(power_io)) {
 		if(enable) {
 			__gpio_set_value(power_io,1);
 		} else {

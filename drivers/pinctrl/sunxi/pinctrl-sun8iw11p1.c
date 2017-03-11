@@ -173,8 +173,7 @@ static const struct sunxi_desc_pin sun8iw11p1_pins[] = {
 		  SUNXI_FUNCTION(0x0, "gpio_in"),
 		  SUNXI_FUNCTION(0x1, "gpio_out"),
 		  SUNXI_FUNCTION(0x2, "twi0"),		/* SCK */
-		  SUNXI_FUNCTION(0x3, "pll_lock_dbg"),	/* vdevice */
-		  SUNXI_FUNCTION(0x4, "vdevice"),	/* vdevice */
+		  SUNXI_FUNCTION(0x3, "pll_lock_dbg"),
 		  SUNXI_FUNCTION(0x7, "io_disabled")),
 	SUNXI_PIN(SUNXI_PINCTRL_PIN(B, 1),
 		  SUNXI_FUNCTION(0x0, "gpio_in"),
@@ -945,7 +944,7 @@ static const struct sunxi_desc_pin sun8iw11p1_pins[] = {
 		  SUNXI_FUNCTION(0x2, "lcd1"),		/* D13 */
 		  SUNXI_FUNCTION(0x3, "io_disabled"),
 		  SUNXI_FUNCTION(0x4, "ps21"),		/* SDA1 */
-		  SUNXI_FUNCTION(0x5, "sim0"),		/* RST */
+		  SUNXI_FUNCTION(0x5, "scr0"),		/* RST */
 		  SUNXI_FUNCTION(0x7, "csi1"),		/* D13 */
 		  SUNXI_FUNCTION_IRQ_BANK(0x6, 0, 13)),
 	SUNXI_PIN(SUNXI_PINCTRL_PIN(H, 14),
@@ -954,7 +953,7 @@ static const struct sunxi_desc_pin sun8iw11p1_pins[] = {
 		  SUNXI_FUNCTION(0x2, "lcd1"),		/* D14 */
 		  SUNXI_FUNCTION(0x3, "emac0"),		/* ETXD3 */
 		  SUNXI_FUNCTION(0x4, "kp0"),		/* IN4 */
-		  SUNXI_FUNCTION(0x5, "sim0"),		/* VPPEN */
+		  SUNXI_FUNCTION(0x5, "scr0"),		/* VPPEN */
 		  SUNXI_FUNCTION(0x7, "csi1"),		/* D14 */
 		  SUNXI_FUNCTION_IRQ_BANK(0x6, 0, 14)),
 	SUNXI_PIN(SUNXI_PINCTRL_PIN(H, 15),
@@ -963,7 +962,7 @@ static const struct sunxi_desc_pin sun8iw11p1_pins[] = {
 		  SUNXI_FUNCTION(0x2, "lcd1"),		/* D15 */
 		  SUNXI_FUNCTION(0x3, "emac0"),		/* ETXD2 */
 		  SUNXI_FUNCTION(0x4, "kp0"),		/* IN5 */
-		  SUNXI_FUNCTION(0x5, "sim0"),		/* VPPPP */
+		  SUNXI_FUNCTION(0x5, "scr0"),		/* VPPPP */
 		  SUNXI_FUNCTION(0x7, "csi1"),		/* D15 */
 		  SUNXI_FUNCTION_IRQ_BANK(0x6, 0, 15)),
 	SUNXI_PIN(SUNXI_PINCTRL_PIN(H, 16),
@@ -972,7 +971,7 @@ static const struct sunxi_desc_pin sun8iw11p1_pins[] = {
 		  SUNXI_FUNCTION(0x2, "lcd1"),		/* D16 */
 		  SUNXI_FUNCTION(0x3, "emac0"),		/* ETXD1 */
 		  SUNXI_FUNCTION(0x4, "kp0"),		/* IN6 */
-		  SUNXI_FUNCTION(0x5, "sim0"),		/* DETECT */
+		  SUNXI_FUNCTION(0x5, "scr0"),		/* DETECT */
 		  SUNXI_FUNCTION(0x7, "csi1"),		/* D16 */
 		  SUNXI_FUNCTION_IRQ_BANK(0x6, 0, 16)),
 	SUNXI_PIN(SUNXI_PINCTRL_PIN(H, 17),
@@ -981,7 +980,7 @@ static const struct sunxi_desc_pin sun8iw11p1_pins[] = {
 		  SUNXI_FUNCTION(0x2, "lcd1"),		/* D17 */
 		  SUNXI_FUNCTION(0x3, "emac0"),		/* ETXD0 */
 		  SUNXI_FUNCTION(0x4, "kp0"),		/* IN7 */
-		  SUNXI_FUNCTION(0x5, "sim0"),		/* VCCEN */
+		  SUNXI_FUNCTION(0x5, "scr0"),		/* VCCEN */
 		  SUNXI_FUNCTION(0x7, "csi1"),		/* D17 */
 		  SUNXI_FUNCTION_IRQ_BANK(0x6, 0, 17)),
 	SUNXI_PIN(SUNXI_PINCTRL_PIN(H, 18),
@@ -990,7 +989,7 @@ static const struct sunxi_desc_pin sun8iw11p1_pins[] = {
 		  SUNXI_FUNCTION(0x2, "lcd1"),		/* D18 */
 		  SUNXI_FUNCTION(0x3, "emac0"),		/* ERXCK */
 		  SUNXI_FUNCTION(0x4, "kp0"),		/* OUT0 */
-		  SUNXI_FUNCTION(0x5, "sim0"),		/* SLK */
+		  SUNXI_FUNCTION(0x5, "scr0"),		/* SLK */
 		  SUNXI_FUNCTION(0x7, "csi1"),		/* D18 */
 		  SUNXI_FUNCTION_IRQ_BANK(0x6, 0, 18)),
 	SUNXI_PIN(SUNXI_PINCTRL_PIN(H, 19),
@@ -999,7 +998,7 @@ static const struct sunxi_desc_pin sun8iw11p1_pins[] = {
 		  SUNXI_FUNCTION(0x2, "lcd1"),		/* D19 */
 		  SUNXI_FUNCTION(0x3, "emac0"),		/* ERXERR */
 		  SUNXI_FUNCTION(0x4, "kp0"),		/* OUT1 */
-		  SUNXI_FUNCTION(0x5, "sim0"),		/* SDA */
+		  SUNXI_FUNCTION(0x5, "scr0"),		/* SDA */
 		  SUNXI_FUNCTION(0x7, "csi1"),		/* D19 */
 		  SUNXI_FUNCTION_IRQ_BANK(0x6, 0, 19)),
 	SUNXI_PIN(SUNXI_PINCTRL_PIN(H, 20),
@@ -1206,6 +1205,7 @@ static const struct sunxi_desc_pin sun8iw11p1_pins[] = {
 		  SUNXI_FUNCTION(0x1, "gpio_out"),
 		  SUNXI_FUNCTION(0x2, "ps20"),		/* SCK0 */
 		  SUNXI_FUNCTION(0x3, "uart7"),		/* TX */
+		  SUNXI_FUNCTION(0x4, "vdevice"),	/* vdevice */
 		  SUNXI_FUNCTION(0x6, "pwm2"),		/* PWM2 */
 		  SUNXI_FUNCTION(0x7, "io_disabled")),
 	SUNXI_PIN(SUNXI_PINCTRL_PIN(I, 21),
@@ -1213,6 +1213,7 @@ static const struct sunxi_desc_pin sun8iw11p1_pins[] = {
 		  SUNXI_FUNCTION(0x1, "gpio_out"),
 		  SUNXI_FUNCTION(0x2, "ps20"),		/* SDA0 */
 		  SUNXI_FUNCTION(0x3, "uart7"),		/* RX */
+		  SUNXI_FUNCTION(0x4, "vdevice"),	/* vdevice */
 		  SUNXI_FUNCTION(0x6, "pwm3"),		/* PWM3 */
 		  SUNXI_FUNCTION(0x7, "io_disabled")),
 };

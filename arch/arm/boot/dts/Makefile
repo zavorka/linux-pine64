@@ -181,8 +181,10 @@ dtb-$(CONFIG_ARCH_SUN8IW10P1) += sun8iw10p1-fpga.dtb \
 	sun8iw10p1-perf1_v1_0.dtb \
 	sun8iw10p1-perf2_v1_0.dtb \
 	sun8iw10p1-pro.dtb \
+	sun8iw10p1-sata.dtb \
 	sun8iw10p1-soc.dtb
 dtb-$(CONFIG_ARCH_SUN8IW11P1) += sun8iw11p1-fpga.dtb \
+	sun8iw11p1-sata.dtb \
 	sun8iw11p1-soc.dtb
 dtb-$(CONFIG_ARCH_SUN50IW1P1) += sun50iw1p1-soc.dtb \
 	sun50iw1p1-perf1_v1_0.dtb

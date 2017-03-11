@@ -24,7 +24,7 @@
 			sta32x@1c{
 				compatible = "sta,sta32x";
 				reg = <0x1c>;
-				power_gpio = <&axp_gpio0 PP 2 1 1 1 1>;
+				power_gpio = <&axp_gpio0 PP 0 1 1 1 1>;
 				gpio-reset = <&pio PG 9 1 1 1 1>;
                         };
 			cx2081x@35{

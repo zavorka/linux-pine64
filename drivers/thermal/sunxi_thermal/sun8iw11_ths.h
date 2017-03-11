@@ -4,18 +4,17 @@
 #define SENSOR_CNT              (2)
 #define THS_CLK                 (24000000)
 
-/* temperature = -0.1026*sensor + 228
- *	= (2280000 - 1026*sensor)/10000
- *	= (239075328 - 107583.8976*sensor)/1024/1024
- *	= (239075328 - 107584*sensor)/1024/1024
+/* temperature = -0.1125*sensor + 250
+ *	= (2500000 - 1125*sensor)/10000
+ *	= (xxx - 117964.8*sensor)/1024/1024
  *	= ( MINUPA - reg * MULPA) / 2^DIVPA
  *	sensor value range:
- *				= 0 - 0xffff,ffff/2/107584
- *				= 0 - 19960
+ *				= 0 - 0xffff,ffff/2/117964
+ *				= 0 - 18204
  */
-#define MULPA                   (107584)
+#define MULPA                   (u32)(0.1125*1024*1024)
 #define DIVPA                   (20)
-#define MINUPA                  (239075328)
+#define MINUPA                  (250*1024*1024)
 
 #define THS_CTRL0_REG		(0x00)
 #define THS_CTRL1_REG		(0x04)

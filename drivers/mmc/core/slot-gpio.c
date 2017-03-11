@@ -257,3 +257,49 @@ void mmc_gpiod_request_cd_irq(struct mmc_host *host)
 		host->caps |= MMC_CAP_NEEDS_POLL;
 }
 EXPORT_SYMBOL(mmc_gpiod_request_cd_irq);
+
+
+
+void sunxi_mmc_gpio_suspend_cd(struct mmc_host *host)
+{
+	struct mmc_gpio *ctx = host->slot.handler_priv;
+	int gpio;
+
+	if (!ctx || !gpio_is_valid(ctx->cd_gpio))
+		return;
+
+	if (host->slot.cd_irq >= 0) {
+		devm_free_irq(&host->class_dev, host->slot.cd_irq, host);
+	}
+	gpio = ctx->cd_gpio;
+	devm_gpio_free(&host->class_dev, gpio);
+}
+
+EXPORT_SYMBOL(sunxi_mmc_gpio_suspend_cd);
+
+void sunxi_mmc_gpio_resume_cd(struct mmc_host *host)
+{
+	struct mmc_gpio *ctx = host->slot.handler_priv;
+	int ret = 0;
+
+	if (!ctx || !gpio_is_valid(ctx->cd_gpio))
+		return;
+
+	ret = devm_gpio_request_one(&host->class_dev, ctx->cd_gpio , GPIOF_DIR_IN,
+				    ctx->cd_label);
+	if (ret) {
+		dev_err(mmc_dev(host), "**cd gpio request failed when resume**\n");
+		return;
+	}
+
+	if (host->slot.cd_irq >= 0) {
+		ret = devm_request_threaded_irq(&host->class_dev, host->slot.cd_irq,
+			NULL, mmc_gpio_cd_irqt,
+			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
+			ctx->cd_label, host);
+		if (ret)
+			dev_err(mmc_dev(host), "**cd gpio irq request failed when resume**\n");
+	}
+}
+EXPORT_SYMBOL(sunxi_mmc_gpio_resume_cd);
+
