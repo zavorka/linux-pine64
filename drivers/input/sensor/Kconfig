@@ -36,7 +36,16 @@ config SENSORS_MMA7660
         help
           If you say yes here you get support for the Freescale 3-Axis
           Orientation/Motion Detection Sensor.
-          
+
+config SENSORS_MIR3DA
+       tristate "MIR3DA 2-Axis Orientation/Motion Detection Sensor Support"
+        select I2C
+        depends on INPUT_SENSOR
+        default m
+        help
+          If you say yes here you get support for the Freescale 3-Axis
+          Orientation/Motion Detection Sensor.
+		  
 config SENSORS_MXC622X
         tristate "MXC622X 2-Axis Orientation/Motion Detection Sensor Support"
         select I2C
@@ -63,4 +72,18 @@ config SENSORS_MMA865X
         help
           If you say yes here you get support for the Freescale 3-Axis
           Orientation/Motion Detection Sensor.			  
+
+config SENSORS_GPADC
+        tristate "SUNXI GPADC"
+        depends on INPUT_SENSOR
+        default n
+        help
+          If you say yes here you get support for the gpadc collect analog input
+
+config SENSORS_GPADC_TEST
+        tristate "SUNXI GPADC test"
+        depends on SENSORS_GPADC
+        default n
+        help
+          If you say yes here you get support for the gpadc test sample
 endif

@@ -1,3 +1,14 @@
+/*
+ * sunxi-wlan.c -- power on/off wlan part of SoC
+ *
+ * Copyright (c) 2016
+ * Allwinner Technology Co., Ltd. <www.allwinnertech.com>
+ * Wei Li<liwei@allwinnertech.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  published by the Free Software Foundation.
+ */
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/module.h>
@@ -10,8 +21,13 @@
 #include <linux/clk.h>
 #include <linux/interrupt.h>
 #include <linux/rfkill.h>
+#include <linux/clk.h>
+#include <linux/clk-private.h>
 #include <linux/regulator/consumer.h>
 #include <linux/platform_device.h>
+#include <linux/capability.h>
+#include <linux/of_irq.h>
+#include <asm/io.h>
 #include <linux/sys_config.h>
 
 struct sunxi_wlan_platdata {
@@ -42,10 +58,10 @@ void sunxi_wlan_set_power(bool on_off)
 
 	pdev = wlan_data->pdev;
 	mutex_lock(&sunxi_wlan_mutex);
-	if(on_off != wlan_data->power_state){
+	if (on_off != wlan_data->power_state) {
 		ret = sunxi_wlan_on(wlan_data, on_off);
-		if(ret)
-			dev_err(&pdev->dev,"set power failed\n");
+		if (ret)
+			dev_err(&pdev->dev, "set wlan power failed\n");
 	}
 	mutex_unlock(&sunxi_wlan_mutex);
 }
@@ -58,7 +74,7 @@ int sunxi_wlan_get_bus_index(void)
 		return -EINVAL;
 
 	pdev = wlan_data->pdev;
-	dev_info(&pdev->dev,"bus_index: %d\n",wlan_data->bus_index);
+	dev_info(&pdev->dev, "bus_index: %d\n", wlan_data->bus_index);
 	return wlan_data->bus_index;
 }
 EXPORT_SYMBOL_GPL(sunxi_wlan_get_bus_index);
@@ -190,14 +206,14 @@ static ssize_t power_state_store(struct device *dev,
 	if (err)
 		return err;
 
-	if (state > 1 )
+	if (state > 1)
 		return -EINVAL;
 
 	mutex_lock(&sunxi_wlan_mutex);
-	if(state != wlan_data->power_state){
+	if (state != wlan_data->power_state) {
 		err = sunxi_wlan_on(wlan_data, state);
-		if(err)
-			dev_err(dev,"set power failed\n");
+		if (err)
+			dev_err(dev, "set power failed\n");
 	}
 	mutex_unlock(&sunxi_wlan_mutex);
 
@@ -234,6 +250,7 @@ static int sunxi_wlan_probe(struct platform_device *pdev)
 			break;
 		default:
 			dev_err(dev, "unsupported wlan_busnum (%u)\n", val);
+			devm_kfree(dev, (void *)wlan_data);
 			return -EINVAL;
 		}
 	}
@@ -321,7 +338,6 @@ static int sunxi_wlan_probe(struct platform_device *pdev)
 		if (ret < 0) 
 			dev_warn(dev,"can't enable clk\n");
 	}
-
 	device_create_file(dev, &dev_attr_power_state);
 	data->power_state = 0;
 

@@ -58,10 +58,10 @@ int de_tr_set_cfg(tr_info *info);
 int de_tr_reset(void);
 int de_tr_exception(void);
 
-unsigned long sunxi_tr_request(void);
-int sunxi_tr_release(unsigned long hdl);
-int sunxi_tr_commit(unsigned long hdl, tr_info *info);
-int sunxi_tr_query(unsigned long hdl);
-int sunxi_tr_set_timeout(unsigned long hdl, unsigned long timeout /* ms */);
+unsigned int sunxi_tr_request(void);
+int sunxi_tr_release(unsigned int id);
+int sunxi_tr_commit(unsigned int id, tr_info *info);
+int sunxi_tr_query(unsigned int id);
+int sunxi_tr_set_timeout(unsigned int id, unsigned long timeout /* ms */);
 
 #endif

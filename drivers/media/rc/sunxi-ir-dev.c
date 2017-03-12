@@ -43,7 +43,7 @@ static int debug_mask = 0;
 
 static inline u8 ir_get_data(void)
 {
-	return (u8)(readl(IR_BASE + IR_RXDAT_REG));
+	return (u8)(readl(IR_BASE + IR_RXDAT_REG) & 0xff);
 }
 
 static inline u32 ir_get_intsta(void)
@@ -64,6 +64,7 @@ static inline void ir_clr_intsta(u32 bitmap)
 /* Translate OpenFirmware node properties into platform_data */
 static struct of_device_id sunxi_ir_recv_of_match[] = {
 	{ .compatible = "allwinner,s_cir", },
+	{ .compatible = "allwinner,ir", },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, sunxi_ir_recv_of_match);
@@ -76,53 +77,56 @@ static irqreturn_t sunxi_ir_recv_irq(int irq, void *dev_id)
 	u32 i = 0;
 	bool pluse_now = 0;
 	u8 reg_data;
+	u32 ir_duration = 0;
 
 	dprintk(DEBUG_INT, "IR RX IRQ Serve\n");
 
 	intsta = ir_get_intsta();
 	ir_clr_intsta(intsta);
 
-	/* get ther count of signal */
-	dcnt =  (intsta>>8) & 0x7f;
-	dprintk(DEBUG_INT, "receive cnt :%d \n", dcnt);
+	/* get the count of signal */
+	dcnt =	(intsta>>8) & 0x7f;
+	dprintk(DEBUG_INT, "receive cnt :%d\n", dcnt);
 	
 	/* Read FIFO and fill the raw event */
 	for (i=0; i<dcnt; i++) {
 		/* get the data from fifo */
 		reg_data = ir_get_data();
-		pluse_now = (reg_data & 0x80)? true : false;
-			
-		if( pluse_pre == pluse_now){/* the signal maintian */
-			/* the pluse or space lasting*/
-			rawir.duration += (u32)(reg_data & 0x7f);
-			dprintk(DEBUG_ERR,"raw: %d:%d \n",(reg_data & 0x80)>>7,(reg_data & 0x7f));
-		}else{
-			if(is_receiving){
+		/* Byte in FIFO format YXXXXXXX(B)	Y:polarity(0:low level, 1:high level)  X:Number of clocks */
+		pluse_now = reg_data >> 7; /* get the polarity */
+		ir_duration = reg_data & 0x7f; /* get duration, number of clocks */
+
+		if (pluse_pre == pluse_now) {
+			/* the signal maintian */
+			rawir.duration += ir_duration;
+			dprintk(DEBUG_INT, "raw: polar=%d; dur=%d \n", pluse_now, ir_duration);
+		} else {
+			if (is_receiving) {
 				rawir.duration *= IR_SIMPLE_UNIT;
-				dprintk(DEBUG_INT,"pusle :%d, dur: %u ns\n",rawir.pulse,rawir.duration );
+				dprintk(DEBUG_INT, "pusle :polar=%d, dur: %u ns\n", rawir.pulse, rawir.duration);
 				ir_raw_event_store(sunxi_rcdev, &rawir);
 				rawir.pulse = pluse_now;
-				rawir.duration = (u32)(reg_data & 0x7f);	
-				dprintk(DEBUG_ERR,"raw: %d:%d \n",(reg_data & 0x80)>>7,(reg_data & 0x7f));
-			}else{
+				rawir.duration = ir_duration;
+				dprintk(DEBUG_INT, "raw: polar=%d; dur=%d \n", pluse_now, ir_duration);
+			} else {
 				/* get the first pluse signal */
 				rawir.pulse = pluse_now;
-				rawir.duration = (u32)(reg_data & 0x7f);
-				#ifdef CIR_FPGA
+				rawir.duration = ir_duration;
+				/* Since IR hardware will cut Active Threshold time,So just add comeback */
 				rawir.duration += ((IR_ACTIVE_T>>16)+1) * ((IR_ACTIVE_T_C>>23 )? 128:1);
-				dprintk(DEBUG_INT, "get frist pulse,add head %d !!\n",((IR_ACTIVE_T>>16)+1) * ((IR_ACTIVE_T_C>>23 )? 128:1));
-				#endif
 				is_receiving = 1;
-				dprintk(DEBUG_ERR,"raw: %d:%d \n",(reg_data & 0x80)>>7,(reg_data & 0x7f));
+				dprintk(DEBUG_INT, "get frist pulse,add head %d !!\n", ((IR_ACTIVE_T>>16)+1) * ((IR_ACTIVE_T_C>>23) ? 128 : 1));
+				dprintk(DEBUG_INT, "raw: polar=%d; dur=%d \n", pluse_now, ir_duration);
 			}
 			pluse_pre = pluse_now;
 		}	
 	}
 	
-	if (intsta & IR_RXINTS_RXPE){
-		if(rawir.duration){
+	if (intsta & IR_RXINTS_RXPE) {
+		/* The last pulse can not call ir_raw_event_store() since miss invert level in above, manu call */
+		if (rawir.duration) {
 			rawir.duration *= IR_SIMPLE_UNIT;
-			dprintk(DEBUG_INT,"pusle :%d, dur: %u ns\n",rawir.pulse,rawir.duration );
+			dprintk(DEBUG_INT, "pusle :polar=%d, dur: %u ns\n", rawir.pulse, rawir.duration);
 			ir_raw_event_store(sunxi_rcdev, &rawir);
 		}
 		dprintk(DEBUG_INT, "handle raw data.\n");
@@ -142,6 +146,7 @@ static irqreturn_t sunxi_ir_recv_irq(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+
 static void ir_mode_set(enum ir_mode set_mode)
 {
 	u32 ctrl_reg = 0;
@@ -155,7 +160,20 @@ static void ir_mode_set(enum ir_mode set_mode)
 		ctrl_reg = readl(IR_BASE+IR_CTRL_REG);
 		ctrl_reg |= IR_ENTIRE_ENABLE;
 		break;
+	case IR_BOTH_PULSE_MODE:
+		ctrl_reg = readl(IR_BASE+IR_CTRL_REG);
+		ctrl_reg |= IR_BOTH_PULSE;
+		break;
+	case IR_LOW_PULSE_MODE:
+		ctrl_reg = readl(IR_BASE+IR_CTRL_REG);
+		ctrl_reg |= IR_LOW_PULSE;
+		break;
+	case IR_HIGH_PULSE_MODE:
+		ctrl_reg = readl(IR_BASE+IR_CTRL_REG);
+		ctrl_reg |= IR_HIGH_PULSE;
+		break;
 	default:
+		pr_err("ir_mode_set error!!\n");
 		return;
 	}
 	writel(ctrl_reg, IR_BASE+IR_CTRL_REG);
@@ -211,7 +229,7 @@ static void ir_irq_config(enum ir_irq_config set_irq)
 		break;
 	case IR_IRQ_FIFO_SIZE:
 		irq_reg = readl(IR_BASE+IR_RXINTE_REG);
-		irq_reg |= IR_FIFO_32;
+		irq_reg |= IR_FIFO_20;
 		break;
 	default:
 		return;
@@ -236,6 +254,11 @@ static void ir_reg_cfg(void)
 	/* Set Rx Interrupt Enable */
 	ir_irq_config(IR_IRQ_ENABLE);
 	ir_irq_config(IR_IRQ_FIFO_SIZE);	/* Rx FIFO Threshold = FIFOsz/2; */
+	/* for NEC decode which start with high level in the header so should
+	 * use IR_HIGH_PULSE_MODE mode, but some ICs don't support this function
+	 * therefor use IR_BOTH_PULSE_MODE mode as default
+	 */
+	ir_mode_set(IR_BOTH_PULSE_MODE);
 	/* Enable IR Module */
 	ir_mode_set(IR_MODULE_ENABLE);
 
@@ -248,16 +271,16 @@ static void ir_clk_cfg(void)
 	unsigned long rate = 0;
 
 	rate = clk_get_rate(ir_data->pclk);
-	dprintk(DEBUG_INIT, "%s: get ir_clk_source rate %dHZ\n", __func__, (__u32)rate);
+	dprintk(DEBUG_INT, "%s: get ir parent rate %dHZ\n", __func__, (__u32)rate);
 
 	if(clk_set_parent(ir_data->mclk, ir_data->pclk))
-		pr_err("%s: set ir_clk parent to ir_clk_source failed!\n", __func__);
+		pr_err("%s: set ir_clk parent failed!\n", __func__);
 
 	if (clk_set_rate(ir_data->mclk, IR_CLK)) {
-		pr_err("set ir clock freq to 4M failed!\n");
+		pr_err("set ir clock freq to %d failed!\n", IR_CLK);
 	}
 	rate = clk_get_rate(ir_data->mclk);
-	dprintk(DEBUG_INIT, "%s: get ir_clk rate %dHZ\n", __func__, (__u32)rate);
+	dprintk(DEBUG_INT, "%s: get ir_clk rate %dHZ\n", __func__, (__u32)rate);
 
 	if (clk_prepare_enable(ir_data->mclk)) {
 			pr_err("try to enable ir_clk failed!\n");
@@ -302,7 +325,8 @@ static void ir_setup(void)
 static int sunxi_ir_startup(struct platform_device *pdev)
 {
 	struct device_node *np =NULL;
-	int ret = 0;
+	int i, ret = 0;
+	char addr_name[32];
 	const char *name = NULL;
 	
 	ir_data = kzalloc(sizeof(*ir_data), GFP_KERNEL);
@@ -332,16 +356,28 @@ static int sunxi_ir_startup(struct platform_device *pdev)
 		pr_err("%s:Failed to get clk.\n", __func__);
 		ret = -EBUSY;
 	}
-	if (of_property_read_u32(np, "ir_addr_code", &ir_data->ir_addr)) {
-		pr_err("%s: get cir addr failed", __func__);
+	if (of_property_read_u32(np, "ir_addr_cnt", &ir_data->ir_addr_cnt)) {
+		pr_err("%s: get cir addr cnt failed", __func__);
 		ret =  -EBUSY;
+	}
+	if(ir_data->ir_addr_cnt > MAX_ADDR_NUM)
+		ir_data->ir_addr_cnt = MAX_ADDR_NUM;
+	for(i = 0; i < ir_data->ir_addr_cnt; i++){
+		sprintf(addr_name, "ir_addr_code%d", i);
+		if (of_property_read_u32(np, (const char *)&addr_name,
+					&ir_data->ir_addr[i])) {
+			pr_err("node %s get failed!\n", name);
+			ret = -EBUSY;
+		}
+	}
+	if (of_property_read_u32(np, "supply_vol", &ir_data->suply_vol)) {
+		pr_err("%s: get cir supply_vol failed", __func__);
 	}
 	if (of_property_read_string(np, "supply", &name)) {
 		pr_err("%s: cir have no power supply\n", __func__);
-		ir_data->suply = NULL;
-	}else{
+	} else {
 		ir_data->suply = regulator_get(NULL, name);
-		if(IS_ERR(ir_data->pclk)){
+		if(IS_ERR(ir_data->suply)){
 			pr_err("%s: cir get supply err\n", __func__);
 			ir_data->suply = NULL;
 		}
@@ -387,7 +423,7 @@ static int sunxi_ir_recv_probe(struct platform_device *pdev)
 	sunxi_rcdev->allowed_protos = (u64)RC_BIT_NEC;
 	sunxi_rcdev->map_name = RC_MAP_SUNXI;
 
-	init_rc_map_sunxi(ir_data->ir_addr);
+	init_rc_map_sunxi(ir_data->ir_addr, ir_data->ir_addr_cnt);
 	rc = rc_register_device(sunxi_rcdev);
 	if (rc < 0) {
 		dev_err(&pdev->dev, "failed to register rc device\n");
@@ -403,8 +439,10 @@ static int sunxi_ir_recv_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, sunxi_rcdev);
 	ir_data->rcdev = sunxi_rcdev;
-	if(ir_data->suply)
-		rc = regulator_enable(ir_data->suply);
+	if(ir_data->suply){
+		rc = regulator_set_voltage(ir_data->suply, ir_data->suply_vol, ir_data->suply_vol);
+		rc |= regulator_enable(ir_data->suply);
+	}
 	ir_setup();
 	
 	if (request_irq(ir_data->irq_num, sunxi_ir_recv_irq, IRQF_DISABLED, "RemoteIR_RX",

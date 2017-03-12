@@ -4,7 +4,7 @@
 #include <linux/types.h>
 #include "di.h"
 
-//#define DI_RESERVED_MEM
+#define DI_RESERVED_MEM
 
 #define DI_MODULE_NAME "deinterlace"
 #define DI_TIMEOUT                      30                    /* DI-Interlace 30ms timeout */
@@ -27,10 +27,11 @@ typedef struct {
 #ifdef CONFIG_PM
 	struct dev_pm_domain di_pm_domain;
 #endif
+	unsigned int users;
 }di_struct, *pdi_struct;
 
 #define	DI_IOC_MAGIC		'D'
-#define	DI_IOCSTART		_IOWR(DI_IOC_MAGIC, 0, __di_para_t *)
+#define	DI_IOCSTART		_IOWR(DI_IOC_MAGIC, 0, __di_rectsz_t)
 
 enum {
 	DEBUG_INIT = 1U << 0,

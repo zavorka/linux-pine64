@@ -399,15 +399,8 @@ static void LCD_panel_init(u32 sel)
 {
         printk(KERN_ERR"LCD_panel_init\n");
 	u32 i;
-	script_item_u   val;
-  script_item_value_type_e	type;
   printk("inet_dsi_panel init\n");
-  type = script_get_item("lcd0","lcd_model_name", &val);
-  if (SCIRPT_ITEM_VALUE_TYPE_STR != type) {  	
-	  printk("fetch lcd_model_name from sys_config failed\n");
-	} else {
-		printk("lcd_model_name = %s\n",val.str);
-	}
+
 	
 	sunxi_lcd_dsi_clk_enable(sel);
 	sunxi_lcd_delay_ms(20);
@@ -416,14 +409,14 @@ static void LCD_panel_init(u32 sel)
 	
 	for(i=0;;i++)
 	{			
-		if(!strcmp("LT080B21BA94",val.str)) {  
+		//if(!strcmp("LT080B21BA94",val.str)) {  
 			if(LCM_LT080B21BA94_setting[i].count == REGFLAG_END_OF_TABLE)
 				break;
 			else if (LCM_LT080B21BA94_setting[i].count == REGFLAG_DELAY)
 				sunxi_lcd_delay_ms(LCM_LT080B21BA94_setting[i].para_list[0]);
 			else
 				dsi_dcs_wr(sel,LCM_LT080B21BA94_setting[i].cmd,LCM_LT080B21BA94_setting[i].para_list,LCM_LT080B21BA94_setting[i].count);
-		}
+		//}
 
 		//break;
 	}

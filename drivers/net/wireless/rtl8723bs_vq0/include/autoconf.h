@@ -310,7 +310,7 @@
 /*
  * Debug Related Config
  */
-//#define CONFIG_DEBUG
+#define CONFIG_DEBUG
 
 #ifdef CONFIG_DEBUG
 #define DBG	1	// for ODM & BTCOEX debug
@@ -327,3 +327,5 @@
 #define DBG_CHECK_FW_PS_STATE
 #define DBG_CHECK_FW_PS_STATE_H2C
 //#define CONFIG_FW_C2H_DEBUG 
+#define CONFIG_RTW_SDIO_KEEP_IRQ	1
+

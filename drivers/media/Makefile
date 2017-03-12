@@ -31,4 +31,4 @@ obj-y += rc/
 obj-y += common/ platform/ pci/ usb/ mmc/ firewire/ parport/
 obj-$(CONFIG_VIDEO_DEV) += radio/
 obj-y += cedar-ve/
-
+obj-$(CONFIG_AW_TSC)    += tsc/

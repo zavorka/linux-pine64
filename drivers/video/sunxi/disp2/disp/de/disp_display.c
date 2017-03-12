@@ -33,6 +33,13 @@ s32 bsp_disp_init(disp_bsp_init_para * para)
 	disp_init_smbl(para);
 	disp_init_capture(para);
 
+#if defined(SUPPORT_WB)
+	disp_init_format_convert_manager(para);
+#endif
+#if defined SUPPORT_EINK
+	disp_init_eink(para);
+#endif
+
 	disp_init_connections(para);
 
 	return DIS_SUCCESS;
@@ -108,7 +115,6 @@ s32 disp_device_attached_and_enable(int disp_mgr, int disp_dev, enum disp_output
 	mgr = disp_get_layer_manager(disp_mgr);
 	if (!mgr)
 		return -1;
-
 	/* disable device */
 	if (output_type == DISP_OUTPUT_TYPE_NONE) {
 		if (mgr->device && mgr->device->is_enabled && mgr->device->disable) {
@@ -135,7 +141,7 @@ s32 disp_device_attached_and_enable(int disp_mgr, int disp_dev, enum disp_output
 				mgr->device->disable(mgr->device);
 		}
 		if (DISP_OUTPUT_TYPE_TV == output_type)
-			msleep(300);
+			disp_delay_ms(300);
 		if (mgr->device->set_mode)
 			mgr->device->set_mode(mgr->device, mode);
 		if (mgr->device->enable)
@@ -212,6 +218,61 @@ s32 bsp_disp_device_switch(int disp, enum disp_output_type output_type, enum dis
 				break;
 		}
 	}
+
+	return ret;
+}
+
+s32 bsp_disp_eink_update(struct disp_eink_manager *manager,
+			struct disp_layer_config *config,
+			unsigned int layer_num,
+			enum eink_update_mode mode,
+			struct area_info *update_area)
+{
+	int ret = -1;
+	struct area_info area;
+
+	memcpy(&area, update_area, sizeof(struct area_info));
+
+	if (manager)
+		ret = manager->eink_update(manager, config, layer_num,
+						mode, area);
+	else
+		__debug("eink manager is NULL!\n");
+
+	return ret;
+}
+
+
+s32 bsp_disp_eink_set_temperature(struct disp_eink_manager* manager, unsigned int temp)
+{
+	s32 ret = -1;
+	if (manager)
+		ret = manager->set_temperature(manager, temp);
+	else
+		pr_err("eink manager is NULL!\n");
+
+	return ret;
+}
+
+
+s32 bsp_disp_eink_get_temperature(struct disp_eink_manager* manager)
+{
+	s32 ret = -1;
+	if (manager)
+		ret = manager->get_temperature(manager);
+	else
+		pr_err("eink manager is NULL!\n");
+
+	return ret;
+}
+
+s32 bsp_disp_eink_op_skip(struct disp_eink_manager *manager, unsigned int skip)
+{
+	s32 ret = -1;
+	if (manager)
+		ret = manager->op_skip(manager, skip);
+	else
+		pr_err("eink manager is NULL!\n");
 
 	return ret;
 }
@@ -501,7 +562,7 @@ void sync_event_proc(u32 disp, bool timeout)
 
 	if (gdisp.screen[disp].vsync_event_en && gdisp.init_para.vsync_event) {
 		gdisp.init_para.vsync_event(disp);
-		gdisp.screen[disp].health_info.vsync_cnt ++;
+		gdisp.screen[disp].health_info.vsync_cnt++;
 	}
 #if defined(__LINUX_PLAT__)
 	tasklet_schedule(&gdisp.screen[disp].tasklet);
@@ -708,7 +769,9 @@ s32 bsp_disp_get_screen_width_from_output_type(u32 disp, u32 output_type, u32 ou
 		if (mgr && mgr->device && mgr->device->get_resolution) {
 			mgr->device->get_resolution(mgr->device, &width, &height);
 		}
-	} else if ((DISP_OUTPUT_TYPE_HDMI == output_type) || (DISP_OUTPUT_TYPE_TV == output_type)) {
+	} else if ((DISP_OUTPUT_TYPE_HDMI == output_type)
+			|| (DISP_OUTPUT_TYPE_TV == output_type)
+			|| (DISP_OUTPUT_TYPE_VGA == output_type)) {
 		switch(output_mode) {
 		case DISP_TV_MOD_NTSC:
 		case DISP_TV_MOD_480I:
@@ -742,6 +805,42 @@ s32 bsp_disp_get_screen_width_from_output_type(u32 disp, u32 output_type, u32 ou
 		case DISP_TV_MOD_3840_2160P_24HZ:
 			width = 3840;
 			height = 2160;
+			break;
+		case DISP_TV_MOD_4096_2160P_24HZ:
+			width = 4096;
+			height = 2160;
+			break;
+		case DISP_VGA_MOD_800_600P_60:
+			width = 800;
+			height = 600;
+			break;
+		case DISP_VGA_MOD_1024_768P_60:
+			width = 1024;
+			height = 768;
+			break;
+		case DISP_VGA_MOD_1280_768P_60:
+			width = 1280;
+			height = 768;
+			break;
+		case DISP_VGA_MOD_1280_800P_60:
+			width = 1280;
+			height = 800;
+			break;
+		case DISP_VGA_MOD_1366_768P_60:
+			width = 1366;
+			height = 768;
+			break;
+		case DISP_VGA_MOD_1440_900P_60:
+			width = 1440;
+			height = 900;
+			break;
+		case DISP_VGA_MOD_1920_1080P_60:
+			width = 1920;
+			height = 1080;
+			break;
+		case DISP_VGA_MOD_1920_1200P_60:
+			width = 1920;
+			height = 1200;
 			break;
 		}
 	}
@@ -760,7 +859,9 @@ s32 bsp_disp_get_screen_height_from_output_type(u32 disp, u32 output_type, u32 o
 		if (mgr && mgr->device && mgr->device->get_resolution) {
 			mgr->device->get_resolution(mgr->device, &width, &height);
 		}
-	} else if ((DISP_OUTPUT_TYPE_HDMI == output_type) || (DISP_OUTPUT_TYPE_TV == output_type)) {
+	} else if ((DISP_OUTPUT_TYPE_HDMI == output_type)
+			|| (DISP_OUTPUT_TYPE_TV == output_type)
+			|| (DISP_OUTPUT_TYPE_VGA == output_type)) {
 		switch(output_mode) {
 		case DISP_TV_MOD_NTSC:
 		case DISP_TV_MOD_480I:
@@ -794,6 +895,42 @@ s32 bsp_disp_get_screen_height_from_output_type(u32 disp, u32 output_type, u32 o
 		case DISP_TV_MOD_3840_2160P_24HZ:
 			width = 3840;
 			height = 2160;
+			break;
+		case DISP_TV_MOD_4096_2160P_24HZ:
+			width = 4096;
+			height = 2160;
+			break;
+		case DISP_VGA_MOD_800_600P_60:
+			width = 800;
+			height = 600;
+			break;
+		case DISP_VGA_MOD_1024_768P_60:
+			width = 1024;
+			height = 768;
+			break;
+		case DISP_VGA_MOD_1280_768P_60:
+			width = 1280;
+			height = 768;
+			break;
+		case DISP_VGA_MOD_1280_800P_60:
+			width = 1280;
+			height = 800;
+			break;
+		case DISP_VGA_MOD_1366_768P_60:
+			width = 1366;
+			height = 768;
+			break;
+		case DISP_VGA_MOD_1440_900P_60:
+			width = 1440;
+			height = 900;
+			break;
+		case DISP_VGA_MOD_1920_1080P_60:
+			width = 1920;
+			height = 1080;
+			break;
+		case DISP_VGA_MOD_1920_1200P_60:
+			width = 1920;
+			height = 1200;
 			break;
 		}
 	}
@@ -904,22 +1041,31 @@ s32 bsp_disp_tv_register(struct disp_tv_func * func)
 	u32 disp = 0;
 	u32 num_screens = 0;
 	s32 ret = 0, registered_cnt = 0;
-	struct disp_device*  ptv = NULL;
-	disp_init_tv();
+	struct disp_device* dispdev = NULL;
+
 	num_screens = bsp_disp_feat_get_num_screens();
+	disp_init_tv();
 	for (disp=0; disp<num_screens; disp++) {
-		ptv = disp_device_find(disp, DISP_OUTPUT_TYPE_TV);
-		if (ptv) {
-			registered_cnt ++;
+		dispdev = disp_device_find(disp, DISP_OUTPUT_TYPE_TV);
+		if (dispdev && dispdev->set_tv_func) {
+			ret = dispdev->set_tv_func(dispdev, func);
+			if (0 == ret)
+				registered_cnt ++;
 		}
-		else {
-			DE_WRN("'ptv is null\n");
-			continue;
-		}
-		ret = disp_tv_set_func(ptv, func);
 	}
 
-	if (0 != registered_cnt && !ret) {
+#if defined(SUPPORT_VGA)
+	disp_init_vga();
+	for (disp=0; disp<num_screens; disp++) {
+		dispdev = disp_device_find(disp, DISP_OUTPUT_TYPE_VGA);
+		if (dispdev && dispdev->set_tv_func) {
+			ret = dispdev->set_tv_func(dispdev, func);
+			if (0 == ret)
+				registered_cnt ++;
+		}
+	}
+#endif
+	if (0 != registered_cnt) {
 		gdisp.tv_registered = 1;
 		if (gdisp.init_para.start_process) {
 			gdisp.init_para.start_process();

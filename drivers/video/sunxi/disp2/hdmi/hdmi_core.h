@@ -21,9 +21,10 @@
 #define HDMI1080P_24_3D_FP  (HDMI1080P_24 +0x80)
 #define HDMI720P_50_3D_FP   (HDMI720P_50  +0x80)
 #define HDMI720P_60_3D_FP   (HDMI720P_60  +0x80)
-#define HDMI3840_2160P_30   (1+0x100)
-#define HDMI3840_2160P_25   (2+0x100)
-#define HDMI3840_2160P_24   (3+0x100)
+#define HDMI3840_2160P_30   (0x01 + 0x100)
+#define HDMI3840_2160P_25   (0x02 + 0x100)
+#define HDMI3840_2160P_24   (0x03 + 0x100)
+#define HDMI4096_2160P_24   (0x04 + 0x100)
 #define HDMI_EDID_LEN 1024
 
 #define HDMI_State_Idle 			 0x00
@@ -83,6 +84,7 @@ extern s32 hdmi_core_enter_lp(void);
 extern s32 hdmi_core_exit_lp(void);
 extern u32 hdmi_core_get_csc_type(void);
 extern s32 hdmi_core_update_detect_time(u32 time_val);
+extern s32 hdmi_core_cec_enable(bool enable);
 extern int hdmi_core_cec_get_simple_msg(unsigned char *msg);
 
 s32 hdmi_core_get_list_num(void);

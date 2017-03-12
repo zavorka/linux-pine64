@@ -30,7 +30,7 @@
 #include <linux/kvm_para.h>
 #include <linux/perf_event.h>
 #include <linux/sched.h>
-#include "../drivers/soc/allwinner/pm/pm.h"
+#include <asm/io.h>
 
 int watchdog_enabled = 1;
 int __read_mostly watchdog_thresh = 10;
@@ -234,8 +234,8 @@ static int is_hardlockup_other_cpu(unsigned int cpu)
 
 static void local_reset_cpu(unsigned int next_cpu)
 {
-	
-	cpu_reset_status = readl_relaxed(base + 0x80); 
+
+	cpu_reset_status = readl_relaxed(base + 0x80);
 	printk("cpu_reset_status = 0x%x. next_cpu = 0x%x\n", cpu_reset_status, next_cpu);
 	cpu_reset_status &= (0xfffffff0);
 	cpu_reset_status |= ((unsigned int)0x1<<(unsigned int)next_cpu);
@@ -282,9 +282,9 @@ static void watchdog_check_hardlockup_other_cpu(void)
 		else{
 			WARN(1, "Watchdog detected hard LOCKUP on cpu %u", next_cpu);
 			local_reset_cpu(next_cpu);
-			printk(KERN_INFO "gicd_base = 0x%p. \n", gicd_base);
-			printk(KERN_INFO "gicc_base = 0x%p. \n", gicc_base);
-			busy_waiting();
+			pr_info("gicd_base = 0x%p.\n", gicd_base);
+			pr_info("gicc_base = 0x%p.\n", gicc_base);
+			asm("b .");
 		}
 
 		per_cpu(hard_watchdog_warn, next_cpu) = true;
