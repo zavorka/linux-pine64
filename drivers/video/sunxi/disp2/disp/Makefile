@@ -13,5 +13,5 @@ disp-objs += lcd/panels.o lcd/lcd_source.o lcd/default_panel.o \
 		lcd/lt070me05000.o lcd/wtq05027d01.o lcd/t27p06.o \
 		lcd/dx0960be40a1.o lcd/tft720x1280.o lcd/S6D7AA0X01.o \
 		lcd/inet_dsi_panel.o lcd/default_eink.o lcd/cpu_gg1p4062utsw.o \
-		lcd/lcd_edp_anx9804.o
+		lcd/lcd_edp_anx9804.o lcd/mb709_mipi.o
 disp-objs += $(obj_low)
