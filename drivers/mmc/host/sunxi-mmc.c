@@ -538,7 +538,7 @@ static int sunxi_check_r1_ready_may_sleep(struct sunxi_mmc_host *smc_host)
 
 	if ((mmc_readl(smc_host, REG_STAS) & SDXC_CARD_DATA_BUSY)) {
 		dev_err(mmc_dev(smc_host->mmc), \
-				"Wait r1 rdy %d ms timeout\n", ms);
+				"Wait r1 rdy timeout\n");
 		return -1;
 	} else{
 		dev_dbg(mmc_dev(smc_host->mmc), \
@@ -1234,9 +1234,6 @@ static void sunxi_mmc_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	}
 
 	sunxi_mmc_parse_cmd(mmc , cmd , &cmd_val , &imask, &wait_dma);
-
-	// XXX(longsleep): mmc_send_status below triggers BUG, do nothing and pray!
-	goto out;
 
 	//claim host to not allow androd read/write during shutdown
 	dev_dbg(mmc_dev(mmc), "cmd %d(%08x) arg %x ie 0x%08x len %d\n",
