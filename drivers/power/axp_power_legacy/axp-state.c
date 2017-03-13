@@ -10,8 +10,8 @@
  */
 #include "axp-cfg.h"
 #ifdef CONFIG_AW_AXP81X
-#include "axp81x/axp81x-sply.h"
-#include "axp81x/axp81x-common.h"
+#include "axp81x-sply.h"
+#include "axp81x-common.h"
 static const struct axp_config_info *axp_config = &axp81x_config;
 #endif
 
@@ -257,4 +257,3 @@ void axp_charger_update(struct axp_charger *charger, const struct axp_config_inf
 	charger->bat_temp = axp_vts_to_temp(bat_temp_mv, axp_config);
 	spin_unlock(&charger->charger_lock);
 }
-
