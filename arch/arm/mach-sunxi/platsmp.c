@@ -23,6 +23,7 @@
 #include <linux/delay.h>
 #include <asm/cacheflush.h>
 #include <asm/io.h>
+#include <linux/sunxi-sid.h>
 
 #include "platsmp.h"
 
@@ -59,8 +60,23 @@ static void sunxi_smp_iomap_init(void)
 
 static void sunxi_smp_init_cpus(void)
 {
-	unsigned int i, ncores;
-	ncores = get_nr_cores();
+	unsigned int i, ncores = get_nr_cores();
+
+#if defined(CONFIG_ARCH_SUN8IW11)
+	unsigned int chip_ver = sunxi_get_soc_ver();
+
+	switch (chip_ver) {
+	case SUN8IW11P2_REV_A:
+	case SUN8IW11P3_REV_A:
+	case SUN8IW11P4_REV_A:
+		ncores = 4;
+		break;
+	case SUN8IW11P1_REV_A:
+	default:
+		ncores = 2;
+		break;
+	}
+#endif
 
 	pr_debug("[%s] ncores=%d\n", __func__, ncores);
 
@@ -74,6 +90,10 @@ static void sunxi_smp_init_cpus(void)
 	for (i = 0; i < ncores; i++)
 		set_cpu_possible(i, true);
 
+#ifdef CONFIG_CPU_IDLE_SUNXI
+	sunxi_idle_cpux_flag_init();
+#endif
+
 	sunxi_smp_iomap_init();
 	pr_debug("[%s] done\n", __func__);
 }
@@ -85,7 +105,13 @@ static void sunxi_smp_init_cpus(void)
 int sunxi_smp_boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
 	spin_lock(&boot_lock);
-	sunxi_set_secondary_entry((void *)(virt_to_phys(sunxi_secondary_startup)));
+#ifdef CONFIG_CPU_IDLE_SUNXI
+	sunxi_set_secondary_entry((void *)
+				(virt_to_phys(sunxi_cpux_entry_judge)));
+#else
+	sunxi_set_secondary_entry((void *)
+				(virt_to_phys(sunxi_secondary_startup)));
+#endif
 	sunxi_set_cpus_boot_entry(cpu, secondary_startup);
 	sunxi_enable_cpu(cpu);
 

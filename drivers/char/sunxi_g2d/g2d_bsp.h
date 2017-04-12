@@ -205,6 +205,19 @@ typedef struct {
 	g2d_pixel_seq	 pixel_seq;	/* pixel sequence of image frame buffer */
 }g2d_image;
 
+/*
+ * 0:Top to down, Left to right
+ * 1:Top to down, Right to left
+ * 2:Down to top, Left to right
+ * 3:Down to top, Right to left
+ */
+enum g2d_scan_order{
+	G2D_SM_TDLR = 0x00000000,
+	G2D_SM_TDRL = 0x00000001,
+	G2D_SM_DTLR = 0x00000002,
+	G2D_SM_DTRL = 0x00000003,
+};
+
 typedef struct {
 	g2d_fillrect_flags	 flag;
 	g2d_image			 dst_image;
@@ -239,6 +252,7 @@ typedef struct {
 
 	__u32				 color;		/* colorkey color */
 	__u32				 alpha;		/* plane alpha value */
+
 
 }g2d_stretchblt;
 
@@ -277,9 +291,9 @@ typedef struct
 extern int g2d_wait_cmd_finish(void);
 
 __u32	mixer_reg_init(void);
-__s32	mixer_blt(g2d_blt *para);
+__s32	mixer_blt(g2d_blt *para, enum g2d_scan_order scan_order);
 __s32	mixer_fillrectangle(g2d_fillrect *para);
-__s32	mixer_stretchblt(g2d_stretchblt *para);
+__s32	mixer_stretchblt(g2d_stretchblt *para, enum g2d_scan_order scan_order);
 __s32	mixer_maskblt(g2d_maskblt *para);
 __u32	mixer_set_palette(g2d_palette *para);
 __u64	mixer_get_addr(__u32 buffer_addr, __u32 format, __u32 stride, __u32 x, __u32 y);

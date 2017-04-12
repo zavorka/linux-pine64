@@ -43,6 +43,12 @@ config DISP2_TV_AC200
 	default n
 	---help---
 
+config EINK_PANEL_USED
+  bool "Eink panel used"
+  depends on (DISP2_SUNXI && ARCH_SUN8IW10)
+	default n
+	---help---
+
 config DISP2_SUNXI_BOOT_COLORBAR
   bool "boot colorbar for disp driver(sunxi-disp2)"
   depends on DISP2_SUNXI

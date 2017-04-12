@@ -2,6 +2,7 @@
 
 static unsigned int g_device_fps[DE_NUM] = {60};
 static bool g_de_blank[DE_NUM] = {false};
+static unsigned int g_de_freq;
 
 int de_update_device_fps(unsigned int sel, u32 fps)
 {
@@ -10,6 +11,23 @@ int de_update_device_fps(unsigned int sel, u32 fps)
 	return 0;
 }
 
+/**
+ * Update clk rate of de, unit hz.
+ */
+int de_update_clk_rate(u32 rate)
+{
+	g_de_freq = rate / 1000000;
+
+	return 0;
+}
+
+/**
+ * Get clk rate of de, unit hz.
+ */
+int de_get_clk_rate(void)
+{
+	return g_de_freq * 1000000;
+}
 static int de_set_coarse(unsigned int sel, unsigned char chno, unsigned int fmt, unsigned int lcd_fps,
 						 unsigned int lcd_height, unsigned int de_freq_MHz, unsigned int ovl_w, unsigned int ovl_h,
 						 unsigned int vsu_outw, unsigned int vsu_outh, unsigned int *midyw, unsigned int *midyh,
@@ -34,7 +52,8 @@ static int de_calc_overlay_scaler_para(unsigned int screen_id, unsigned char chn
 	bool scaler_en;
 	unsigned char i,j,k,lay_en[CHN_NUM][LAYER_MAX_NUM_PER_CHN];
 	unsigned int midyw, midyh;
-	unsigned int lcd_fps = g_device_fps[screen_id], lcd_width = 1280, lcd_height = 720,de_freq_MHz = 254;
+	unsigned int lcd_fps = g_device_fps[screen_id];
+	unsigned int lcd_width = 1280, lcd_height = 720, de_freq = g_de_freq;
 	de_rect64 crop64[CHN_NUM][LAYER_MAX_NUM_PER_CHN];
 	de_rect frame[CHN_NUM][LAYER_MAX_NUM_PER_CHN];
 	static scaler_para para[CHN_NUM][LAYER_MAX_NUM_PER_CHN],cpara[VI_CHN_NUM][LAYER_MAX_NUM_PER_CHN];
@@ -128,9 +147,9 @@ static int de_calc_overlay_scaler_para(unsigned int screen_id, unsigned char chn
 						 layer[j], &bld_rect[j], &ovlw[j], &ovlh[j],
 						 0, lcd_width, lcd_height);
 
-		de_set_coarse(screen_id, j, fmt[j],lcd_fps, lcd_height, de_freq_MHz,
-					  ovlw[j], ovlh[j],bld_rect[j].w, bld_rect[j].h,
-					  &midyw, &midyh,&ovl_para[j], &ovl_cpara[j]);
+		de_set_coarse(screen_id, j, fmt[j], lcd_fps, lcd_height,
+			de_freq, ovlw[j], ovlh[j], bld_rect[j].w, bld_rect[j].h,
+			&midyw, &midyh, &ovl_para[j], &ovl_cpara[j]);
 		de_vsu_set_para(screen_id, j, scaler_en,fmt[j],midyw, midyh,
 						bld_rect[j].w, bld_rect[j].h, &ovl_para[j], &ovl_cpara[j]);
 	}

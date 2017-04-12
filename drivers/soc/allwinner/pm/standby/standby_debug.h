@@ -19,5 +19,4 @@ __u32 get_mem_status(void);
 void parse_status_code(__u32 code, __u32 index);
 void show_mem_status(void);
 
-#endif /* __STANDBY_DEBUG_ */
-
+#endif				/* __STANDBY_DEBUG_ */

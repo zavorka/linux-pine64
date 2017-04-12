@@ -5,21 +5,20 @@
  * modify base on juno.dts
  */
 /* kernel used */
-/memreserve/ 0x45000000 0x00200000; /* sun50iw1p1.dtb range       : [0x45000000~0x45200000], size = 2M */
-/memreserve/ 0x41010000 0x00010000; /* sys_config.fex range       : [0x41010000~0x41020000], size = 64K */
-/memreserve/ 0x41020000 0x00000800; /* super standby range        : [0x41020000~0x41020800], size = 2K  */
+/memreserve/ 0x40020000 0x00000800; /* super standby range        : [0x40020000~0x41020800], size = 2K  */
+/memreserve/ 0x48000000 0x01000000; /* atf                        : [0x48000000~0x49000000], size = 16M */
 /* tf used */
-/memreserve/ 0x40100000 0x00004000; /* arisc dram code space range: [0x40100000~0x40104000], size = 16K */
-/memreserve/ 0x40104000 0x00001000; /* arisc para cfg range       : [0x40104000~0x40105000], size = 4K  */
-/memreserve/ 0x40105000 0x00001000; /* arisc message pool range   : [0x40105000~0x40106000], size = 4K  */
+/memreserve/ 0x48100000 0x00004000; /* arisc dram code space range: [0x48100000~0x48104000], size = 16K */
+/memreserve/ 0x48104000 0x00001000; /* arisc para cfg range       : [0x48104000~0x48105000], size = 4K  */
+/memreserve/ 0x48105000 0x00001000; /* arisc message pool range   : [0x48105000~0x48106000], size = 4K  */
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/gpio/gpio.h>
 #include "sun50iw1p1-clk.dtsi"
 #include "sun50iw1p1-pinctrl.dtsi"
 / {
-	model = "sun50iw1p1";
-	compatible = "arm,sun50iw1p1", "arm,sun50iw1p1";
+	model = "sun50iw1";
+	compatible = "arm,sun50iw1p1";
 	interrupt-parent = <&gic>;
 	#address-cells = <2>;
 	#size-cells = <2>;
@@ -160,6 +159,12 @@
 		reg = <0x0 0x0 0x0 0x10000>;
 	};
 
+	sram_ctrl {
+		device_type = "sram_ctrl";
+		compatible = "allwinner,sram_ctrl";
+		reg = <0x0 0x01c00000 0x0 0x100>;
+	};
+
 	sram_a1 {
 		compatible = "allwinner,sram_a1";
 		reg = <0x0 0x00010000 0x0 0x8000>;
@@ -257,9 +262,9 @@
 	};
 
 	chipid: sunxi-chipid@1c14200 {
-		compatible = "sunxi,sun50i-chipid";
+		compatible = "allwinner,sunxi-chipid";
 		device_type = "chipid";
-		reg = <0x0 0x01c14200 0 0x0400>; /* chipid */
+		reg = <0x0 0x01c14200 0 0x0200>; /* chipid */
 	};
 
 	timer {
@@ -356,16 +361,16 @@
 		arisc_space {
 			compatible = "allwinner,arisc_space";
 			/* num    dst        offset     size                              */
-			space1 = <0x00040000 0x00000000 0x00014000>; /* srama2 code space */
-			space2 = <0x40100000 0x00018000 0x00004000>; /* dram code space   */
-			space3 = <0x40104000 0x00000000 0x00001000>; /* para space        */
-			space4 = <0x40105000 0x00000000 0x00001000>; /* msgpool space     */
+			space1 = <0x48040000 0x00000000 0x00014000>; /* srama2 code space */
+			space2 = <0x48100000 0x00018000 0x00004000>; /* dram code space   */
+			space3 = <0x48104000 0x00000000 0x00001000>; /* para space        */
+			space4 = <0x48105000 0x00000000 0x00001000>; /* msgpool space     */
 		};
 
 		standby_space {
 			compatible = "allwinner,standby_space";
 			/* num    dst        offset     size						*/
-			space1 = <0x41020000 0x00000000 0x00000800>; /* super standby para space        */
+			space1 = <0x40020000 0x00000000 0x00000800>; /* super standby para space        */
 		};
 
 		msgbox: msgbox@1c17000 {
@@ -423,6 +428,17 @@
 			status = "disable";
 		};
 
+		box_start_os: box_start_os0 {
+			compatible = "allwinner,box_start_os";
+			start_type = <0x0>;
+			irkey_used = <0x0>;
+			pmukey_used = <0x0>;
+			pmukey_num = <0x0>;
+			led_power = <0x0>;
+			led_state = <0x0>;
+			status = "disable";
+		};
+
 		soc_timer0: timer@1c20c00 {
 			compatible = "allwinner,sunxi-timer";
 			device_type = "timer";
@@ -439,6 +455,12 @@
 			interrupts = <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
 			gpr_offset = <0x100>;
 			gpr_len	   = <4>;
+		};
+
+		wdt: watchdog@01c20ca0 {
+			compatible = "allwinner,sun50i-wdt";
+			reg = <0x0 0x01c20ca0 0x0 0x20>;
+			interrupts = <GIC_SPI 25 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
 		ve@01c0e000 {
@@ -572,6 +594,7 @@
 			compatible          = "allwinner,sunxi-otg-manager";
 			usb_port_type       = <2>;
 			usb_detect_type     = <1>;
+			usb_detect_mode     = <0>;
 			usb_id_gpio         = <&pio PH 9 0 1 1 1>;
 			usb_det_vbus_gpio   = "axp_ctrl";
 			usb_drv_vbus_gpio   = <&axp_pio PP 3 1 1 1 1>;
@@ -660,7 +683,7 @@
 		codec:codec@0x01c22c00 {
 			compatible = "allwinner,sunxi-internal-codec";
 			reg = <0x0 0x01c22c00 0x0 0x478>,/*digital baseadress*/
-			      <0x0 0x01f015c0 0x0 0x0>;/*analog baseadress*/
+			      <0x0 0x01f015c0 0x0 0x4>;/*analog baseadress*/
 			clocks = <&clk_pll_audiox4>,<&clk_adda_com>;
 
 			pinctrl-names = "aif2-default","aif3-default","aif2-sleep","aif3-sleep";
@@ -716,6 +739,7 @@
 			signal_inversion =  <0x01>;
 			frametype =  <0x0>;
 			tdm_config =  <0x01>;
+			mclk_div = <0x0>;
 			tdm_num = <0x0>;
 			status = "okay";
 		};
@@ -738,6 +762,7 @@
 			frametype =  <0x0>;
 			tdm_config =  <0x01>;
 			tdm_num = <0x1>;
+			mclk_div = <0x0>;
 			status = "okay";
 		};
 		daudio2:daudio@0x01c22800{
@@ -975,6 +1000,8 @@
 				<GIC_SPI 89 0x0104>;/* for dsi */
 			clocks = <&clk_de>,<&clk_tcon0>,<&clk_tcon1>,
 				<&clk_lvds>,<&clk_mipidsi>;
+			boot_disp = <0>;
+			fb_base = <0>;
 
 			status = "okay";
 		};
@@ -1193,18 +1220,18 @@
 			device_type = "Vdevice";
 			pinctrl-names = "default";
 			pinctrl-0 = <&vdevice_pins_a>;
-			test-gpios = <&r_pio PL 0 1 2 3 4>;
+			test-gpios = <&pio PG 13 1 2 2 1>;
 			status = "okay";
 		};
 
 		cryptoengine: ce@1c15000 {
 			compatible = "allwinner,sunxi-ce";
+			device_name = "ce";
 			reg = <0x0 0x01c15000 0x0 0x80>, /* non-secure space */
 				  <0x0 0x01c15800 0x0 0x80>; /* secure space */
 			interrupts = <GIC_SPI 94 0xff01>, /* non-secure space */
 						 <GIC_SPI 80 0xff01>; /* secure space */
-			clock-frequency = <300000000>, /* 300MHz */
-							  <200000000>; /* 200MHz for RSA */
+			clock-frequency = <300000000>; /* 300MHz */
 			clocks = <&clk_ce>, <&clk_pll_periph0x2>;
 		};
 		di:deinterlace@0x01e00000{
@@ -1224,8 +1251,9 @@
 			interrupts = <GIC_SPI 83 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&clk_scr>, <&clk_apb2>;
 			clock-frequency = <24000000>;
-			pinctrl-names = "default";
+			pinctrl-names = "default", "sleep";
 			pinctrl-0 = <&scr_pins_a>;
+			pinctrl-1 = <&scr_pins_b>;
 			status = "okay";
 		};
 		nmi:nmi@0x01f00c00{
@@ -1262,7 +1290,7 @@
 			pmu_vbusen_func            = <1>;
 			pmu_reset                  = <0>;
 			pmu_IRQ_wakeup             = <0>;
-			pmu_hot_shutdowm           = <1>;
+			pmu_hot_shutdown           = <1>;
 			pmu_inshort                = <0>;
 			pmu_bat_shutdown_ltf       = <3200>; /* add by superm for debug */
 			pmu_bat_shutdown_htf       = <237>;  /* add by superm for debug */
@@ -1426,11 +1454,11 @@
 			interrupts = <GIC_SPI 30 IRQ_TYPE_NONE>;
 			status = "okay";
 			key_cnt = <5>;
-			key1 = <240 115>;
-			key2 = <500 114>;
-			key3 = <700 139>;
-			key4 = <890 28>;
-			key5 = <2000 102>;
+			key0 = <190 115>;
+			key1 = <390 114>;
+			key2 = <600 139>;
+			key3 = <800 28>;
+			key4 = <900 102>;
 		};
 
 		gmac0: eth@01c30000 {
@@ -1446,9 +1474,10 @@
 			phy-mode = "rgmii";
 			tx-delay = <7>;
 			rx-delay = <31>;
-			gmac_power1 = "axp81x_dldo2:2500000";
-			gmac_power2 = "axp81x_eldo2:1800000";
-			gmac_power3 = "axp81x_fldo1:1200000";
+			phy-rst;
+			gmac-power0;
+			gmac-power1;
+			gmac-power2;
 			status = "disable";
 		};
 	};

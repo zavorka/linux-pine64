@@ -29,5 +29,6 @@ obj-$(CONFIG_AT803X_PHY)	+= at803x.o
 obj-$(CONFIG_AMD_PHY)		+= amd.o
 obj-$(CONFIG_MDIO_BUS_MUX)	+= mdio-mux.o
 obj-$(CONFIG_SUNXI_EPHY)	+= sunxi-ephy.o
+obj-$(CONFIG_MDIO_SUN4I)	+= mdio-sun4i.o
 obj-$(CONFIG_MDIO_BUS_MUX_GPIO)	+= mdio-mux-gpio.o
 obj-$(CONFIG_MDIO_BUS_MUX_MMIOREG) += mdio-mux-mmioreg.o

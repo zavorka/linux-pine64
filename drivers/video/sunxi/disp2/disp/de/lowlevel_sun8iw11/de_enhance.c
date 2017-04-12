@@ -27,6 +27,8 @@ static unsigned int g_demo_enable[DE_NUM] = {0};
 static struct disp_enhance_config g_config[DE_NUM];
 unsigned int g_format[DE_NUM] = {0xff};
 unsigned int g_size_bypass[DE_NUM] = {0}; //size too small to enable vep
+static struct disp_rect g_size[DE_NUM];
+static bool g_size_change[DE_NUM];
 
 //global histogram, use for bws and ce
 unsigned int *g_hist[DE_NUM][CHN_NUM];
@@ -90,9 +92,8 @@ int de_enhance_set_format(unsigned int screen_id, unsigned int format)
 		format_change = 1;
 	}
 
-	if (format_change==1 || g_size_bypass[screen_id]==1){
+	if (format_change == 1 || g_size_change[screen_id])
 		de_enhance_apply(screen_id, &g_config[screen_id]);
-	}
 
 	return 0;
 }
@@ -200,6 +201,13 @@ int de_enhance_set_size(unsigned int screen_id, struct disp_rect *size)
 		de_fcc_set_size(screen_id, ch_id, size[ch_id].width, size[ch_id].height);
 		de_fcc_set_window(screen_id, ch_id, demo_enable, tmp_win);
 	}
+
+	if ((size->width !=  g_size[screen_id].width)
+	    || (size->height != g_size[screen_id].height)) {
+		g_size_change[screen_id] = true;
+	} else
+		g_size_change[screen_id] = false;
+	memcpy(&g_size[screen_id], size, sizeof(struct disp_rect));
 
 	if (size[0].width < ENAHNCE_MIN_WIDTH || size[0].height < ENAHNCE_MIN_HEIGHT){
 		g_size_bypass[screen_id] = 1;
@@ -309,8 +317,8 @@ int de_enhance_set_mode(unsigned int format, struct disp_enhance_config *config)
 		{
 			/* lcd normal*/
 			{//SHARP    //AUTO_CONTRAST  //AUTO_COLOR  //FC_R    //FC_G    //FC_B
-				{0x22,    0x10001,     0x21,      1,        1,        1}, /* rgb */
-				{0x11,    0x10010,     0x21,      1,        2,        1}, /* yuv */
+				{0x00,  0x00000, 0x00,  0,  0,  0}, /* rgb */
+				{0x00,  0x00000, 0x00,  0,  0,  0}, /* yuv */
 			},
 			/* hdmi normal*/
 			{//SHARP    //AUTO_CONTRAST  //AUTO_COLOR  //FC_R    //FC_G    //FC_B
@@ -333,8 +341,8 @@ int de_enhance_set_mode(unsigned int format, struct disp_enhance_config *config)
 		{
 			/* lcd soft*/
 			{//SHARP    //AUTO_CONTRAST  //AUTO_COLOR  //FC_R    //FC_G    //FC_B
-				{0x22,    0x10001,     0x21,      1,        1,        1}, /* rgb */
-				{0x11,    0x10010,     0x21,      1,        2,        1}, /* yuv */
+				{0x00,  0x00000, 0x00,  0,  0,  0}, /* rgb */
+				{0x00,  0x00000, 0x00,  0,  0,  0}, /* yuv */
 			},
 			/* hdmi soft*/
 			{//SHARP    //AUTO_CONTRAST  //AUTO_COLOR  //FC_R    //FC_G    //FC_B

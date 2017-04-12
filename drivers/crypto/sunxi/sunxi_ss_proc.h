@@ -25,7 +25,8 @@ int ss_aes_one_req(sunxi_ss_t *sss, struct ablkcipher_request *req);
 
 int ss_rng_get_random(struct crypto_rng *tfm, u8 *rdata, u32 dlen, u32 trng);
 
-int ss_hash_start(ss_hash_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, int len);
+u32 ss_hash_start(ss_hash_ctx_t *ctx,
+		ss_aes_req_ctx_t *req_ctx, u32 len, u32 last);
 
 irqreturn_t sunxi_ss_irq_handler(int irq, void *dev_id);
 

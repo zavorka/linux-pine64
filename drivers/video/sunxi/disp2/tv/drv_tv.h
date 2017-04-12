@@ -44,8 +44,8 @@ enum hpd_status
 	STATUE_OPEN  = 1,
 };
 
-#define    SCREEN_COUNT    2
-#define    DAC_COUNT       4
+#define    SCREEN_COUNT    TVE_DEVICE_NUM
+#define    DAC_COUNT       TVE_DAC_NUM
 #define    DAC_INVALID_SOURCE 0xff
 
 int tv_open(struct inode *inode, struct file *file);
@@ -55,9 +55,6 @@ ssize_t tv_write(struct file *file, const char __user *buf, size_t count, loff_t
 int tv_mmap(struct file *file, struct vm_area_struct * vma);
 long tv_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
 
-extern s32 tv_init(u32 sel, struct platform_device *pdev);
-extern s32 tv_exit(void);
-
 //extern interface exported by display driver
 extern s32 disp_tv_register(struct disp_tv_func * func);
 extern unsigned int disp_boot_para_parse(const char *name);
@@ -65,30 +62,43 @@ extern unsigned int disp_boot_para_parse(const char *name);
 struct tv_screen_t
 {
 	enum  disp_tv_mode      tv_mode;
-	void __iomem *          base_address;
+	void __iomem *base_addr;
 	u32                     sid;
 	u32                     cali_offset;
 	u32                     enable;
+	u32			dac_no[DAC_COUNT];
+	u32			dac_type[DAC_COUNT];
+	u32			dac_num;
+	enum disp_tv_dac_source dac_source;
 	struct clk*		clk;
 	bool			suspend;
 	bool			used;
+	struct mutex mlock;
 };
 
 struct tv_info_t
 {
-	struct device           *dev;
-	enum disp_tv_dac_source dac_source[DAC_COUNT];
-	struct tv_screen_t      screen[SCREEN_COUNT];
-	struct work_struct      hpd_work;
-	struct clk*		clk;
-	struct clk*		clk_parent;
-	void __iomem*		base_address;
-	u32			tv_number;
+	struct device *dev;
+	struct tv_screen_t screen[SCREEN_COUNT];
+	struct work_struct hpd_work;
+	struct clk *clk;
+	struct clk *clk_parent;
+	void __iomem *base_addr;
+	u32 tv_number;
 };
 
 extern struct tv_info_t g_tv_info;
 
-s32 tv_init(u32 sel, struct platform_device *pdev);
+static inline bool is_vga_mode(enum disp_tv_mode mode)
+{
+	if ((mode >= DISP_VGA_MOD_640_480P_60)
+		&& (mode <= DISP_VGA_MOD_1920_1200P_60))
+		return true;
+
+	return false;
+}
+
+s32 tv_init(struct platform_device *pdev);
 s32 tv_exit(void);
 s32 tv_get_mode(u32 sel);
 s32 tv_set_mode(u32 sel, enum disp_tv_mode tv_mod);
@@ -99,7 +109,7 @@ s32 tv_disable(u32 sel);
 s32 tv_suspend(u32 sel);
 s32 tv_resume(u32 sel);
 s32 tv_mode_support(u32 sel, enum disp_tv_mode mode);
-void tv_report_hpd_work(void);
+void tv_report_hpd_work(u32 sel, u32 hpd);
 s32 tv_detect_thread(void *parg);
 s32 tv_detect_enable(u32 sel);
 s32 tv_detect_disable(u32 sel);

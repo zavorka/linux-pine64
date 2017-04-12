@@ -101,7 +101,13 @@ int vfe_set_mclk(struct v4l2_subdev *sd, enum on_off on_off)
 	switch(on_off) {
 	case ON:
 		vfe_print("mclk on\n");
-		dev->gpio[MCLK_PIN].mul_sel = 2; //set mclk PIN to MCLK func.
+#if defined CONFIG_ARCH_SUN8IW10P1
+		dev->gpio[MCLK_PIN].mul_sel = 4; /*set mclk PIN to MCLK func.*/
+#elif defined CONFIG_ARCH_SUN8IW11P1
+		dev->gpio[MCLK_PIN].mul_sel = 3; /*set mclk PIN to MCLK func.*/
+#else
+		dev->gpio[MCLK_PIN].mul_sel = 2; /*set mclk PIN to MCLK func.*/
+#endif
 		os_gpio_set(&dev->gpio[MCLK_PIN], 1);
 		usleep_range(10000,12000);
 		if(csi->clock[CSI_MASTER_CLK]) {

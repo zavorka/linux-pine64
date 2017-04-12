@@ -4,10 +4,12 @@
 #include "disp_features.h"
 #if defined(CONFIG_ARCH_SUN50IW1P1)
 #include "./lowlevel_sun50iw1/disp_al.h"
+#elif defined(CONFIG_ARCH_SUN50IW2)
+#include "./lowlevel_v2x/disp_al.h"
 #elif defined(CONFIG_ARCH_SUN8IW10)
 #include "./lowlevel_sun8iw10/disp_al.h"
 #elif defined(CONFIG_ARCH_SUN8IW11)
-#include "./lowlevel_sun8iw11/disp_al.h"
+#include "./lowlevel_v2x/disp_al.h"
 #else
 #error "undefined platform!!!"
 #endif
@@ -42,7 +44,7 @@ extern s32 disp_init_capture(disp_bsp_init_para *para);
 
 extern s32 disp_init_eink(disp_bsp_init_para * para);
 extern s32 write_edma(struct disp_eink_manager*  manager);
-s32 disp_init_format_convert_manager(disp_bsp_init_para * para);
+extern s32 disp_init_format_convert_manager(disp_bsp_init_para *para);
 
 extern struct disp_eink_manager* disp_get_eink_manager(unsigned int disp);
 

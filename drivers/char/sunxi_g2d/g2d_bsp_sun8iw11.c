@@ -685,7 +685,8 @@ __s32 mixer_fillrectangle(g2d_fillrect *para){
 	return result;
 }
 
-__s32 mixer_blt(g2d_blt *para){
+__s32 mixer_blt(g2d_blt *para, enum g2d_scan_order scan_order)
+{
 	__u32 bppnum = 0;
 	__u32 reg_val = 0;
 	__u64 addr_val;
@@ -875,6 +876,8 @@ if((para->flag & G2D_BLT_PIXEL_ALPHA)||(para->flag & G2D_BLT_PLANE_ALPHA)||(para
 	if((para->flag & G2D_BLT_PIXEL_ALPHA)|(para->flag & G2D_BLT_PLANE_ALPHA)|(para->flag & G2D_BLT_MULTI_ALPHA)|(para->flag & G2D_BLT_SRC_COLORKEY)|(para->flag & G2D_BLT_DST_COLORKEY))
 		write_wvalue(G2D_OALPHA_CONTROL_REG, 0x80);/* 0x40: A2 area keep the dst alpha,0x80: A2 area keep the src+dst(1-src) alpha value */
 	mixer_premultiply_set(para->flag);
+	/*scan order*/
+	write_wvalue(G2D_SCAN_ORDER_REG, (scan_order & 0x3) << 8);
 
 	/* start */
 	write_wvalue(G2D_CONTROL_REG, 0x0);
@@ -884,7 +887,8 @@ if((para->flag & G2D_BLT_PIXEL_ALPHA)||(para->flag & G2D_BLT_PLANE_ALPHA)||(para
 	return result;
 }
 
-__s32 mixer_stretchblt(g2d_stretchblt *para){
+__s32 mixer_stretchblt(g2d_stretchblt *para, enum g2d_scan_order scan_order)
+{
 	__u32 bppnum = 0;
 	__u32 reg_val = 0;
 	__u32 reg_tmp = 0;
@@ -1278,6 +1282,8 @@ __s32 mixer_stretchblt(g2d_stretchblt *para){
 		}
 		if((para->dst_image.format>0x11)&&(para->dst_image.format<0x1D))write_wvalue(G2D_CSC2_CONTROL_REG, 0x1);
 
+		/*scan order*/
+		write_wvalue(G2D_SCAN_ORDER_REG, (scan_order & 0x3) << 8);
 		/* start */
 		write_wvalue(G2D_CONTROL_REG, 0x0);
 		write_wvalue(G2D_CONTROL_REG, 0x303);
@@ -1404,6 +1410,9 @@ __s32 mixer_stretchblt(g2d_stretchblt *para){
 			write_wvalue(G2D_CSC2_CONTROL_REG, 0x1);
 		}
 		if((para->dst_image.format>0x11)&&(para->dst_image.format<0x1D))write_wvalue(G2D_CSC2_CONTROL_REG, 0x1);
+
+		/*scan order*/
+		write_wvalue(G2D_SCAN_ORDER_REG, (scan_order & 0x3) << 8);
 
 		/* start */
 		write_wvalue(G2D_CONTROL_REG, 0x0);

@@ -7,9 +7,10 @@
  *
  */
 #include "disp_eink.h"
-#ifdef SUPPORT_EINK
 
+#ifdef SUPPORT_EINK
 #include <linux/sched.h>
+
 //#define __EINK_DEBUG__
 //#define __EINK_TEST__
 #define MAX_EINK_ENGINE 1
@@ -47,24 +48,27 @@ static int emcount=0;
 static int qcount=0;
 #endif
 
-static struct disp_eink_manager* eink_manager;
-static struct eink_private* eink_private_data;
-static int is_empty = 0;
-static unsigned char index_finish_flag = 0;
-static volatile int diplay_finish_flag=1;
+static struct disp_eink_manager *eink_manager;
+static struct eink_private *eink_private_data;
+static int suspend;
+static unsigned char index_finish_flag;
+static int diplay_pre_finish_flag;
+int diplay_finish_flag = 1;
 
-
+extern s32 tcon0_simple_close(u32 sel);
+extern s32 tcon0_simple_open(u32 sel);
+extern void *disp_malloc(u32 num_bytes, void *phy_addr);
+extern void  disp_free(void *virt_addr, void *phy_addr, u32 num_bytes);
 extern struct format_manager *disp_get_format_manager(unsigned int id);
-static int write_edma_once(struct disp_eink_manager*  manager);
-static int write_edma_second(struct disp_eink_manager*  manager);
 
-struct disp_eink_manager* disp_get_eink_manager(unsigned int disp)
+static int __write_edma_first(struct disp_eink_manager *manager);
+static int __write_edma_second(struct disp_eink_manager *manager);
+static int __write_edma(struct disp_eink_manager *manager);
+
+struct disp_eink_manager *disp_get_eink_manager(unsigned int disp)
 {
 	return &eink_manager[disp];
 }
-
-
-/*  SD FUNCTION:*/
 
 unsigned int get_temperature(struct disp_eink_manager *manager)
 {
@@ -79,31 +83,17 @@ unsigned int get_temperature(struct disp_eink_manager *manager)
 	return temp;
 }
 
-struct eink_private * eink_get_priv(struct disp_eink_manager* manager)
+struct eink_private *eink_get_priv(struct disp_eink_manager *manager)
 {
 	return (manager != NULL) ? (&eink_private_data[manager->disp] ): NULL;
 }
 
-
-int eink_clk_init(struct disp_eink_manager* manager)
+int __eink_clk_init(struct disp_eink_manager *manager)
 {
 	return 0;
 }
 
-int eink_clk_enable(struct disp_eink_manager* manager)
-{
-	int ret = 0;
-
-	if (manager->private_data->eink_clk)
-		ret = clk_prepare_enable(manager->private_data->eink_clk);
-
-	if (manager->private_data->edma_clk)
-	ret = clk_prepare_enable(manager->private_data->edma_clk);
-
-	return ret;
-}
-
-int eink_clk_disable(struct disp_eink_manager* manager)
+int __eink_clk_disable(struct disp_eink_manager *manager)
 {
 	int ret = 0;
 
@@ -116,28 +106,41 @@ int eink_clk_disable(struct disp_eink_manager* manager)
 	return ret;
 }
 
-
-void clear_wavedata_buffer(struct wavedata_queue* queue)
+int __eink_clk_enable(struct disp_eink_manager *manager)
 {
+	int ret = 0;
+
+	if (manager->private_data->eink_clk)
+		ret = clk_prepare_enable(manager->private_data->eink_clk);
+
+	if (manager->private_data->edma_clk)
+		ret = clk_prepare_enable(manager->private_data->edma_clk);
+
+	return ret;
+}
+
+void __clear_wavedata_buffer(struct wavedata_queue *queue)
+{
+	int i = 0;
 	unsigned long flags = 0;
+
 	spin_lock_irqsave(&queue->slock, flags);
+
 	queue->head = 0;
 	queue->tail = 0;
+	for (i = 0; i < WAVE_DATA_BUF_NUM; i++)
+		queue->wavedata_used[i] = false;
+
 	spin_unlock_irqrestore(&queue->slock, flags);
 }
 
 #ifdef __EINK_TEST__
-
-extern s32 tcon0_close_debug(u32 sel);
-extern s32 tcon0_open_debug(u32 sel);
-
-void eink_clear_wave_data(struct disp_eink_manager *manager, int overlap)
+void __eink_clear_wave_data(struct disp_eink_manager *manager, int overlap)
 {
-	clear_wavedata_buffer(&(manager->private_data->wavedata_ring_buffer));
+	__clear_wavedata_buffer(&(manager->private_data->wavedata_ring_buffer));
 }
 
-
-int eink_debug_decode(struct disp_eink_manager*  manager, int enable)
+int __eink_debug_decode(struct disp_eink_manager *manager, int enable)
 {
 	int ret = 0;
 
@@ -150,8 +153,7 @@ int eink_debug_decode(struct disp_eink_manager*  manager, int enable)
 	return ret;
 }
 
-
-static bool is_wavedata_buffer_full(struct wavedata_queue* queue)
+static bool __is_wavedata_buffer_full(struct wavedata_queue *queue)
 {
 	bool ret;
 	unsigned long flags = 0;
@@ -165,7 +167,7 @@ static bool is_wavedata_buffer_full(struct wavedata_queue* queue)
 
 }
 
-static bool is_wavedata_buffer_empty(struct wavedata_queue* queue)
+static bool __is_wavedata_buffer_empty(struct wavedata_queue *queue)
 {
 	bool ret;
 	unsigned long flags = 0;
@@ -178,11 +180,9 @@ static bool is_wavedata_buffer_empty(struct wavedata_queue* queue)
 	return ret;
 
 }
-
-
 #endif/*__EINK_TEST__*/
 
-static void eink_get_sys_config(u32 disp, struct eink_init_param* eink_param)
+static void __eink_get_sys_config(u32 disp, struct eink_init_param *eink_param)
 {
 
 	int  value = 1;
@@ -243,7 +243,7 @@ static void eink_get_sys_config(u32 disp, struct eink_init_param* eink_param)
 		__wrn("get eink path fail!\n");
 }
 
-static int  eink_interrupt_proc(int irq, void* parg)
+static int __eink_interrupt_proc(int irq, void *parg)
 {
 	struct disp_eink_manager* manager;
 	unsigned int disp;
@@ -254,15 +254,13 @@ static int  eink_interrupt_proc(int irq, void* parg)
 		return DISP_IRQ_RETURN;
 
 	disp = manager->disp;
-
 	ret = disp_al_eink_irq_query(manager->disp);
 
-	/* query irq, 0 is decode, 1is calculate index.*/
+	/* query irq, 0 is decode, 1 is calculate index. */
 	if (ret == 1) {
 		index_finish_flag = 1;
 		goto out;
-	}
-	else if (ret == 0) {
+	} else if (ret == 0) {
 		schedule_work(&manager->decode_work);
 		goto out;
 	}
@@ -272,9 +270,11 @@ out:
 	return DISP_IRQ_RETURN;
 }
 
-/* return a physic address for tcon used to display wavedata,then dequeue wavedata buffer. */
-
-static void* request_buffer_for_display(struct wavedata_queue* queue)
+/* return a physic address for tcon
+ * used to display wavedata,then
+ * dequeue wavedata buffer.
+*/
+static void *__request_buffer_for_display(struct wavedata_queue *queue)
 {
 	void * ret;
 	unsigned long flags = 0;
@@ -292,24 +292,26 @@ static void* request_buffer_for_display(struct wavedata_queue* queue)
 
 out:
 
-	/*__debug("queue.tail=%d, queue.head=%d, ret = 0x%x\n",queue->tail, queue->head, ret);*/
 	spin_unlock_irqrestore(&queue->slock, flags);
 
 	return ret;
 }
 
-/* return a physic address for eink engine used to decode one frame, then queue wavedata buffer. */
-static void*  request_buffer_for_decode(struct wavedata_queue* queue)
+/* return a physic address for eink
+*  engine used to decode one frame,
+*  then queue wavedata buffer.
+*/
+static void *__request_buffer_for_decode(struct wavedata_queue *queue)
 {
 	void * ret;
 	unsigned long flags = 0;
-	bool is_wavedata_buf_full;
+	bool is_wavedata_buf_full, is_used;
 
 	spin_lock_irqsave(&queue->slock, flags);
 
 	is_wavedata_buf_full = ((queue->head + 1)%WAVE_DATA_BUF_NUM == queue->tail) ? true : false;
-
-	if (is_wavedata_buf_full) {
+	is_used = queue->wavedata_used[queue->head];
+	if (is_wavedata_buf_full || is_used) {
 		ret =  NULL;
 		goto out;
 	}
@@ -318,14 +320,12 @@ static void*  request_buffer_for_decode(struct wavedata_queue* queue)
 
 out:
 
-	/*__debug("queue.tail=%d, queue.head=%d, ret = 0x%x\n",queue->tail, queue->head, ret);*/
-
 	spin_unlock_irqrestore(&queue->slock, flags);
 
 	return ret;
 }
 
-static s32 queue_wavedata_buffer( struct wavedata_queue* queue)
+static s32 __queue_wavedata_buffer(struct wavedata_queue *queue)
 {
 	int ret = 0;
 	unsigned long flags = 0;
@@ -339,20 +339,22 @@ static s32 queue_wavedata_buffer( struct wavedata_queue* queue)
 		ret =  -EBUSY;
 		goto out;
 	}
+	/* set used status true */
+	queue->wavedata_used[queue->head] = true;
+
 	queue->head = (queue->head + 1) % WAVE_DATA_BUF_NUM;
 
 out:
 
 #ifdef __EINK_TEST__
 	qcount++;
-	__debug("queue.tail=%d, queue.head=%d\n",queue->tail, queue->head);
 #endif
 	spin_unlock_irqrestore(&queue->slock, flags);
 
 	return ret;
 }
 
-static s32 dequeue_wavedata_buffer(struct wavedata_queue* queue)
+static s32 __dequeue_wavedata_buffer(struct wavedata_queue *queue)
 {
 	int ret = 0;
 	unsigned long flags = 0;
@@ -372,21 +374,40 @@ out:
 
 #ifdef __EINK_TEST__
 	decount++;
-	__debug("queue.tail=%d, queue.head=%d\n",queue->tail, queue->head);
 #endif
 	spin_unlock_irqrestore(&queue->slock, flags);
 
 	return ret;
 }
 
-static s32 eink_calculate_index_data(struct disp_eink_manager* manager)
+static s32 __clean_used_wavedata_buffer(struct wavedata_queue *queue)
+{
+	int ret = 0;
+	unsigned long flags = 0;
+
+	spin_lock_irqsave(&queue->slock, flags);
+
+	if (queue->tail >= 2) {
+		queue->wavedata_used[queue->tail - 2] = false;
+	} else {
+		queue->wavedata_used[queue->tail + WAVE_DATA_BUF_NUM - 2] = false;
+	}
+
+	spin_unlock_irqrestore(&queue->slock, flags);
+
+	return ret;
+}
+
+static int index_err;
+static s32 eink_calculate_index_data(struct disp_eink_manager *manager)
 {
 	unsigned long flags = 0;
 	struct eink_8bpp_image* last_image;
 	struct eink_8bpp_image* current_image;
-	unsigned int old_index_data_paddr = 0;
-	unsigned int new_index_data_paddr = 0;
+	unsigned long old_index_data_paddr = 0;
+	unsigned long new_index_data_paddr = 0;
 	unsigned int new_index = 0, old_index = 0;
+	unsigned int t_new_index = 0, t_old_index = 0;
 	int count = 0;
 
 	last_image = manager->buffer_mgr->get_last_image(manager->buffer_mgr);
@@ -399,12 +420,12 @@ static s32 eink_calculate_index_data(struct disp_eink_manager* manager)
 
 	spin_lock_irqsave(&manager->private_data->slock, flags);
 
-	new_index = manager->private_data->new_index;
-	old_index = manager->private_data->old_index;
+	t_new_index = new_index = manager->private_data->new_index;
+	t_old_index = old_index = manager->private_data->old_index;
 
 	if (new_index > 1 || old_index > 1 || new_index != old_index) {
-		__wrn("temp_index larger then 1,something is wrong! new_index=%d,old_index=%d\n",
-				new_index, old_index);
+		__wrn("index larger then 1,new_index=%d,old_index=%d\n",
+			new_index, old_index);
 		spin_unlock_irqrestore(&manager->private_data->slock, flags);
 		return -EINVAL;
 	}
@@ -415,20 +436,26 @@ static s32 eink_calculate_index_data(struct disp_eink_manager* manager)
 	old_index = manager->private_data->old_index;
 	new_index = manager->private_data->new_index;
 
-	old_index_data_paddr = manager->private_data->index_paddr[old_index];
-	new_index_data_paddr = manager->private_data->index_paddr[new_index];
+	old_index_data_paddr = (unsigned long)manager->private_data->index_paddr[old_index];
+	new_index_data_paddr = (unsigned long)manager->private_data->index_paddr[new_index];
 
-	/*__debug("new inde=%d,old_index=%d, old_index_data_paddr=%x, new_index_data_paddr=%x\n",
-		manager->private_data->new_index,manager->private_data->old_index, old_index_data_paddr, new_index_data_paddr);
-	*/
+	__debug("new inde=%d,old_index=%d, old_index_data_paddr=%p, new_index_data_paddr=%p\n",
+		manager->private_data->new_index,
+		manager->private_data->old_index,
+		(void *)old_index_data_paddr,
+		(void *)new_index_data_paddr);
+
 	spin_unlock_irqrestore(&manager->private_data->slock, flags);
 
 #ifdef EINK_FLUSH_TIME_TEST
 	do_gettimeofday(&index_hard_timer);
 #endif
 
-	disp_al_eink_start_calculate_index(manager->disp, old_index_data_paddr,
-					new_index_data_paddr, last_image, current_image);
+	disp_al_eink_start_calculate_index(manager->disp,
+					old_index_data_paddr,
+					new_index_data_paddr,
+					last_image,
+					current_image);
 
 	/* check hardware status,if calculate over, then continue,
 	*  otherwise wait for status,if timeout, throw warning and quit.
@@ -436,27 +463,41 @@ static s32 eink_calculate_index_data(struct disp_eink_manager* manager)
 
 	while((1 != index_finish_flag) && (count < 200)) {
 		count++;
-		msleep(1);//modify for test time.
+
+		/* it may fix by different param by hardware.
+		 * if too less,the first frame index calc err.
+		 * at this time, no use msleep.
+		*/
+		udelay(300);
 	}
 
 	if ((count >= 200) && (1 != index_finish_flag)) {
 		__wrn("calculate index data is wrong!\n");
+
+		spin_lock_irqsave(&manager->private_data->slock, flags);
+		manager->private_data->new_index = t_new_index;
+		manager->private_data->old_index = t_old_index;
+		spin_unlock_irqrestore(&manager->private_data->slock, flags);
+		eink_irq_query_index();
+		index_finish_flag = 0;
+		index_err = 1;
 		return -EBUSY;
 	}
-
+	index_err = 0;
 	index_finish_flag = 0;
-
 	if (current_image->window_calc_enable)
 		disp_al_get_update_area(manager->disp, &current_image->update_area);
 
 #ifdef __EINK_TEST__
-	__debug("calc en=%d\n", current_image->window_calc_enable);
+	__debug("calc en=%d, flash mode = %d\n", current_image->window_calc_enable, current_image->flash_mode);
 	__debug("xtop=%d,ytop=%d,xbot=%d,ybot=%d\n",
-			current_image->update_area.x_top, current_image->update_area.y_top,
-			current_image->update_area.x_bottom, current_image->update_area.y_bottom);
+		current_image->update_area.x_top, current_image->update_area.y_top,
+		current_image->update_area.x_bottom, current_image->update_area.y_bottom);
 #endif
 
-	/*calculate index sucess, then switch the index buffer,set index fresh flag */
+	/* if calculate index sucess, then switch the
+	 * index double buffer,set index fresh flag.
+	*/
 	spin_lock_irqsave(&manager->private_data->slock, flags);
 
 	manager->private_data->index_fresh = true;
@@ -474,7 +515,7 @@ static s32 eink_calculate_index_data(struct disp_eink_manager* manager)
 
 }
 
-static int start_decode(struct disp_eink_manager* manager, unsigned int wavedata_paddr, unsigned int index_paddr)
+static int start_decode(struct disp_eink_manager *manager, unsigned long wavedata_paddr, unsigned long index_paddr)
 {
 	struct eink_private *data;
 	struct eink_init_param	param;
@@ -482,14 +523,12 @@ static int start_decode(struct disp_eink_manager* manager, unsigned int wavedata
 
 	data = eink_get_priv(manager);
 	memcpy((void*)&param, (void*)&data->param, sizeof(struct eink_init_param));
-
 #ifdef EINK_FLUSH_TIME_TEST
 	if (decode_t==0) {
 		do_gettimeofday(&start_decode_timer);
 		t3_1 = (start_decode_timer.tv_sec - flush_start_timer.tv_sec) * 1000000 + (start_decode_timer.tv_usec - flush_start_timer.tv_usec);
 	}
 #endif
-
 	ret = disp_al_eink_start_decode(manager->disp, index_paddr, wavedata_paddr, &param);
 
 #ifdef EINK_FLUSH_TIME_TEST
@@ -502,10 +541,9 @@ static int start_decode(struct disp_eink_manager* manager, unsigned int wavedata
 	return ret;
 }
 
-void clear_wavedata_buffer(struct wavedata_queue* queue);
+static int current_frame;
 
-
-int eink_display_one_frame(struct disp_eink_manager* manager)
+int eink_display_one_frame(struct disp_eink_manager *manager)
 {
 	unsigned long flags = 0;
 	int ret =0;
@@ -516,14 +554,13 @@ int eink_display_one_frame(struct disp_eink_manager* manager)
 
 	manager->private_data->fresh_frame_index++;
 
-	index = manager->private_data->fresh_frame_index;//test debug
+	index = manager->private_data->fresh_frame_index;
 
 	if (manager->private_data->fresh_frame_index == (manager->private_data->total_frame)) {
 
 		manager->private_data->fresh_frame_index = 0;
-		//manager->private_data->total_frame = 0;
-		clear_wavedata_buffer(&(manager->private_data->wavedata_ring_buffer));
-		//tcon0_close_debug(0);
+		/* manager->private_data->total_frame = 0; */
+		__clear_wavedata_buffer(&(manager->private_data->wavedata_ring_buffer));
 
 #ifdef __EINK_TEST__
 
@@ -533,35 +570,34 @@ int eink_display_one_frame(struct disp_eink_manager* manager)
 		tail = manager->private_data->wavedata_ring_buffer.tail;
 		head = manager->private_data->wavedata_ring_buffer.head;
 		spin_unlock_irqrestore(&manager->private_data->wavedata_ring_buffer.slock, flags1);
-		__debug("fin:tai=%d,hed=%d,idx=%d,dc=%d,qc=%d,ec=%d,tf=%d\n",tail, head,index,decount,qcount,emcount, manager->private_data->total_frame);
+		__debug("<2>fin:tai=%d,hed=%d,idx=%d,dc=%d,qc=%d,ec=%d,tf=%d\n",
+			tail, head, index, decount, qcount, emcount,
+			manager->private_data->total_frame);
 		decount=wacount=emcount=qcount=0;
 #endif
+		current_frame = 0;
 
-		diplay_finish_flag = 1;
-		plcd = disp_device_find(0, DISP_OUTPUT_TYPE_LCD);
+		/* __eink_clk_disable(manager); */
+		diplay_pre_finish_flag = 1;
+		plcd = disp_device_find(manager->disp, DISP_OUTPUT_TYPE_LCD);
 		schedule_work(&plcd->close_eink_panel_work);
 
 #ifdef EINK_FLUSH_TIME_TEST
 		do_gettimeofday(&flush_end_timer);
 		t4 = (flush_end_timer.tv_sec - open_tcon_timer.tv_sec) * 1000000 + (flush_end_timer.tv_usec - open_tcon_timer.tv_usec);
-		printk("us:t1 = %u, t2 = %u, t2_1 = %u, t2_2 = %u,t3 = %u, t4 = %u\n",t1, t2, t2_1, t2_2, t3, t4);
+		__debug("us:t1 = %u, t2 = %u, t2_1 = %u, t2_2 = %u,t3 = %u, t4 = %u\n",
+			t1, t2, t2_1, t2_2, t3, t4);
+		__debug("us:t3_1 = %u, t3_2 = %u, t3_3 = %u\n", t3_1, t3_2, t3_3);
+		__debug("us:t3_f1 = %u, t3_f2 = %u, t3_f3 = %u\n", t3_f3[0], t3_f3[1], t3_f3[2]);
+		__debug("us:lcd1=%u,lcd2=%u,lcd3=%u,lcd4=%u,lcd_t5=%u,lcd_po=%u,lcd_pin=%u,lcd_tcon=%u\n",
+			lcd_t1, lcd_t2, lcd_t3, lcd_t4, lcd_t5, lcd_po, lcd_pin, lcd_tcon);
 
-		printk("us:t3_1 = %u, t3_2 = %u, t3_3 = %u\n",t3_1, t3_2, t3_3);
-
-		printk("us:t3_f1 = %u, t3_f2 = %u, t3_f3 = %u\n",t3_f3[0], t3_f3[1], t3_f3[2]);
-		printk("us:lcd1=%u,lcd2=%u,lcd3=%u,lcd4=%u,lcd_t5=%u,lcd_po=%u,lcd_pin=%u,lcd_tcon=%u\n",
-			lcd_t1, lcd_t2, lcd_t3, lcd_t4,lcd_t5,lcd_po,lcd_pin,lcd_tcon);
 		t1=t2=t3 =t4=t3_1=t3_2=t3_3=t3_f3[0]=t3_f3[1]=t3_f3[2]=0;
 		decode_task_t = 0;
 		decode_t = 0;
 #endif
-
-	}
-	else if (manager->private_data->fresh_frame_index ==
-				(manager->private_data->total_frame - 1))
-	{
-		/*do nothing*/
-	} else {
+	} else if (manager->private_data->fresh_frame_index <
+			(manager->private_data->total_frame - 1)) {
 		tasklet_schedule(&manager->sync_tasklet);
 	}
 
@@ -578,9 +614,13 @@ static int eink_decode_finish(struct disp_eink_manager* manager)
 	spin_lock_irqsave(&manager->private_data->slock, flags);
 
 	if (manager->private_data->total_frame ==
-			manager->private_data->decode_frame_index)
+		manager->private_data->decode_frame_index)
 	{
-		//__debug("decode finish!\n");
+		__debug("decode finish!,tot=%d, frame=%d, fresh_frame=%d.\n",
+			manager->private_data->total_frame,
+			manager->private_data->decode_frame_index,
+			manager->private_data->fresh_frame_index);
+
 		manager->private_data->decode_frame_index = 0;
 		ret = 1;
 		goto out;
@@ -588,27 +628,29 @@ static int eink_decode_finish(struct disp_eink_manager* manager)
 
 out:
 	spin_unlock_irqrestore(&manager->private_data->slock, flags);
-	//__debug("frame_index=%d, total_index=%d\n",manager->private_data->decode_frame_index, manager->private_data->total_frame);
+	__debug("frame_index=%d, total_index=%d\n",
+		 manager->private_data->decode_frame_index,
+		 manager->private_data->total_frame);
+
 	return ret;
 }
 
-void sync_task(unsigned long disp)
+void __sync_task(unsigned long disp)
 {
-	struct disp_eink_manager* manager;
+	struct disp_eink_manager *manager;
 	int cur_line = 0;
 	static int start_delay = 0;
 
-	start_delay = disp_al_lcd_get_start_delay(0,0);
-	manager = disp_get_eink_manager((unsigned int)0);
+	start_delay = disp_al_lcd_get_start_delay(disp, NULL);
+	manager = disp_get_eink_manager((unsigned int)disp);
 
 	manager->tcon_flag = 0;
-	cur_line = disp_al_lcd_get_cur_line(0,0);
+	cur_line = disp_al_lcd_get_cur_line(disp, NULL);
+	__clean_used_wavedata_buffer(&manager->private_data->wavedata_ring_buffer);
 
-	while (cur_line < start_delay) {
-		cur_line = disp_al_lcd_get_cur_line(0,0);
-	}
-	write_edma(manager);
-
+	while (cur_line < start_delay && !diplay_pre_finish_flag)
+		cur_line = disp_al_lcd_get_cur_line(disp, NULL);
+	__write_edma(manager);
 }
 
 //#define DEBUG_CHANGE_DATA
@@ -620,18 +662,19 @@ static u32 *decode_virt_addr = NULL;
 #define END_OFFSET  157074		//(609*258-44 - 4)
 #endif
 
-void eink_decode_task(struct work_struct *work)//(unsigned long parg)
+void eink_decode_task(struct work_struct *work)
 {
 	struct disp_eink_manager* manager;
 	bool image_buffer_empty;
 	unsigned int temperature;
 	int insert = 0;
 	unsigned long flags = 0;
-	unsigned int index_buf_paddr = 0, wavedata_paddr = 0;
+	unsigned long index_buf_paddr = 0, wavedata_paddr = 0;
 	unsigned int tframes = 0;
 	unsigned int new_index;
 	int frame = 0;
 	int count = 0;
+	static int first = 1;
 
 #ifdef EINK_FLUSH_TIME_TEST
 	if (decode_task_t <= 2) {
@@ -643,33 +686,46 @@ void eink_decode_task(struct work_struct *work)//(unsigned long parg)
 
 	manager = disp_get_eink_manager((unsigned int)0);
 	temperature = get_temperature(manager);
-	queue_wavedata_buffer(&manager->private_data->wavedata_ring_buffer);
+	__queue_wavedata_buffer(&manager->private_data->wavedata_ring_buffer);
 	insert  = manager->pipeline_mgr->update_pipeline_list(manager->pipeline_mgr, temperature, &tframes);
-
 
 	spin_lock_irqsave(&manager->private_data->slock, flags);
 
-	if(insert == 1) {
-		manager->private_data->total_frame += tframes;
-		//__debug("add .total frame:%d\n",manager->private_data->total_frame);
-	}
-
 	frame = manager->private_data->decode_frame_index++;
+	if(insert == 1) {
+		unsigned int need_frames = 0;
+
+		need_frames = manager->private_data->total_frame -
+				manager->private_data->decode_frame_index;
+
+		if (need_frames <=  tframes) {
+			manager->private_data->total_frame =
+			tframes + manager->private_data->decode_frame_index;
+			__debug("need = %d, totoal=%d\n", need_frames,
+				manager->private_data->total_frame);
+		}
+	}
 
 	spin_unlock_irqrestore(&manager->private_data->slock, flags);
 
 	if (frame == 2) {
 		struct disp_device*  plcd = NULL;
 
-		write_edma_once(manager);
-
+		__write_edma_first(manager);
 #ifdef EINK_FLUSH_TIME_TEST
 		do_gettimeofday(&en_lcd);
 		t3_2 = (en_lcd.tv_sec - start_decode_timer.tv_sec) * 1000000 + (en_lcd.tv_usec - start_decode_timer.tv_usec);
 #endif
+		/* use lcd_enable now, reserve lcd simple open method. */
 
-		plcd = disp_device_find(0, DISP_OUTPUT_TYPE_LCD);
-		plcd->enable(plcd);
+		plcd = disp_device_find(manager->disp, DISP_OUTPUT_TYPE_LCD);
+		if (first) {
+			diplay_pre_finish_flag = 0;
+			plcd->enable(plcd);
+			/* first = 0; */
+		} else {
+			tcon0_simple_open(0);
+		}
 
 #ifdef EINK_FLUSH_TIME_TEST
 		do_gettimeofday(&dis_lcd);
@@ -677,10 +733,10 @@ void eink_decode_task(struct work_struct *work)//(unsigned long parg)
 		t3 = (dis_lcd.tv_sec - flush_start_timer.tv_sec) * 1000000 + (dis_lcd.tv_usec - flush_start_timer.tv_usec);
 #endif
 
-		write_edma_second(manager);
+		__write_edma_second(manager);
 	}
 
-	/*debug by changing data.*/
+	/* debug by changing data. */
 #ifdef DEBUG_CHANGE_DATA
 	u16 *point = decode_virt_addr;
 	u8 data_id = 0;
@@ -703,39 +759,36 @@ void eink_decode_task(struct work_struct *work)//(unsigned long parg)
 #endif
 
 	if (eink_decode_finish(manager)) {
-		__debug("decode finish.\n");
-
 		spin_lock_irqsave(&manager->private_data->slock, flags);
 		manager->private_data->index_fresh = false;
 		spin_unlock_irqrestore(&manager->private_data->slock, flags);
 
 		image_buffer_empty = manager->buffer_mgr->is_empty(manager->buffer_mgr);
 		if (image_buffer_empty) {
-			/*disable eink engine.*/
-			//manager->disable(manager);
+			/* disable eink engine. */
+			manager->disable(manager);
 		}
-
 	} else {
 		spin_lock_irqsave(&manager->private_data->slock, flags);
 
 		if(insert == 1) {
-
-			/* insert a new pipeline to list, it need switch index buffer.*/
+			/* insert a new pipeline to list, it need switch index buffer. */
 			new_index = manager->private_data->new_index;
-			index_buf_paddr = manager->private_data->index_paddr[new_index];
+			index_buf_paddr = (unsigned long)manager->private_data->index_paddr[new_index];
 			manager->private_data->old_index = new_index;
 		} else {
 			new_index = manager->private_data->new_index;
-			index_buf_paddr = manager->private_data->index_paddr[new_index];//debug first old
+			index_buf_paddr = (unsigned long)manager->private_data->index_paddr[new_index];
 		}
 
 		spin_unlock_irqrestore(&manager->private_data->slock, flags);
 
-		wavedata_paddr = (unsigned int)request_buffer_for_decode(&manager->private_data->wavedata_ring_buffer);
+		wavedata_paddr = (unsigned long)__request_buffer_for_decode(&manager->private_data->wavedata_ring_buffer);
 
 		while ((!wavedata_paddr) && count <100) {
-			//msleep(1);
-			wavedata_paddr = (unsigned int)request_buffer_for_decode(&manager->private_data->wavedata_ring_buffer);
+			/* msleep(1); */
+			usleep_range(500, 2000);
+			wavedata_paddr = (unsigned long)__request_buffer_for_decode(&manager->private_data->wavedata_ring_buffer);
 			count++;
 		}
 		if (count > 100) {
@@ -744,7 +797,7 @@ void eink_decode_task(struct work_struct *work)//(unsigned long parg)
 		}
 
 #ifdef DEBUG_CHANGE_DATA
-		decode_virt_addr = phys_to_virt(wavedata_paddr);
+		decode_virt_addr = phys_to_virt((unsigned long)wavedata_paddr);
 #endif
 
 		start_decode(manager, wavedata_paddr, index_buf_paddr);
@@ -755,8 +808,6 @@ void eink_decode_task(struct work_struct *work)//(unsigned long parg)
 
 		spin_unlock_irqrestore(&manager->private_data->slock, flags);
 	}
-
-
 }
 
 static int eink_detect_fresh_thread(void *parg)
@@ -765,8 +816,7 @@ static int eink_detect_fresh_thread(void *parg)
 	struct disp_eink_manager* manager;
 	struct eink_8bpp_image* current_image;
 	int overlap_num;
-	void* wavedata_paddr;
-	unsigned int index_paddr;
+	unsigned long wavedata_paddr, index_paddr;
 	unsigned int decode_frame_index;
 	unsigned int tframes = 0;
 	unsigned int temperature = 0;
@@ -774,10 +824,16 @@ static int eink_detect_fresh_thread(void *parg)
 	volatile int display_finish;
 
 	manager = (struct disp_eink_manager*) parg;
-	while(1) {
-		if (is_empty && manager->detect_fresh_task) {
-			kthread_stop(manager->detect_fresh_task);
+	for (;;) {
+		if (kthread_should_stop()) {
+			while (!manager->buffer_mgr->is_empty(
+							manager->buffer_mgr)) {
+				manager->buffer_mgr->dequeue_image(
+							manager->buffer_mgr);
+			}
+			break;
 		}
+
 		temperature = get_temperature(manager);
 
 		if (manager->buffer_mgr->is_empty(manager->buffer_mgr)) {
@@ -788,103 +844,148 @@ static int eink_detect_fresh_thread(void *parg)
 			continue;
 		}
 
-		/* if last index do not fresh, then waiting for decode interrupt.*/
+		/* if last index do not fresh, then waiting for decode interrupt. */
 		if (manager->private_data->index_fresh) {
 			continue;
 		}
 
-#ifdef __EINK_TEST__
-		if (!manager->flush_continue_flag) {
+		ret = eink_calculate_index_data(manager);
+		if (ret) {
+			manager->buffer_mgr->dequeue_image(manager->buffer_mgr);
+			__wrn("index calc err, something is wrong.\n");
+			if (manager->buffer_mgr->is_empty(
+							manager->buffer_mgr)) {
+				index_err = 0;
+				manager->disable(manager);
+				manager->pipeline_mgr->clear_pipeline_list(
+							manager->pipeline_mgr);
+				manager->buffer_mgr->clear_image(
+							manager->buffer_mgr);
+				__clear_wavedata_buffer(
+				&(manager->private_data->wavedata_ring_buffer));
+				/* __eink_clk_disable(manager); */
+				diplay_finish_flag = 1;
+			}
 			continue;
 		}
+
+#ifdef __EINK_TEST__
+		while (!manager->flush_continue_flag) {
+			/* msleep(5); */
+			usleep_range(500, 5000);
+		}
 #endif
-
-		eink_calculate_index_data(manager);
-
 		current_image = manager->buffer_mgr->get_current_image(manager->buffer_mgr);
 		manager->pipeline_mgr->check_overlap(manager->pipeline_mgr, current_image->update_area);
 
 		overlap_num = manager->pipeline_mgr->check_overlap_num(manager->pipeline_mgr);
+
+#ifdef __EINK_TEST__
+		if (overlap_num)
+			__debug("OVERLAP!, overlap_num=%d\n", overlap_num);
+		else
+			__debug("NO OVERLAP.\n");
+#endif
+
 		while (overlap_num) {
 			display_finish = diplay_finish_flag;
 			while(!display_finish) {
-				msleep(1);
+				/* msleep(1); */
+				usleep_range(500, 1500);
 				display_finish = diplay_finish_flag;
 			}
-			msleep(1);
+			/* msleep(1); */
+			usleep_range(500, 1500);
 			overlap_num = manager->pipeline_mgr->check_overlap_num(manager->pipeline_mgr);
 		}
+
 		/* fix ,add timeout process,600ms later, then quit it.*/
 
-		/*  get one free pipeline and set the current image update area to pipeline */
-
+		/* get one free pipeline and set the current image update area to pipeline */
 		spin_lock_irqsave(&manager->private_data->slock, flags);
 
 		decode_frame_index = manager->private_data->decode_frame_index;
-		index_paddr =  manager->private_data->index_paddr[manager->private_data->new_index];
+		index_paddr =  (unsigned long)manager->private_data->index_paddr[manager->private_data->new_index];
 
 		spin_unlock_irqrestore(&manager->private_data->slock, flags);
 
-		/* 	if it's the first decode frame, config pipeline with the current update area,
-		*	then enable it,else just config it, enabel it in next decode interrupt.
+		/* if it's the first decode frame, config pipeline with the current update area,
+		 * then enable it,else just config it, enabel it in next decode interrupt.
 		*/
 		current_image = manager->buffer_mgr->get_current_image(manager->buffer_mgr);
 
 		if (decode_frame_index == 0) {
 			/*
-			*insert a new pipeline to list, it need switch index buffer.
+			* insert a new pipeline to list, it need switch index buffer.
+		    * once start decode,it need decode until last frame display
+		    * finish.
 			*/
+			display_finish = diplay_finish_flag;
+			while (!display_finish) {
+				/* msleep(1); */
+				usleep_range(500, 1500);
+				display_finish = diplay_finish_flag;
+			}
 			diplay_finish_flag = 0;
 
 			manager->pipeline_mgr->config_and_enable_one_pipeline(manager->pipeline_mgr,
-										current_image->update_area, current_image->update_mode, temperature, &tframes);
+									current_image->update_area,
+									current_image->update_mode,
+									temperature, &tframes);
 
 			spin_lock_irqsave(&manager->private_data->slock, flags);
 
 			manager->private_data->total_frame = tframes;
+			__debug("first total index = %d\n", tframes);
 			manager->private_data->old_index = manager->private_data->new_index;
 
 			spin_unlock_irqrestore(&manager->private_data->slock, flags);
 
-			wavedata_paddr = request_buffer_for_decode(&manager->private_data->wavedata_ring_buffer);
+			wavedata_paddr = (unsigned long)__request_buffer_for_decode(&manager->private_data->wavedata_ring_buffer);
 			while (!wavedata_paddr){
-				wavedata_paddr = request_buffer_for_decode(&manager->private_data->wavedata_ring_buffer);
+				wavedata_paddr = (unsigned long)__request_buffer_for_decode(&manager->private_data->wavedata_ring_buffer);
 			}
 
-			__debug("decode:[wavedata_paddr]=0x%x, [index_paddr]=0x%x\n", (unsigned int)wavedata_paddr, index_paddr);
+			__debug("decode:[wd_paddr]=0x%p, [idx_paddr]=0x%p\n",
+			(void *)wavedata_paddr, (void *)index_paddr);
 
 #ifdef DEBUG_CHANGE_DATA
 			decode_virt_addr = phys_to_virt(wavedata_paddr);
 #endif
 
-			start_decode(manager, (u32)wavedata_paddr, index_paddr);	//for debug
+			start_decode(manager, wavedata_paddr, index_paddr);
 
 			spin_lock_irqsave(&manager->private_data->slock, flags);
 
 			manager->private_data->index_fresh = false;
 
 			spin_unlock_irqrestore(&manager->private_data->slock, flags);
-
-		}
-		else {
-
+		} else {
 			manager->pipeline_mgr->config_one_pipeline(manager->pipeline_mgr, current_image->update_area, current_image->update_mode);
 		}
 		/* image ring buffer dequeue one buf*/
 		manager->buffer_mgr->dequeue_image(manager->buffer_mgr);
-
 	}
 
 	return ret;
 }
 
-s32 eink_update_image(struct disp_eink_manager* manager, void * src_image, enum eink_update_mode mode, struct area_info update_area)
+s32 eink_update_image(struct disp_eink_manager *manager,
+				struct disp_layer_config *config,
+				unsigned int layer_num,
+				enum eink_update_mode mode,
+				struct area_info update_area)
 {
 	int ret = 0;
+	if (suspend)
+		return -EBUSY;
+
+	if (index_err)
+		return -EAGAIN;
 
 	manager->enable(manager);
-
-	ret = manager->buffer_mgr->queue_image(manager->buffer_mgr, src_image, mode, update_area);
+	ret = manager->buffer_mgr->queue_image(manager->buffer_mgr, config,
+						layer_num, mode, update_area);
 
 #ifdef EINK_FLUSH_TIME_TEST
 	do_gettimeofday(&wb_end_timer);
@@ -892,17 +993,24 @@ s32 eink_update_image(struct disp_eink_manager* manager, void * src_image, enum 
 #endif
 
 	return ret;
-
 }
+
+static int eink_op_skip(struct disp_eink_manager *manager, u32 skip)
+{
+	return manager->pipeline_mgr->op_skip(manager->pipeline_mgr, skip);
+}
+
+
+static int first_enable = 1;
 
 s32 eink_enable(struct disp_eink_manager* manager)
 {
 	unsigned long flags = 0;
 	int ret = 0;
-
 	struct eink_init_param param;
-	static int first = 1;
+	struct eink_init_param *eink_param;
 
+	suspend = 0;
 	spin_lock_irqsave(&manager->private_data->slock, flags);
 
 	if (manager->private_data->enable_flag) {
@@ -910,45 +1018,62 @@ s32 eink_enable(struct disp_eink_manager* manager)
 		return ret;
 	}
 
-	is_empty = 0;
-
-	manager->detect_fresh_task = kthread_create(eink_detect_fresh_thread, (void*)manager, "eink fresh proc");
-	if (IS_ERR_OR_NULL(manager->detect_fresh_task)) {
-		__wrn("create eink detect fresh thread fail!\n");
-		ret = PTR_ERR(manager->detect_fresh_task);
-		return ret;
-	}
-
-	ret = wake_up_process(manager->detect_fresh_task);
-
 	spin_unlock_irqrestore(&manager->private_data->slock, flags);
 
+	manager->convert_mgr = disp_get_format_manager(manager->convert_mgr->disp);
+	if (manager->convert_mgr)
+		manager->convert_mgr->enable(manager->convert_mgr->disp);
+	else
+		__wrn("convert mgr is null.\n");
+	eink_param = &manager->private_data->param;
+
+	/* delete rtmx eink.
+	disp_al_rtmx_init(0, 0, 0, 0, eink_param->timing.width, eink_param->timing.height,\
+						eink_param->timing.width, eink_param->timing.height, (unsigned int)DISP_FORMAT_ARGB_8888);
+	*/
 	/* enable eink clk*/
-	ret = eink_clk_enable(manager);
-
-	/*register eink irq*/
-	disp_sys_register_irq(manager->private_data->irq_no, 0, eink_interrupt_proc, (void*)manager, 0, 0);
-	disp_sys_enable_irq(manager->private_data->irq_no);
-
+	if (first_enable)
+		ret = __eink_clk_enable(manager);
 
 	/* init eink and edma*/
 	memcpy((void*)&param, (void*)&manager->private_data->param, sizeof(struct eink_init_param));
 	ret = disp_al_eink_config(manager->disp, &param);
 	ret = disp_al_edma_init(manager->disp, &param);
 
-	disp_al_eink_irq_enable(manager->disp);
-
 	/*load waveform data,do only once.*/
-	if (first) {
+	if (first_enable) {
+		/* register eink irq */
+		int i;
+
 		ret = disp_al_init_waveform(param.wavefile_path);
 		if (ret) {
 				__wrn("malloc and save waveform memory fail!\n");
 				disp_al_free_waveform();
 		}
-		first = 0;
+		for (i = 0; i < WAVE_DATA_BUF_NUM; i++) {
+			ret = disp_al_init_eink_ctrl_data_8(manager->disp,
+				((unsigned long)(manager->private_data->wavedata_ring_buffer.wavedata_vaddr[i])),
+				&param.timing, 0);
+		}
+		disp_sys_register_irq(manager->private_data->irq_no, 0,
+				__eink_interrupt_proc, (void *)manager, 0, 0);
+		disp_sys_enable_irq(manager->private_data->irq_no);
+		manager->detect_fresh_task = kthread_create(
+						eink_detect_fresh_thread,
+						(void *)manager,
+						"eink fresh proc");
+
+		if (IS_ERR_OR_NULL(manager->detect_fresh_task)) {
+			__wrn("create eink detect fresh thread fail!\n");
+			ret = PTR_ERR(manager->detect_fresh_task);
+			return ret;
+		}
+
+		ret = wake_up_process(manager->detect_fresh_task);
+		first_enable = 0;
 	}
 
-	/*enable format convert module.*/
+	disp_al_eink_irq_enable(manager->disp);
 
 	spin_lock_irqsave(&manager->private_data->slock, flags);
 
@@ -964,23 +1089,25 @@ s32 eink_disable(struct disp_eink_manager*  manager)
 	unsigned long flags = 0;
 	int ret = 0;
 
-	is_empty = 1;
-
-	//ret = manager->convert_mgr->disable(0);
-
-	ret = disp_al_eink_irq_disable(manager->disp);
-
 	spin_lock_irqsave(&manager->private_data->slock, flags);
 
-	manager->private_data->enable_flag	 = false;
+	manager->private_data->enable_flag = false;
 
 	spin_unlock_irqrestore(&manager->private_data->slock, flags);
 
-	ret = disp_al_eink_disable(manager->disp);
-	ret = eink_clk_disable(manager);
+	ret = disp_al_eink_irq_disable(manager->disp);
 
-	disp_sys_disable_irq(manager->private_data->irq_no);
-	disp_sys_unregister_irq(manager->private_data->irq_no, eink_interrupt_proc,(void*)manager);
+	/* disable de. */
+	if (manager->convert_mgr)
+		ret = manager->convert_mgr->disable(manager->convert_mgr->disp);
+	else
+		__wrn("convert mgr is null.\n");
+
+	/* disable eink engine. */
+	ret = disp_al_eink_disable(manager->disp);
+
+	/* disable clk move to when display finish. */
+	/* ret = __eink_clk_disable(manager); */
 
 	return ret;
 }
@@ -1012,85 +1139,155 @@ unsigned int  eink_get_temperature(struct disp_eink_manager *manager)
 	return temp;
 }
 
-
-/*
 s32 eink_resume(struct disp_eink_manager* manager)
 {
-	return 0;
+	int ret = 0;
+
+	if (!suspend)
+		return -EBUSY;
+
+	mutex_lock(&eink_manager->standby_lock);
+	suspend = 0;
+	mutex_unlock(&eink_manager->standby_lock);
+	/* register eink irq */
+	if (!first_enable) {
+		__eink_clk_enable(manager);
+		disp_sys_register_irq(manager->private_data->irq_no, 0,
+					__eink_interrupt_proc, (void *)manager,
+					0, 0);
+		disp_sys_enable_irq(manager->private_data->irq_no);
+		if (!manager->detect_fresh_task)
+			manager->detect_fresh_task = kthread_create(
+						eink_detect_fresh_thread,
+						(void *)manager,
+						"eink fresh proc");
+
+		if (IS_ERR_OR_NULL(manager->detect_fresh_task)) {
+			__wrn("create eink detect fresh thread fail!\n");
+			ret = PTR_ERR(manager->detect_fresh_task);
+			return ret;
+		} else {
+			ret = wake_up_process(manager->detect_fresh_task);
+		}
+	}
+
+	return ret;
 }
 
 s32 eink_suspend(struct disp_eink_manager* manager)
 {
-	return 0;
-}
-
-s32 eink_exit()
-{
-	return 0;
-}
-*/
-int write_edma(struct disp_eink_manager*  manager)
-{
 	int ret = 0;
-	unsigned int wavedata_paddr = 0;
 
-	wavedata_paddr = (unsigned int)request_buffer_for_display(&manager->private_data->wavedata_ring_buffer);
-	if (!wavedata_paddr) {
-		printk("no wavedata!\n");
+	if (suspend) {
+		__wrn("err, already suspend.\n");
 		return -EBUSY;
 	}
-	ret = disp_al_eink_edma_cfg_addr(manager->disp,wavedata_paddr);
-	//ret = disp_al_edma_config(manager->disp,wavedata_paddr, &manager->private_data->param);
-	//ret = disp_al_edma_write(manager->disp, 1);
-	ret = disp_al_dbuf_rdy();
 
-	ret = dequeue_wavedata_buffer(&manager->private_data->wavedata_ring_buffer);
+	mutex_lock(&eink_manager->standby_lock);
+	suspend = 1;
+	mutex_unlock(&eink_manager->standby_lock);
+
+	if (!first_enable) {
+		if (manager->detect_fresh_task) {
+			kthread_stop(manager->detect_fresh_task);
+			manager->detect_fresh_task = NULL;
+		}
+	}
+
+	while (!diplay_finish_flag
+		|| !manager->buffer_mgr->is_empty(manager->buffer_mgr)) {
+		/* msleep(2); */
+		usleep_range(500, 3000);
+	}
+
+	if (!first_enable) {
+		__eink_clk_disable(manager);
+		disp_sys_unregister_irq(manager->private_data->irq_no,
+					__eink_interrupt_proc, (void *)manager);
+		disp_sys_disable_irq(manager->private_data->irq_no);
+	}
+
 	return ret;
 }
 
-static int write_edma_once(struct disp_eink_manager*  manager)
+static int __write_edma(struct disp_eink_manager *manager)
 {
-	int ret = 0;
-	unsigned int wavedata_paddr = 0;
+	int ret = 0, cur_line = 0, start_delay = 0;
+	unsigned long wavedata_paddr = 0;
 
-	wavedata_paddr = (unsigned int)request_buffer_for_display(&manager->private_data->wavedata_ring_buffer);
+	current_frame++;
+	wavedata_paddr = (unsigned long)__request_buffer_for_display(&manager->private_data->wavedata_ring_buffer);
 	if (!wavedata_paddr) {
-		printk("no wavedata!\n");
+		__wrn("%d frame no wavedata!\n", current_frame);
 		return -EBUSY;
 	}
 
-	ret = disp_al_edma_config(manager->disp,wavedata_paddr, &manager->private_data->param);
+	start_delay = disp_al_lcd_get_start_delay(manager->disp, NULL);
+	ret = disp_al_eink_edma_cfg_addr(manager->disp, wavedata_paddr);
+
+	cur_line = disp_al_lcd_get_cur_line(manager->disp, NULL);
+	if (cur_line < start_delay)
+		__wrn("cfg edma too quicker.\n");
+	ret = disp_al_dbuf_rdy();
+
+	ret = __dequeue_wavedata_buffer(&manager->private_data->wavedata_ring_buffer);
+
+	return ret;
+}
+
+static int __write_edma_first(struct disp_eink_manager *manager)
+{
+	int ret = 0;
+	unsigned long wavedata_paddr = 0;
+
+	current_frame++;
+	wavedata_paddr = (unsigned long)__request_buffer_for_display(&manager->private_data->wavedata_ring_buffer);
+	if (!wavedata_paddr) {
+		__wrn("first frame no wavedata!\n");
+		return -EBUSY;
+	}
+
+	ret = disp_al_edma_config(manager->disp, wavedata_paddr, &manager->private_data->param);
 	ret = disp_al_edma_write(manager->disp, 1);
 	ret = disp_al_dbuf_rdy();
 
-	ret = dequeue_wavedata_buffer(&manager->private_data->wavedata_ring_buffer);
+	ret = __dequeue_wavedata_buffer(&manager->private_data->wavedata_ring_buffer);
 
 	return ret;
 }
 
-
-int write_edma_second(struct disp_eink_manager*  manager)
+int __write_edma_second(struct disp_eink_manager *manager)
 {
-	int cur_line = 0, start_delay = 0;
+	int ret = 0, cur_line = 0, start_delay = 0;
+	unsigned long wavedata_paddr = 0;
 
-	cur_line = disp_al_lcd_get_cur_line(0,0);
-	start_delay = disp_al_lcd_get_start_delay(0,0);
+	cur_line = disp_al_lcd_get_cur_line(manager->disp, 0);
+	start_delay = disp_al_lcd_get_start_delay(manager->disp, 0);
 
 	while (cur_line < start_delay)
-			cur_line = disp_al_lcd_get_cur_line(0,0);
+			cur_line = disp_al_lcd_get_cur_line(manager->disp, 0);
 
-	//return write_edma_once(manager);
-	return write_edma(manager);
+	current_frame++;
+	wavedata_paddr = (unsigned long)__request_buffer_for_display(&manager->private_data->wavedata_ring_buffer);
+	if (!wavedata_paddr) {
+		__debug("%d frame no wavedata!\n", current_frame);
+		return -EBUSY;
+	}
+	ret = disp_al_eink_edma_cfg_addr(manager->disp, wavedata_paddr);
+	ret = disp_al_dbuf_rdy();
+	ret = __dequeue_wavedata_buffer(&manager->private_data->wavedata_ring_buffer);
+
+	return ret;
 }
 
-#define LARGE_MEM_TEST
+/* #define LARGE_MEM_TEST */
 #ifdef LARGE_MEM_TEST
-static void *malloc_wavedata_buffer(u32 mem_len, u32 *phy_address)
+static void *malloc_wavedata_buffer(u32 mem_len, void *phy_address)
 {
 	u32 temp_size = PAGE_ALIGN(mem_len);
 	struct page *page = NULL;
 	void *tmp_virt_address = NULL;
-	u32 tmp_phy_address = 0;
+	unsigned long tmp_phy_address = 0;
 
 	page = alloc_pages(GFP_KERNEL,get_order(temp_size));
 	if (page != NULL) {
@@ -1102,10 +1299,11 @@ static void *malloc_wavedata_buffer(u32 mem_len, u32 *phy_address)
 		}
 
 		tmp_phy_address = virt_to_phys(tmp_virt_address);
-		*phy_address = tmp_phy_address;
+		*((unsigned long *)phy_address) = tmp_phy_address;
 
-		__inf("pa=0x%x, va=0x%x, size=0x%x, len=0x%x\n", \
-			tmp_phy_address, (unsigned int)tmp_virt_address, mem_len, temp_size);
+		__inf("pa=0x%p, va=0x%p, size=0x%x, len=0x%x\n",
+			(void *)tmp_phy_address, tmp_virt_address,
+			mem_len, temp_size);
 	}
 
 	return tmp_virt_address;
@@ -1126,8 +1324,8 @@ int disp_init_eink(disp_bsp_init_para * para)
 	int i = 0;
 	unsigned int  disp;
 	unsigned long image_buf_size;
-	unsigned int wavedata_buf_size;
-	unsigned long indexdata_buf_size;
+	unsigned int wavedata_buf_size, hsync, vsync;
+	unsigned long indexdata_buf_size = 0;
 	struct eink_init_param eink_param;
 	struct disp_eink_manager* manager = NULL;
 	struct eink_private* data = NULL;
@@ -1136,6 +1334,7 @@ int disp_init_eink(disp_bsp_init_para * para)
 	/*
 	* request eink manager and its private data, then initial this two structure
 	*/
+
 	eink_manager = (struct disp_eink_manager *)disp_sys_malloc(sizeof(struct disp_eink_manager) * MAX_EINK_ENGINE);
 	if(NULL == eink_manager) {
 		__wrn("malloc eink manager memory fail!\n");
@@ -1154,19 +1353,32 @@ int disp_init_eink(disp_bsp_init_para * para)
 
 	for(disp=0; disp<MAX_EINK_ENGINE; disp++) {
 		/* get sysconfig and config eink_param */
-		eink_get_sys_config(disp, &eink_param);
+		__eink_get_sys_config(disp, &eink_param);
 
-		/* load wavefile,and init it. */
-
-		//ret =  disp_al_init_waveform(eink_param.wavefile_path);/*("/system/default.awf");*/
-		/*if (ret) {
+		/* load wavefile,and init it. load in enable function now. */
+		/*
+		ret =  disp_al_init_waveform(eink_param.wavefile_path);
+		if (ret) {
 			__wrn("malloc and save waveform memory fail!\n");
 			goto waveform_err;
-		}*/
-
+		}
+		*/
+		hsync = eink_param.timing.lbl + eink_param.timing.lel + eink_param.timing.lsl;
+		vsync = eink_param.timing.fbl + eink_param.timing.fel + eink_param.timing.fsl;
 		image_buf_size = eink_param.timing.width * eink_param.timing.height;
-		wavedata_buf_size = 2 * (eink_param.timing.width/4 + 58) * (eink_param.timing.height + 20);
-		indexdata_buf_size = image_buf_size;	/*fix it when 5bits*/
+		if (eink_param.eink_mode)
+			/* mode 1, 16 data */
+			wavedata_buf_size = 4 * (eink_param.timing.width/8 + hsync) * (eink_param.timing.height + vsync);
+		else
+			/* mode 0, 8 data */
+			wavedata_buf_size = 2 * (eink_param.timing.width/4 + hsync) * (eink_param.timing.height + vsync);
+		/*fix it when 5bits*/
+		if (eink_param.eink_bits < 2)
+			/* 3bits or 4bits */
+			indexdata_buf_size = image_buf_size;
+		else if (eink_param.eink_bits == 2)
+			/* 5bits */
+			indexdata_buf_size = image_buf_size<<1;
 
 		manager = &eink_manager[disp];
 		data = &eink_private_data[disp];
@@ -1177,68 +1389,63 @@ int disp_init_eink(disp_bsp_init_para * para)
 		manager->eink_update = eink_update_image;
 		manager->enable = eink_enable;
 		manager->disable = eink_disable;
+		manager->resume = eink_resume;
+		manager->suspend = eink_suspend;
 		manager->set_temperature = eink_set_temperature;
 		manager->get_temperature = eink_get_temperature;
 		manager->eink_panel_temperature = 28;
-
-		/*functions for test*/
+		manager->op_skip = eink_op_skip;
+		/* functions for debug */
 #ifdef __EINK_TEST__
-		manager->clearwd = eink_clear_wave_data;
-		manager->decode = eink_debug_decode;
+		manager->clearwd = __eink_clear_wave_data;
+		manager->decode = __eink_debug_decode;
 		manager->flush_continue_flag = 1;
 #endif
-
 		data->enable_flag = false;
 		data->eink_clk = para->mclk[DISP_MOD_EINK];
 		data->edma_clk = para->mclk[DISP_MOD_EDMA];
-		data->eink_base_addr = para->reg_base[DISP_MOD_EINK];
+		data->eink_base_addr = (unsigned long)para->reg_base[DISP_MOD_EINK];
 		data->irq_no = para->irq_no[DISP_MOD_EINK];
 		memcpy((void*)&data->param, (void*)&eink_param, sizeof(struct eink_init_param));
 
-		printk("eink_clk: 0x%x; edma_clk: 0x%x; base_addr: 0x%x; irq_no: 0x%x\n", (unsigned int)data->eink_clk,
-													(unsigned int)data->edma_clk, data->eink_base_addr, data->irq_no);
+		__debug("eink_clk: 0x%p; edma_clk: 0x%p; base_addr: 0x%p; irq_no: 0x%x\n",
+					data->eink_clk, data->edma_clk, (void *)data->eink_base_addr, data->irq_no);
 
 		disp_al_set_eink_base(disp, data->eink_base_addr);
 
 #ifdef SUPPORT_WB
 		manager->convert_mgr = disp_get_format_manager(disp);
-		if(manager->convert_mgr)
-			manager->convert_mgr->enable(disp);
-		else
-			__wrn("convert mgr is null.\n");
-
-		disp_al_rtmx_init(manager->disp, 0, 0, 0, eink_param.timing.width, eink_param.timing.height,\
-							eink_param.timing.width, eink_param.timing.height, (unsigned int)DISP_FORMAT_ARGB_8888);
 #endif
-
 		spin_lock_init(&data->slock);
 
 		/* init index buffer, it includes old and new index buffer */
 		data->index_fresh = false;
 		data->new_index = 0;
 		data->old_index = 0;
-		data->index_vaddr[0] = disp_malloc(image_buf_size * INDEX_BUFFER_NUM, (u32 *)&data->index_paddr[0]);
+		data->index_vaddr[0] = disp_malloc(indexdata_buf_size * INDEX_BUFFER_NUM, (void *)&data->index_paddr[0]);
 		if(NULL == data->index_vaddr[i]) {
 			__wrn("malloc old index data memory fail!\n");
 			ret =  -ENOMEM;
 			goto private_init_malloc_err;
 		}
 
-		memset(data->index_vaddr[0], 0, image_buf_size * INDEX_BUFFER_NUM);	//fix it, index data size is up to eink bits ,image buf size and pitch.example 5bits eink.
-
+		memset(data->index_vaddr[0], 0, image_buf_size * INDEX_BUFFER_NUM);
 		for (i = 0; i < INDEX_BUFFER_NUM; i++) {
 			data->index_paddr[i] = data->index_paddr[0] + indexdata_buf_size * i ;
 			data->index_vaddr[i] = data->index_vaddr[0] + indexdata_buf_size * i ;
-			__inf("index_paddr%d:0x%x\n",i, data->index_paddr[i]);
+			__debug("index_paddr%d:0x%p\n", i, data->index_paddr[i]);
 		}
 
 		/*init wavedata ring queue,it includes several wavedata buffer and queue infomation.*/
+		memset(&data->wavedata_ring_buffer, 0, sizeof(struct wavedata_queue));
+
 		spin_lock_init(&data->wavedata_ring_buffer.slock);
 		data->wavedata_ring_buffer.head = 0;
 		data->wavedata_ring_buffer.tail = 0;
-		data->wavedata_ring_buffer.size.width = 800; //fix this
-		data->wavedata_ring_buffer.size.height = 600;//fix this
-		data->wavedata_ring_buffer.size.align = 4;//fix this
+		data->wavedata_ring_buffer.size.width = eink_param.timing.width;
+		data->wavedata_ring_buffer.size.height = eink_param.timing.height;
+		/* align param need match with drawer's pitch */
+		data->wavedata_ring_buffer.size.align = 4;
 
 		/*init wave data, if need lager memory,open the LARGE_MEM_TEST.*/
 #ifdef LARGE_MEM_TEST
@@ -1246,14 +1453,16 @@ int disp_init_eink(disp_bsp_init_para * para)
 			data->wavedata_ring_buffer.wavedata_vaddr[wd_buf_id] = malloc_wavedata_buffer(wavedata_buf_size, \
 																	&data->wavedata_ring_buffer.wavedata_paddr[wd_buf_id]);
 			if (NULL == data->wavedata_ring_buffer.wavedata_vaddr[wd_buf_id]) {
-				__wrn("malloc eink wavedata memory fail, size=%d, id=%d\n", wavedata_buf_size, wd_buf_id);
+				__wrn("malloc eink wavedata memory fail, size=%d, id=%d\n",
+						wavedata_buf_size, wd_buf_id);
 				ret =  -ENOMEM;
 				goto private_init_malloc_err;
 			}
 			memset((void*)data->wavedata_ring_buffer.wavedata_vaddr[wd_buf_id], 0, wavedata_buf_size);
 
-			__debug("wavedata id=%d, virt-addr=0x%x, phy-addr=0x%x\n", \
-				wd_buf_id, ((u32)data->wavedata_ring_buffer.wavedata_vaddr[wd_buf_id]), data->wavedata_ring_buffer.wavedata_paddr[wd_buf_id]);
+			__debug("wavedata id=%d, virt-addr=0x%p, phy-addr=0x%p\n", \
+					wd_buf_id, (data->wavedata_ring_buffer.wavedata_vaddr[wd_buf_id]),
+					data->wavedata_ring_buffer.wavedata_paddr[wd_buf_id]);
 		}
 #else
 		for (wd_buf_id = 0; wd_buf_id < WAVE_DATA_BUF_NUM; wd_buf_id++) {
@@ -1266,11 +1475,14 @@ int disp_init_eink(disp_bsp_init_para * para)
 			}
 			memset((void*)data->wavedata_ring_buffer.wavedata_vaddr[wd_buf_id], 0, wavedata_buf_size);
 
-			__debug("wavedata id=%d, virt-addr=0x%x, phy-addr=0x%x\n", \
-				wd_buf_id, ((u32)data->wavedata_ring_buffer.wavedata_vaddr[wd_buf_id]), data->wavedata_ring_buffer.wavedata_paddr[wd_buf_id]);
+			__debug("wavedata id=%d, virt-addr=%p, phy-addr=%p\n",
+			wd_buf_id,
+			data->wavedata_ring_buffer.wavedata_vaddr[wd_buf_id],
+			data->wavedata_ring_buffer.wavedata_paddr[wd_buf_id]);
 		}
 #endif
-
+		/* init data shell, move it to enable now. */
+#if 0
 		for (i = 0; i < WAVE_DATA_BUF_NUM; i++) {
 			if (0 == eink_param.eink_mode) {
 				/*8 data*/
@@ -1280,18 +1492,24 @@ int disp_init_eink(disp_bsp_init_para * para)
 				ret = disp_al_init_eink_ctrl_data_16(manager->disp, ((u32)(data->wavedata_ring_buffer.wavedata_vaddr[i])), &eink_param.timing);
 			}
 		}
-
+#endif
 		/*register image ring buffer, then fill it to eink manager*/
 		ring_buffer_manager_init(manager);
 		pipeline_manager_init(manager);
+		__debug("p1=%p, p2=%p, p3= %p, p4=%p",
+			&manager->private_data->fresh_frame_index,
+			&manager->private_data->total_frame,
+			&manager->private_data->decode_frame_index,
+			&diplay_finish_flag);
 
 #ifdef __EINK_TEST__
 		u32 total=0,wave_addr=0;
 		disp_al_get_waveform_data(0,4,28,&total,&wave_addr);
 		__debug("[disp_al_get_waveform_data]:total=%u wave_addr=0x%x\n",total, wave_addr);
 #endif
-		tasklet_init(&eink_manager->sync_tasklet,sync_task,(unsigned long) disp);
+		tasklet_init(&eink_manager->sync_tasklet, __sync_task, (unsigned long)disp);
 		INIT_WORK(&eink_manager->decode_work, eink_decode_task);
+		mutex_init(&eink_manager->standby_lock);
 	}
 
 	return ret;
@@ -1301,12 +1519,13 @@ private_init_malloc_err:
 	for (i = 0; i < MAX_EINK_ENGINE; i++) {
 		data = &eink_private_data[i];
 		if (!data->index_vaddr)
-			disp_free((void*)data->index_vaddr, (void*)data->index_paddr[0], indexdata_buf_size * 2);
+			disp_free(data->index_vaddr, data->index_paddr[0], indexdata_buf_size * 2);
 
 		for (wd_buf_id = 0; wd_buf_id < WAVE_DATA_BUF_NUM; wd_buf_id++) {
 			if (!data->wavedata_ring_buffer.wavedata_vaddr[wd_buf_id]) {
-				free_wavedata_buffer((void*)data->wavedata_ring_buffer.wavedata_vaddr[wd_buf_id], \
-						(void*)data->wavedata_ring_buffer.wavedata_paddr[wd_buf_id], wavedata_buf_size );
+				free_wavedata_buffer(data->wavedata_ring_buffer.wavedata_vaddr[wd_buf_id],
+							data->wavedata_ring_buffer.wavedata_paddr[wd_buf_id],
+							wavedata_buf_size);
 			}
 		}
 	}
@@ -1314,12 +1533,12 @@ private_init_malloc_err:
 	for (i = 0; i < MAX_EINK_ENGINE; i++) {
 		data = &eink_private_data[i];
 		if (!data->index_vaddr)
-			disp_free((void*)data->index_vaddr, (void*)data->index_paddr[0], indexdata_buf_size * 2);
+			disp_free(data->index_vaddr, data->index_paddr[0], indexdata_buf_size * 2);
 
 		for (wd_buf_id = 0; wd_buf_id < WAVE_DATA_BUF_NUM; wd_buf_id++) {
 			if (!data->wavedata_ring_buffer.wavedata_vaddr[wd_buf_id]) {
-				disp_free((void*)data->wavedata_ring_buffer.wavedata_vaddr[wd_buf_id], \
-						(void*)data->wavedata_ring_buffer.wavedata_paddr[wd_buf_id], wavedata_buf_size);
+				disp_free(data->wavedata_ring_buffer.wavedata_vaddr[wd_buf_id], \
+						  data->wavedata_ring_buffer.wavedata_paddr[wd_buf_id], wavedata_buf_size);
 			}
 		}
 	}

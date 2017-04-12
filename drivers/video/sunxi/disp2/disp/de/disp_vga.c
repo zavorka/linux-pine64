@@ -2,24 +2,6 @@
 
 #if defined(SUPPORT_VGA)
 
-struct disp_vga_private_data {
-	bool enabled;
-	bool suspended;
-
-	enum disp_tv_mode vga_mode;
-	struct disp_tv_func tv_func;
-	struct disp_video_timings *video_info;
-
-	struct disp_clk_info lcd_clk;
-	struct clk *clk;
-	struct clk *clk_parent;
-
-	u32 irq_no;
-
-	spinlock_t data_lock;
-	struct mutex mlock;
-};
-
 static struct disp_device *vgas = NULL;
 static struct disp_vga_private_data *vga_private = NULL;
 
@@ -137,6 +119,48 @@ static s32 vga_clk_disable(struct disp_device*  vga)
 	return 0;
 }
 
+static s32 vga_calc_judge_line(struct disp_device *vga)
+{
+	struct disp_vga_private_data *vgap = disp_vga_get_priv(vga);
+	int start_delay, usec_start_delay;
+	int usec_judge_point;
+
+	if (!vga || !vgap) {
+		DE_WRN("VGA init null hdl!\n");
+		return DIS_FAIL;
+	}
+
+	/*
+	 * usec_per_line = 1 / fps / vt * 1000000
+	 *               = 1 / (pixel_clk / vt / ht) / vt * 1000000
+	 *               = ht / pixel_clk * 1000000
+	 */
+	vgap->frame_per_sec = vgap->video_info->pixel_clk
+	    / vgap->video_info->hor_total_time
+	    / vgap->video_info->ver_total_time
+	    * (vgap->video_info->b_interlace + 1)
+	    / (vgap->video_info->trd_mode + 1);
+	vgap->usec_per_line = vgap->video_info->hor_total_time
+	    * 1000000 / vgap->video_info->pixel_clk;
+
+	start_delay =
+	    disp_al_device_get_start_delay(vga->hwdev_index);
+	usec_start_delay = start_delay * vgap->usec_per_line;
+
+	if (usec_start_delay <= 200)
+		usec_judge_point = usec_start_delay * 3 / 7;
+	else if (usec_start_delay <= 400)
+		usec_judge_point = usec_start_delay / 2;
+	else
+		usec_judge_point = 200;
+	if (vgap->usec_per_line)
+		vgap->judge_line = usec_judge_point / vgap->usec_per_line;
+	else
+		DE_WRN("usec_per_line is Null,someting is wrong!\n");
+
+	return 0;
+}
+
 static s32 disp_vga_enable( struct disp_device* vga)
 {
 	int ret;
@@ -171,7 +195,7 @@ static s32 disp_vga_enable( struct disp_device* vga)
 		return DIS_FAIL;
 	}
 	memcpy(&vga->timings, vgap->video_info, sizeof(struct disp_video_timings));
-
+	vga_calc_judge_line(vga);
 	mutex_lock(&vgap->mlock);
 	if (vgap->enabled)
 		goto exit;
@@ -190,13 +214,15 @@ static s32 disp_vga_enable( struct disp_device* vga)
 	}
 
 	vgap->tv_func.tv_enable(vga->disp);
-	disp_al_tv_cfg(vga->hwdev_index, vgap->video_info);
-	disp_al_tv_enable(vga->hwdev_index);
+	disp_al_vga_cfg(vga->hwdev_index, vgap->video_info);
+	disp_al_vga_enable(vga->hwdev_index);
 
-	ret = disp_sys_register_irq(vgap->irq_no,0,disp_vga_event_proc,(void*)vga,0,0);
-	if (ret!=0) {
+	ret = disp_sys_register_irq(vgap->irq_no, 0,
+					disp_vga_event_proc,
+					(void *)vga, 0, 0);
+	if (ret != 0)
 		DE_WRN("request irq failed!\n");
-	}
+
 	disp_sys_enable_irq(vgap->irq_no);
 	spin_lock_irqsave(&vgap->data_lock, flags);
 	vgap->enabled = true;
@@ -241,6 +267,7 @@ static s32 disp_vga_sw_enable( struct disp_device* vga)
 		return DIS_FAIL;
 	}
 	memcpy(&vga->timings, vgap->video_info, sizeof(struct disp_video_timings));
+	vga_calc_judge_line(vga);
 	mutex_lock(&vgap->mlock);
 	if (mgr->sw_enable)
 		mgr->sw_enable(mgr);
@@ -301,7 +328,7 @@ s32 disp_vga_disable(struct disp_device* vga)
 
 	disp_vga_set_hpd(vga, 0);
 	vgap->tv_func.tv_disable(vga->disp);
-	disp_al_tv_disable(vga->hwdev_index);
+	disp_al_vga_disable(vga->hwdev_index);
 	if (mgr->disable)
 		mgr->disable(mgr);
 	vga_clk_disable(vga);
@@ -525,105 +552,128 @@ static s32 disp_set_enhance_mode(struct disp_device *vga, u32 mode)
 	}
 
 	if (vgap->tv_func.tv_hot_plugging_detect== NULL) {
-		printk("set_enhance_mode is null!\n");
+		DE_WRN("set_enhance_mode is null!\n");
 		return DIS_FAIL;
 	}
 
 	return vgap->tv_func.tv_set_enhance_mode(vga->disp, mode);
 }
 
+static s32 disp_vga_get_fps(struct disp_device *vga)
+{
+	struct disp_vga_private_data *vgap = disp_vga_get_priv(vga);
+
+	if ((NULL == vga) || (NULL == vgap)) {
+		DE_WRN("vga set func null  hdl!\n");
+		return 0;
+	}
+
+	return vgap->frame_per_sec;
+}
+
 s32 disp_init_vga(void)
 {
 	u32 value = 0;
 	u32 ret = 0;
-	char status[32];
-	char primary_key[32];
-	bool vga_used = false;
+	char type_name[32];
+	char compat[32];
+	char status[10] = {0};
+	const char *str;
+	struct device_node *node;
+	u32 num_devices;
+	u32 disp = 0;
+	struct disp_device *vga;
+	struct disp_vga_private_data *vgap;
+	u32 hwdev_index = 0;
+	u32 num_devices_support_vga = 0;
 
-	ret = disp_sys_script_get_item("tv", "status", (int*)status, 2);
-	if (2 == ret && !strcmp(status, "okay"))
-		vga_used = true;
-
-	if (vga_used) {
-		u32 num_devices;
-		u32 disp = 0;
-		struct disp_device* vga;
-		struct disp_vga_private_data* vgap;
-		u32 hwdev_index = 0;
-		u32 num_devices_support_vga = 0;
-
-		num_devices = bsp_disp_feat_get_num_devices();
-		for (hwdev_index=0; hwdev_index<num_devices; hwdev_index++) {
-			if (bsp_disp_feat_is_supported_output_types(hwdev_index, DISP_OUTPUT_TYPE_VGA))
-				num_devices_support_vga ++;
-		}
-		vgas = (struct disp_device *)kmalloc(sizeof(struct disp_device) * num_devices_support_vga, GFP_KERNEL | __GFP_ZERO);
-		if (NULL == vgas) {
-			DE_WRN("malloc memory fail!\n");
-			return DIS_FAIL;
-		}
-
-		vga_private = (struct disp_vga_private_data *)kmalloc(sizeof(struct disp_vga_private_data) * num_devices_support_vga, GFP_KERNEL | __GFP_ZERO);
-		if (NULL == vga_private) {
-			DE_WRN("malloc memory fail!\n");
-			return DIS_FAIL;
-		}
-
-		disp = 0;
-		for (hwdev_index=0; hwdev_index<num_devices; hwdev_index++) {
-			if (!bsp_disp_feat_is_supported_output_types(hwdev_index, DISP_OUTPUT_TYPE_VGA)) {
-				DE_WRN("screen %d do not support TV TYPE!\n", hwdev_index);
-				continue;
-			}
-
-			vga = &vgas[disp];
-			vgap = &vga_private[disp];
-			vga->priv_data = (void*)vgap;
-
-			spin_lock_init(&vgap->data_lock);
-			mutex_init(&vgap->mlock);
-			vga->disp = disp;
-			vga->hwdev_index = hwdev_index;
-			sprintf(vga->name, "vga%d", disp);
-			vga->type = DISP_OUTPUT_TYPE_VGA;
-			vgap->vga_mode = DISP_TV_MOD_PAL;
-			vgap->irq_no = gdisp.init_para.irq_no[DISP_MOD_LCD0 + hwdev_index];
-			vgap->clk = gdisp.init_para.mclk[DISP_MOD_LCD0 + hwdev_index];
-
-			vga->set_manager = disp_device_set_manager;
-			vga->unset_manager = disp_device_unset_manager;
-			vga->get_resolution = disp_device_get_resolution;
-			vga->get_timings = disp_device_get_timings;
-
-			vga->init =  disp_vga_init;
-			vga->exit =  disp_vga_exit;
-			vga->set_tv_func = disp_vga_set_func;
-			vga->enable = disp_vga_enable;
-			vga->sw_enable = disp_vga_sw_enable;
-			vga->disable = disp_vga_disable;
-			vga->is_enabled = disp_vga_is_enabled;
-			vga->set_mode = disp_vga_set_mode;
-			vga->get_mode = disp_vga_get_mode;
-			vga->check_support_mode = disp_vga_check_support_mode;
-			vga->get_input_csc = disp_vga_get_input_csc;
-			vga->suspend = disp_vga_suspend;
-			vga->resume = disp_vga_resume;
-			vga->set_enhance_mode = disp_set_enhance_mode;
-			vga->init(vga);
-
-			value = 0;
-			sprintf(primary_key, "tv%d", vga->disp);
-			ret = disp_sys_script_get_item(primary_key, "tv_used", (int*)&value, 1);
-			if ((1 == ret) && (1 == value))
-				vga_used = true;
-			else
-				vga_used = false;
-
-			if (vga_used)
-				disp_device_register(vga);
-			disp ++;
-		}
+	sprintf(compat, "allwinner,sunxi-tv");
+	num_devices = bsp_disp_feat_get_num_devices();
+	for (hwdev_index = 0; hwdev_index < num_devices; hwdev_index++) {
+		if (bsp_disp_feat_is_supported_output_types(hwdev_index,
+							DISP_OUTPUT_TYPE_VGA))
+			num_devices_support_vga++;
 	}
+	vgas = kmalloc(sizeof(*vga) * num_devices_support_vga,
+			GFP_KERNEL | __GFP_ZERO);
+	if (NULL == vgas) {
+		DE_WRN("malloc memory fail!\n");
+		return DIS_FAIL;
+	}
+
+	vga_private = kmalloc(sizeof(*vgap) * num_devices_support_vga,
+				GFP_KERNEL | __GFP_ZERO);
+	if (NULL == vga_private) {
+		DE_WRN("malloc memory fail!\n");
+		return DIS_FAIL;
+	}
+
+	disp = 0;
+	for (hwdev_index = 0; hwdev_index < num_devices; hwdev_index++) {
+		if (!bsp_disp_feat_is_supported_output_types(hwdev_index,
+							DISP_OUTPUT_TYPE_VGA)) {
+			DE_WRN("screen %d do not support VGA TYPE!\n",
+				hwdev_index);
+			continue;
+		}
+		sprintf(type_name, "tv%d", disp);
+		node = of_find_compatible_node(NULL, type_name, compat);
+
+		ret = of_property_read_string(node, "status", &str);
+		memcpy((void *)status, str, strlen(str)+1);
+		if (ret || strcmp(status, "okay")) {
+			DE_WRN("disp%d not support vga\n", disp);
+			disp++;
+			continue;
+		}
+
+		ret = of_property_read_u32_array(node, "interface", &value, 1);
+		if (ret || value != DISP_VGA) {
+			DE_WRN("disp%d not support vga\n", disp);
+			disp++;
+			continue;
+		}
+
+		vga = &vgas[disp];
+		vgap = &vga_private[disp];
+		vga->priv_data = (void *)vgap;
+
+		spin_lock_init(&vgap->data_lock);
+		mutex_init(&vgap->mlock);
+		vga->disp = disp;
+		vga->hwdev_index = hwdev_index;
+		sprintf(vga->name, "vga%d", disp);
+		vga->type = DISP_OUTPUT_TYPE_VGA;
+		vgap->vga_mode = DISP_TV_MOD_PAL;
+		vgap->irq_no = gdisp.init_para.irq_no[DISP_MOD_LCD0 +
+							hwdev_index];
+		vgap->clk = gdisp.init_para.mclk[DISP_MOD_LCD0 + hwdev_index];
+
+		vga->set_manager = disp_device_set_manager;
+		vga->unset_manager = disp_device_unset_manager;
+		vga->get_resolution = disp_device_get_resolution;
+		vga->get_timings = disp_device_get_timings;
+
+		vga->init =  disp_vga_init;
+		vga->exit =  disp_vga_exit;
+		vga->set_tv_func = disp_vga_set_func;
+		vga->enable = disp_vga_enable;
+		vga->sw_enable = disp_vga_sw_enable;
+		vga->disable = disp_vga_disable;
+		vga->is_enabled = disp_vga_is_enabled;
+		vga->set_mode = disp_vga_set_mode;
+		vga->get_mode = disp_vga_get_mode;
+		vga->check_support_mode = disp_vga_check_support_mode;
+		vga->get_input_csc = disp_vga_get_input_csc;
+		vga->suspend = disp_vga_suspend;
+		vga->resume = disp_vga_resume;
+		vga->set_enhance_mode = disp_set_enhance_mode;
+		vga->get_fps = disp_vga_get_fps;
+		vga->init(vga);
+		disp_device_register(vga);
+		disp++;
+	}
+
 	return 0;
 }
 

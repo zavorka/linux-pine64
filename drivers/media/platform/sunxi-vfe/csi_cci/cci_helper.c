@@ -96,7 +96,9 @@ static ssize_t cci_sys_store(struct device *dev,
 	struct cci_driver *cci_drv = dev_get_drvdata(dev); 
 	struct v4l2_subdev *sd = cci_drv->sd;
 	val = simple_strtoul(buf, NULL, 16);
+#ifdef USE_SPECIFIC_CCI
 	csi_cci_init_helper(cci_drv->cci_id);
+#endif
 	reg = (val >> 16) & 0xFFFF;
 	value =  val & 0xFFFF;
 	if(0 == cci_drv->read_flag)

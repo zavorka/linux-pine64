@@ -2,12 +2,20 @@
 #define SUN8IW10_TH_H
 
 #define SENSOR_CNT              (2)
-#define THS_CLK                 (4000000)
+#define THS_CLK                 (24000000)
 
-/* temperature = ( MINUPA - reg * MULPA) / DIVPA */
-#define MULPA                   (1000)
-#define DIVPA                   (8560)
-#define MINUPA                  (2170000)
+/* temperature = -0.118*sensor + 256
+ *	= (256000 - 118*sensor)/1000
+ *	= (262144 - 120.832*sensor)/1024
+ *	= (268435456 - 123732*sensor)/1024/1024
+ *	= ( MINUPA - reg * MULPA) / 2^DIVPA
+ *	sensor value range:
+ *				= 0 - 0xffff,ffff/2/123732
+ *				= 0 - 17355
+ */
+#define MULPA                   (123732)
+#define DIVPA                   (20)
+#define MINUPA                  (268435456)
 
 #define THS_CTRL_REG            (0x40)
 #define THS_INT_CTRL_REG        (0x44)
@@ -27,8 +35,10 @@
 #define THS_INT_SHUT_TH_VALUE1  (0x64)
 
 #define THS_CTRL_VALUE		(0x1df<<16)
-#define THS_INT_CTRL_VALUE	(0x18070)//gai
+/* per sampling takes: 10ms */
+#define THS_INT_CTRL_VALUE	(0x3a070)
 #define THS_CLEAR_INT_STA	(0x333)
+/* got 1 data for per 8 sampling: time = 10ms * 8 = 80ms */
 #define THS_FILT_CTRL_VALUE	(0x06)
 
 #define THS_INTS_DATA0		(0x100)

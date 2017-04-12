@@ -154,9 +154,19 @@ enum disp_tv_mode
 	DISP_TV_MOD_3840_2160P_30HZ     = 0x1c,
 	DISP_TV_MOD_3840_2160P_25HZ     = 0x1d,
 	DISP_TV_MOD_3840_2160P_24HZ     = 0x1e,
-	DISP_TV_MODE_NUM                = 0x1f,
+	DISP_TV_MOD_4096_2160P_24HZ     = 0x1f,
+	/* vga */
+	DISP_VGA_MOD_640_480P_60         = 0x50,
+	DISP_VGA_MOD_800_600P_60         = 0x51,
+	DISP_VGA_MOD_1024_768P_60        = 0x52,
+	DISP_VGA_MOD_1280_768P_60        = 0x53,
+	DISP_VGA_MOD_1280_800P_60        = 0x54,
+	DISP_VGA_MOD_1366_768P_60        = 0x55,
+	DISP_VGA_MOD_1440_900P_60        = 0x56,
+	DISP_VGA_MOD_1920_1080P_60       = 0x57,
+	DISP_VGA_MOD_1920_1200P_60       = 0x58,
+	DISP_TV_MODE_NUM                 = 0x59,
 };
-
 
 //FIXME:still need?
 enum disp_exit_mode
@@ -426,6 +436,7 @@ enum disp_tv_output
     DISP_TV_CVBS    = 1,
     DISP_TV_YPBPR   = 2,
     DISP_TV_SVIDEO  = 4,
+    DISP_VGA = 5,
 };
 
 enum tag_DISP_CMD
@@ -449,6 +460,7 @@ enum tag_DISP_CMD
 	DISP_GET_OUTPUT = 0x10,
 	DISP_SET_COLOR_RANGE = 0x11,
 	DISP_GET_COLOR_RANGE = 0x12,
+	DISP_HWC_CUSTOM = 0x13,
 
 	//----layer----
 	DISP_LAYER_ENABLE = 0x40,
@@ -519,6 +531,7 @@ enum tag_DISP_CMD
 	DISP_EINK_UPDATE  = 0x402,
 	DISP_EINK_SET_TEMP = 0x403,
 	DISP_EINK_GET_TEMP = 0x404,
+	DISP_EINK_OVERLAP_SKIP = 0x405,
 };
 
 #define FBIOGET_LAYER_HDL_0 0x4700

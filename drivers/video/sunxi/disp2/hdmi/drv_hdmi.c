@@ -5,6 +5,8 @@
 #include <linux/clk-private.h>
 #include <linux/sunxi-clk-prepare.h>
 
+#include <linux/suspend.h>
+
 #define HDMI_IO_NUM 5
 static bool hdmi_io_used[HDMI_IO_NUM]={0};
 static disp_gpio_set_t hdmi_io[HDMI_IO_NUM];
@@ -284,6 +286,8 @@ static struct disp_hdmi_mode hdmi_mode_tbl[] = {
 	{DISP_TV_MOD_720P_60HZ_3D_FP,     HDMI720P_60_3D_FP, },
 	{DISP_TV_MOD_3840_2160P_30HZ,     HDMI3840_2160P_30, },
 	{DISP_TV_MOD_3840_2160P_25HZ,     HDMI3840_2160P_25, },
+	{DISP_TV_MOD_3840_2160P_24HZ,     HDMI3840_2160P_24, },
+	{DISP_TV_MOD_4096_2160P_24HZ,     HDMI4096_2160P_24, },
 };
 
 static u32 hdmi_get_vic(u32 mode)
@@ -633,6 +637,25 @@ extern void audio_set_hdmi_func(__audio_hdmi_func * hdmi_func);
 extern s32 disp_set_hdmi_func(struct disp_device_func * func);
 extern unsigned int disp_boot_para_parse(const char *name);
 
+static int hdmi_pm_notify_fn (struct notifier_block *notify_block,
+			unsigned long mode, void *unused)
+{
+	__inf("hdmi_pm_notify_fn here mode :%d\n",mode);
+	switch (mode) {
+	case PM_SUSPEND_PREPARE:
+		if (HDMI_task) {
+			__inf("we should stop HDMI_task here\n");
+			switch_set_state(&hdmi_switch_dev, 0);	
+			hdmi_disable();
+		}
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+static struct notifier_block   hdmi_pm_notify;
 s32 hdmi_init(struct platform_device *pdev)
 {
 #if defined(CONFIG_SND_SUNXI_SOC_HDMIAUDIO)
@@ -747,6 +770,7 @@ s32 hdmi_init(struct platform_device *pdev)
 	if ((1 == ret) && (1 == value)) {
 		hdmi_cec_support = true;
 	}
+	hdmi_core_cec_enable(hdmi_cec_support);
 	printk("[HDMI] cec support = %d\n", hdmi_cec_support);
 
 	hdmi_core_initial(boot_hdmi);
@@ -801,6 +825,10 @@ s32 hdmi_init(struct platform_device *pdev)
 	disp_func.suspend = hdmi_suspend;
 	disp_func.resume = hdmi_resume;
 	disp_set_hdmi_func(&disp_func);
+
+	hdmi_pm_notify.notifier_call = hdmi_pm_notify_fn;
+	ret = register_pm_notifier(&hdmi_pm_notify);
+	__inf("register hdmi suspend prepare notifier ret:%d\n", ret);
 
 	return 0;
 
@@ -1021,7 +1049,7 @@ static ssize_t hdmi_hdcp_enable_store(struct device *dev,
 
 static DEVICE_ATTR(hdcp_enable, S_IRUGO|S_IWUSR|S_IWGRP,hdmi_hdcp_enable_show, hdmi_hdcp_enable_store);
 
-static int __init hdmi_probe(struct platform_device *pdev)
+static int hdmi_probe(struct platform_device *pdev)
 {
 	__inf("hdmi_probe call\n");
 	memset(&ghdmi, 0, sizeof(hdmi_info_t));

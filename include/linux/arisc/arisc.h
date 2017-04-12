@@ -53,7 +53,9 @@
 #define ARISC_AXP_REBOOT                 (ARISC_MESSAGE_BASE + 0x48)  /* reboot system for no pmu protocols      */
 #define ARISC_SET_PWR_TREE               (ARISC_MESSAGE_BASE + 0x49)  /* set power tree (ac327 to arisc)         */
 #define ARISC_CLR_NMI_STATUS             (ARISC_MESSAGE_BASE + 0x4a)  /* clear nmi status (ac327 to arisc)       */
-#define ARISC_SET_NMI_TRIGGER            (ARISC_MESSAGE_BASE + 0x4b)  /* set nmi trigger (ac327 to arisc)         */
+#define ARISC_SET_NMI_TRIGGER            (ARISC_MESSAGE_BASE + 0x4b)  /* set nmi trigger (ac327 to arisc)        */
+#define ARISC_SET_PMU_VOLT_STA           (ARISC_MESSAGE_BASE + 0x4c)  /* set pmu volt state(ac327 to arisc)      */
+#define ARISC_GET_PMU_VOLT_STA           (ARISC_MESSAGE_BASE + 0x4d)  /* get pmu volt state(ac327 to arisc)      */
 
 /* set arisc debug commands */
 #define ARISC_SET_DEBUG_LEVEL            (ARISC_MESSAGE_BASE + 0x50)  /* set arisc debug level  (ac327 to arisc)     */
@@ -79,13 +81,22 @@
 #define ARISC_RSB_BITS_OPS_SYNC          (ARISC_MESSAGE_BASE + 0x72)  /* rsb clear bits sync        (ac327 to arisc) */
 #define ARISC_RSB_SET_INTERFACE_MODE     (ARISC_MESSAGE_BASE + 0x73)  /* rsb set interface mode     (ac327 to arisc) */
 #define ARISC_RSB_SET_RTSADDR            (ARISC_MESSAGE_BASE + 0x74)  /* rsb set runtime slave addr (ac327 to arisc) */
+#define ARISC_TWI_READ_BLOCK_DATA        (ARISC_MESSAGE_BASE + 0x70)  /* twi read block data        (ac327 to arisc) */
+#define ARISC_TWI_WRITE_BLOCK_DATA       (ARISC_MESSAGE_BASE + 0x71)  /* twi write block data       (ac327 to arisc) */
+#define ARISC_TWI_BITS_OPS_SYNC          (ARISC_MESSAGE_BASE + 0x72)  /* twi clear bits sync        (ac327 to arisc) */
 
 /* arisc initialize state notify commands */
 #define ARISC_STARTUP_NOTIFY             (ARISC_MESSAGE_BASE + 0x80)  /* arisc init state notify(arisc to ac327) */
 
+#ifdef CONFIG_ARM
+/* the base of ARM SVC ARISC */
+#define ARM_SVC_ARISC_BASE          (0x80000000)
+#endif
 
+#ifdef CONFIG_ARM64
 /* the base of ARM SVC ARISC */
 #define ARM_SVC_ARISC_BASE          (0xc0000000)
+#endif
 
 /* standby commands */
 #define ARM_SVC_ARISC_SSTANDBY_ENTER_REQ        (ARM_SVC_ARISC_BASE + ARISC_SSTANDBY_ENTER_REQ)        /* request to enter       (ac327 to arisc) */
@@ -121,7 +132,9 @@
 #define ARM_SVC_ARISC_AXP_REBOOT                 (ARM_SVC_ARISC_BASE + ARISC_AXP_REBOOT)               /* reboot system for no pmu protocols      */
 #define ARM_SVC_ARISC_SET_PWR_TREE               (ARM_SVC_ARISC_BASE + ARISC_SET_PWR_TREE)             /* set power tree (ac327 to arisc)         */
 #define ARM_SVC_ARISC_CLR_NMI_STATUS             (ARM_SVC_ARISC_BASE + ARISC_CLR_NMI_STATUS)           /* clear nmi status (ac327 to arisc)       */
-#define ARM_SVC_ARISC_SET_NMI_TRIGGER            (ARM_SVC_ARISC_BASE + ARISC_SET_NMI_TRIGGER)          /* set nmi trigger (ac327 to arisc)         */
+#define ARM_SVC_ARISC_SET_NMI_TRIGGER            (ARM_SVC_ARISC_BASE + ARISC_SET_NMI_TRIGGER)          /* set nmi trigger (ac327 to arisc)        */
+#define ARM_SVC_ARISC_SET_PMU_VOLT_STA           (ARM_SVC_ARISC_BASE + ARISC_SET_PMU_VOLT_STA)         /* set pmu volt state(ac327 to arisc)      */
+#define ARM_SVC_ARISC_GET_PMU_VOLT_STA           (ARM_SVC_ARISC_BASE + ARISC_GET_PMU_VOLT_STA)          /* get pmu volt state(ac327 to arisc)     */
 
 /* set arisc debug commands */
 #define ARM_SVC_ARISC_SET_DEBUG_LEVEL            (ARM_SVC_ARISC_BASE + ARISC_SET_DEBUG_LEVEL)          /* set arisc debug level  (ac327 to arisc)     */
@@ -147,6 +160,9 @@
 #define ARM_SVC_ARISC_RSB_BITS_OPS_SYNC          (ARM_SVC_ARISC_BASE + ARISC_RSB_BITS_OPS_SYNC)        /* rsb clear bits sync        (ac327 to arisc) */
 #define ARM_SVC_ARISC_RSB_SET_INTERFACE_MODE     (ARM_SVC_ARISC_BASE + ARISC_RSB_SET_INTERFACE_MODE)   /* rsb set interface mode     (ac327 to arisc) */
 #define ARM_SVC_ARISC_RSB_SET_RTSADDR            (ARM_SVC_ARISC_BASE + ARISC_RSB_SET_RTSADDR)          /* rsb set runtime slave addr (ac327 to arisc) */
+#define ARM_SVC_ARISC_TWI_READ_BLOCK_DATA        (ARM_SVC_ARISC_BASE + ARISC_TWI_READ_BLOCK_DATA)      /* rsb read block data        (ac327 to arisc) */
+#define ARM_SVC_ARISC_TWI_WRITE_BLOCK_DATA       (ARM_SVC_ARISC_BASE + ARISC_TWI_WRITE_BLOCK_DATA)     /* rsb write block data       (ac327 to arisc) */
+#define ARM_SVC_ARISC_TWI_BITS_OPS_SYNC          (ARM_SVC_ARISC_BASE + ARISC_TWI_BITS_OPS_SYNC)        /* rsb clear bits sync        (ac327 to arisc) */
 
 /* arisc initialize state notify commands */
 #define ARM_SVC_ARISC_STARTUP_NOTIFY             (ARM_SVC_ARISC_BASE + ARISC_STARTUP_NOTIFY)           /* arisc init state notify(arisc to ac327) */
@@ -169,6 +185,7 @@
 #define AXP_TRANS_BYTE_MAX	(4)
 #define RSB_TRANS_BYTE_MAX	(4)
 #define P2WI_TRANS_BYTE_MAX	(8)
+#define TWI_TRANS_BYTE_MAX	(8)
 
 /* RSB devices' address */
 #define RSB_DEVICE_SADDR1   	(0x3A3) /* (0x01d1)AXP22x(AW1669) */
@@ -199,40 +216,30 @@
 //pmu voltage types
 typedef enum power_voltage_type
 {
-	AXP809_POWER_VOL_DCDC1 = 0x0,
-	AXP809_POWER_VOL_DCDC2,
-	AXP809_POWER_VOL_DCDC3,
-	AXP809_POWER_VOL_DCDC4,
-	AXP809_POWER_VOL_DCDC5,
-	AXP809_POWER_VOL_DC5LDO,
-	AXP809_POWER_VOL_ALDO1,
-	AXP809_POWER_VOL_ALDO2,
-	AXP809_POWER_VOL_ALDO3,
-	AXP809_POWER_VOL_DLDO1,
-	AXP809_POWER_VOL_DLDO2,
-	AXP809_POWER_VOL_ELDO1,
-	AXP809_POWER_VOL_ELDO2,
-	AXP809_POWER_VOL_ELDO3,
-
-	AXP806_POWER_VOL_DCDCA,
-	AXP806_POWER_VOL_DCDCB,
-	AXP806_POWER_VOL_DCDCC,
-	AXP806_POWER_VOL_DCDCD,
-	AXP806_POWER_VOL_DCDCE,
-	AXP806_POWER_VOL_ALDO1,
-	AXP806_POWER_VOL_ALDO2,
-	AXP806_POWER_VOL_ALDO3,
-	AXP806_POWER_VOL_BLDO1,
-	AXP806_POWER_VOL_BLDO2,
-	AXP806_POWER_VOL_BLDO3,
-	AXP806_POWER_VOL_BLDO4,
-	AXP806_POWER_VOL_CLDO1,
-	AXP806_POWER_VOL_CLDO2,
-	AXP806_POWER_VOL_CLDO3,
-
-	OZ80120_POWER_VOL_DCDC,
-
-	POWER_VOL_MAX,
+	AW1657_POWER_DCDCA = 0x0,
+	AW1657_POWER_DCDCB,
+	AW1657_POWER_DCDCC,
+	AW1657_POWER_DCDCD,
+	AW1657_POWER_DCDCE,
+	AW1657_POWER_ALDO1,
+	AW1657_POWER_ALDO2,
+	AW1657_POWER_ALDO3,
+	AW1657_POWER_BLDO1,
+	AW1657_POWER_BLDO2,
+	AW1657_POWER_BLDO3,
+	AW1657_POWER_BLDO4,
+	AW1657_POWER_CLDO1,
+	AW1657_POWER_CLDO2,
+	AW1657_POWER_CLDO3,
+	AW1657_POWER_DC1SW,
+	AW1657_POWER_MAX,
+	DUMMY_REGULATOR1, /* AVCC/VCC3V3-PLL/VCC3V3-TV */
+	DUMMY_REGULATOR2, /* DRAM */
+	DUMMY_REGULATOR3, /* SYSTEM */
+	DUMMY_REGULATOR4, /* VCC-CPUX */
+	DUMMY_REGULATOR5, /* WIFI */
+	DUMMY_REGULATOR6, /* VCC-IO */
+	DUMMY_REGULATOR_MAX,
 } power_voltage_type_e;
 
 /* the pll of arisc dvfs */
@@ -287,11 +294,11 @@ typedef struct arisc_rsb_block_cfg
  */
 typedef struct arisc_rsb_bits_cfg
 {
-    unsigned int len;
-    unsigned int datatype;
-    unsigned int msgattr;
-    unsigned int ops;
-    unsigned int devaddr;
+	unsigned int len;
+	unsigned int datatype;
+	unsigned int msgattr;
+	unsigned int ops;
+	unsigned int devaddr;
 	unsigned char *regaddr;
 	unsigned char *delay;
 	unsigned int *mask;
@@ -319,6 +326,37 @@ typedef struct sunxi_enter_idle_para{
 	unsigned long flags;
 	void *resume_addr;
 }sunxi_enter_idle_para_t;
+
+
+/*
+ * @len :       number of read registers, max len:8;
+ * @msgattr:    message attribute, 0:async, 1:soft sync, 2:hard aync
+ * @addr:       point of registers address;
+ * @data:       point of registers data;
+ */
+typedef struct arisc_twi_block_cfg {
+	unsigned int len;
+	unsigned int msgattr;
+	unsigned char *addr;
+	unsigned char *data;
+} arisc_twi_block_cfg_t;
+
+/*
+ * @len  :       number of operate registers, max len:8;
+ * @msgattr:     message attribute, 0:async, 1:soft sync, 2:hard aync
+ * @ops:         bits operation, 0:clear bits, 1:set bits
+ * @addr :       point of registers address;
+ * @mask :       point of mask bits data;
+ * @delay:       point of delay times;
+ */
+typedef struct arisc_twi_bits_cfg {
+	unsigned int len;
+	unsigned int msgattr;
+	unsigned int ops;
+	unsigned char *addr;
+	unsigned char *mask;
+	unsigned char *delay;
+} arisc_twi_bits_cfg_t;
 
 /* ====================================dvfs interface==================================== */
 /*
@@ -413,7 +451,9 @@ int arisc_clear_nmi_status(void);
 int arisc_set_nmi_trigger(u32 type);
 
 int arisc_axp_get_chip_id(unsigned char *chip_id);
-#if (defined CONFIG_ARCH_SUN8IW5P1) || (defined CONFIG_ARCH_SUN50IW1P1)
+#if (defined CONFIG_ARCH_SUN8IW5P1) || \
+	(defined CONFIG_ARCH_SUN50IW1P1) || \
+	(defined CONFIG_ARCH_SUN50IW2P1)
 int arisc_adjust_pmu_chgcur(unsigned int max_chgcur, unsigned int chg_ic_temp);
 #endif
 int arisc_set_pwr_tree(u32 *pwr_tree);
@@ -497,6 +537,63 @@ int arisc_pmu_set_voltage(u32 type, u32 voltage);
  * return: pmu regulator voltage;
  */
 unsigned int arisc_pmu_get_voltage(u32 type);
+
+/**
+ * set pmu voltage state.
+ * @type:     pmu regulator type;
+ * @state:  pmu regulator voltage state;
+ *
+ * return: result, 0 - set pmu voltage state successed,
+ *                !0 - set pmu voltage state failed;
+ */
+int arisc_pmu_set_voltage_state(u32 type, u32 state);
+
+/**
+ * get pmu voltage state.
+ * @type:     pmu regulator type;
+ *
+ * return: pmu regulator voltage state;
+ */
+unsigned int arisc_pmu_get_voltage_state(u32 type);
+
+/* ====================================twi interface==================================== */
+/**
+ * twi read block data.
+ * @cfg:    point of arisc_twi_block_cfg struct;
+ *
+ * return: result, 0 - read register successed,
+ *                !0 - read register failed or the len more then max len;
+ */
+int arisc_twi_read_block_data(struct arisc_twi_block_cfg *cfg);
+
+/**
+ * twi write block data.
+ * @cfg:    point of arisc_twi_block_cfg struct;
+ *
+ * return: result, 0 - write register successed,
+ *                !0 - write register failedor the len more then max len;
+ */
+int arisc_twi_write_block_data(struct arisc_twi_block_cfg *cfg);
+
+/**
+ * twi bits operation sync.
+ * @cfg:    point of arisc_twi_bits_cfg struct;
+ *
+ * return: result, 0 - bits operation successed,
+ *                !0 - bits operation failed, or the len more then max len;
+ *
+ * twi clear bits internal:
+ * data = twi_read(addr);
+ * data = data & (~mask);
+ * twi_write(addr, data);
+ *
+ * twi set bits internal:
+ * data = twi_read(addr);
+ * data = data | mask;
+ * twi_write(addr, data);
+ *
+ */
+int twi_bits_ops_sync(struct arisc_twi_bits_cfg *cfg);
 
 /* ====================================debug interface==================================== */
 int arisc_message_loopback(void);

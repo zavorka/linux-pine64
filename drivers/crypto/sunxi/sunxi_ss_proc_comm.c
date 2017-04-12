@@ -123,11 +123,18 @@ void ss_hash_padding_sg_prepare(struct scatterlist *last, int total)
 	WARN_ON(sg_dma_len(last) > total);
 }
 
+#ifdef SS_HASH_HW_PADDING
+int ss_hash_padding(ss_hash_ctx_t *ctx, int type)
+{
+	SS_DBG("type: %d, n: %d, cnt: %d\n", type, ctx->tail_len, ctx->cnt);
+	return SS_HASH_PAD_SIZE;
+}
+#else
 int ss_hash_padding(ss_hash_ctx_t *ctx, int type)
 {
 	int blk_size = ss_hash_blk_size(type);
 	int len_threshold = blk_size == SHA512_BLOCK_SIZE ? 112 : 56;
-	int n = ctx->cnt % blk_size;
+	int n = ctx->tail_len;
 	u8 *p = ctx->pad;
 	int len_l = ctx->cnt << 3;  /* total len, in bits. */
 	int len_h = ctx->cnt >> 29;
@@ -169,6 +176,7 @@ int ss_hash_padding(ss_hash_ctx_t *ctx, int type)
 
 	return p + 8 - ctx->pad;
 }
+#endif
 
 static int ss_hash_one_req(sunxi_ss_t *sss, struct ahash_request *req)
 {
@@ -187,7 +195,7 @@ static int ss_hash_one_req(sunxi_ss_t *sss, struct ahash_request *req)
 	req_ctx = ahash_request_ctx(req);
 	req_ctx->dma_src.sg = req->src;
 
-	ret = ss_hash_start(ctx, req_ctx, req->nbytes);
+	ret = ss_hash_start(ctx, req_ctx, req->nbytes, 0);
 	if (ret < 0)
 		SS_ERR("ss_hash_start fail(%d)\n", ret);
 
@@ -207,6 +215,7 @@ void ss_hash_save_tail(struct ahash_request *req)
 	taillen = req->nbytes % ss_hash_blk_size(req_ctx->type);
 	SS_DBG("type: %d, mode: %d, len: %d, tail: %d\n", req_ctx->type,
 										req_ctx->mode, req->nbytes, taillen);
+	ctx->tail_len = taillen;
 	if (taillen == 0) /* The package don't need to backup. */
 		return;
 
@@ -257,15 +266,15 @@ int ss_hash_final(struct ahash_request *req)
 
 	/* Process the padding data. */
 	pad_len = ss_hash_padding(ctx, req_ctx->type);
-	SS_DBG("Pad len: %d \n", pad_len);
+	SS_DBG("Pad len: %d\n", pad_len);
 	req_ctx->dma_src.sg = &last;
 	sg_init_table(&last, 1);
 	sg_set_buf(&last, ctx->pad, pad_len);
-	SS_DBG("Padding data: \n");
-	ss_print_hex((s8 *)ctx->pad, 128, ctx->pad);
 
+	SS_DBG("Padding data:\n");
+	ss_print_hex((s8 *)ctx->pad, 128, ctx->pad);
 	ss_dev_lock();
-	ss_hash_start(ctx, req_ctx, pad_len);
+	ss_hash_start(ctx, req_ctx, pad_len, 1);
 
 	ss_sha_final();
 

@@ -285,7 +285,7 @@ static void ipip_tunnel_setup(struct net_device *dev)
 	dev->features		|= NETIF_F_NETNS_LOCAL;
 	dev->features		|= NETIF_F_LLTX;
 	dev->priv_flags		&= ~IFF_XMIT_DST_RELEASE;
-
+	dev->mtu		= ETH_DATA_LEN - sizeof(struct iphdr);
 	dev->features		|= IPIP_FEATURES;
 	dev->hw_features	|= IPIP_FEATURES;
 	ip_tunnel_setup(dev, ipip_net_id);

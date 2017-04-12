@@ -7,7 +7,7 @@ menuconfig WLAN
 	depends on !S390
 	depends on NET
 	select WIRELESS
-	default y
+	default n
 	---help---
 	  This section contains all the pre 802.11 and 802.11 wireless
 	  device drivers. For a complete list of drivers and documentation
@@ -290,4 +290,5 @@ source "drivers/net/wireless/rtl8723bs/Kconfig"
 source "drivers/net/wireless/rtl8723bs_vq0/Kconfig"
 source "drivers/net/wireless/rtl8189fs/Kconfig"
 source "drivers/net/wireless/rtl8723cs/Kconfig"
+source "drivers/net/wireless/compat-wireless/Kconfig"
 endif # WLAN

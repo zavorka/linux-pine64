@@ -35,6 +35,7 @@
 
 static LIST_HEAD(csi_drv_list);
 
+#ifdef VFE_CLK
 static char * clk_name[CSI_CLK_NUM] = {
 	"csi_core_clk",
 	"csi_master_clk",
@@ -43,6 +44,7 @@ static char * clk_name[CSI_CLK_NUM] = {
 	"csi_master_clk_24M_src",
 	"csi_master_clk_pll_src",
 };
+#endif
 
 static int csi_clk_get(struct csi_dev *dev)
 {
@@ -50,7 +52,7 @@ static int csi_clk_get(struct csi_dev *dev)
 	int i;
 	int clk_index[CSI_CLK_NUM];
 	struct device_node *np = dev->pdev->dev.of_node;
-	
+
 	of_property_read_u32_array(np, "clocks-index", clk_index, CSI_CLK_NUM);
 	for(i = 0; i < CSI_CLK_NUM; i++)
 	{
@@ -298,6 +300,38 @@ static int sunxi_csi_s_mbus_config(struct v4l2_subdev *sd,
 		}
 	} else if (cfg->type == V4L2_MBUS_BT656) {
 		csi->bus_info.bus_if = BT656;
+#if defined CONFIG_ARCH_SUN8IW11P1
+		csi->bus_info.ch_total_num = 0;
+		if (IS_FLAG(cfg->flags, CSI_CH_0)) {
+			csi->bus_info.ch_total_num++;
+		}
+		if (IS_FLAG(cfg->flags, CSI_CH_1)) {
+			csi->bus_info.ch_total_num++;
+		}
+		if (IS_FLAG(cfg->flags, CSI_CH_2)) {
+			csi->bus_info.ch_total_num++;
+		}
+		if (IS_FLAG(cfg->flags, CSI_CH_3)) {
+			csi->bus_info.ch_total_num++;
+		}
+		if (csi->bus_info.ch_total_num == 4) {
+			csi->arrange.column = 2;
+			csi->arrange.row = 2;
+		} else if (csi->bus_info.ch_total_num == 2) {
+			csi->arrange.column = 2;
+			csi->arrange.row = 1;
+		} else {
+			csi->bus_info.ch_total_num = 1;
+			csi->arrange.column = 1;
+			csi->arrange.row = 1;
+		}
+		vfe_print("ch_total_num = %d\n", csi->bus_info.ch_total_num);
+		if (IS_FLAG(cfg->flags, V4L2_MBUS_PCLK_SAMPLE_RISING)) {
+			csi->bus_info.bus_tmg.pclk_sample = RISING;
+		} else {
+			csi->bus_info.bus_tmg.pclk_sample = FALLING;
+		}
+#endif
 	}
 
 	return 0;
@@ -323,8 +357,10 @@ static long sunxi_csi_subdev_ioctl(struct v4l2_subdev *sd, unsigned int cmd, voi
 		break;
 	case VIDIOC_SUNXI_CSI_SET_CORE_CLK:
 		mutex_lock(&csi->subdev_lock);
+#ifdef VFE_CLK
 		ret = clk_set_rate(csi->clock[CSI_CORE_CLK], *(unsigned long *)arg);
 		vfe_print("Set csi core clk = %ld, after Set csi core clk = %ld \n", *(unsigned long *)arg, clk_get_rate(csi->clock[CSI_CORE_CLK]));
+#endif
 		mutex_unlock(&csi->subdev_lock);
 		break;
 	case VIDIOC_SUNXI_CSI_SET_M_CLK:
@@ -443,7 +479,6 @@ static int csi_remove(struct platform_device *pdev)
 {
 	struct csi_dev *csi = platform_get_drvdata(pdev);
 	platform_set_drvdata(pdev, NULL);
-	free_irq(csi->irq, csi);
 	csi_clk_release(csi);
 	mutex_destroy(&csi->subdev_lock);
 	if(csi->base)

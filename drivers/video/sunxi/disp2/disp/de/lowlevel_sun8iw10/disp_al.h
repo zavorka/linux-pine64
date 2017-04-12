@@ -105,32 +105,35 @@ int disp_al_get_eink_wb_status(u32 disp);
 
 int disp_al_get_fb_info(unsigned int sel, struct disp_layer_info *info);
 int disp_al_get_display_size(unsigned int sel, unsigned int *width, unsigned int *height);
-int disp_al_set_eink_base(u32 disp, unsigned int base);
+int disp_al_set_eink_base(u32 disp, unsigned long base);
 int disp_al_eink_irq_enable(u32 disp);
 int disp_al_eink_irq_disable(u32 disp);
 int disp_al_eink_irq_query(u32 disp);
 int disp_al_eink_config(u32 disp, struct eink_init_param* param);
 int disp_al_eink_disable(u32 disp);
-int disp_al_eink_start_calculate_index(u32 disp, u32 old_index_data_paddr, u32 new_index_data_paddr, struct eink_8bpp_image* last_image,
-										struct eink_8bpp_image* current_image);
+int disp_al_eink_start_calculate_index(u32 disp,
+										unsigned long old_index_data_paddr,
+										unsigned long new_index_data_paddr,
+										struct eink_8bpp_image *last_image,
+										struct eink_8bpp_image *current_image);
 int disp_al_is_calculate_index_finish(unsigned int disp);
 int disp_al_get_update_area(unsigned int disp, struct area_info* area);
 int disp_al_eink_pipe_enable(u32 disp, unsigned int pipe_no);
 int disp_al_eink_pipe_disable(u32 disp, unsigned int pipe_no);
 int disp_al_eink_pipe_config(u32 disp,  unsigned int pipe_no, struct area_info area);
 int disp_al_eink_pipe_config_wavefile(u32 disp, unsigned int wav_file_addr, unsigned int pipe_no);
-int disp_al_eink_start_decode(unsigned int disp, unsigned int new_idx_addr, unsigned int wav_data_addr, 
-						struct eink_init_param* param);
+int disp_al_eink_start_decode(unsigned int disp, unsigned long new_idx_addr,
+								unsigned long wav_data_addr, struct eink_init_param *param);
 int disp_al_init_waveform(const char *path);
 int disp_al_edma_init(unsigned int disp,struct eink_init_param* param);
-int disp_al_edma_config(unsigned int disp,unsigned int wave_data_addr, struct eink_init_param* param);
-int disp_al_eink_edma_cfg_addr(unsigned int disp, unsigned int wav_addr);
+int disp_al_edma_config(unsigned int disp, unsigned long wave_data_addr, struct eink_init_param *param);
+int disp_al_eink_edma_cfg_addr(unsigned int disp, unsigned long wav_addr);
 int disp_al_dbuf_rdy(void);
 int disp_al_edma_write(unsigned int disp, unsigned char en);
 int disp_al_get_waveform_data(unsigned int disp, enum eink_update_mode mode, unsigned int temp, unsigned int *total_frames, unsigned int*wf_buf);
 int disp_al_get_eink_panel_bit_num(unsigned int disp, enum  eink_bit_num *bit_num);
 void disp_al_free_waveform(void);
-int disp_al_init_eink_ctrl_data_8(unsigned int disp, unsigned int wavedata_buf, struct eink_timing_param *eink_timing_info, unsigned int i);
+int disp_al_init_eink_ctrl_data_8(unsigned int disp, unsigned long wavedata_buf, struct eink_timing_param *eink_timing_info, unsigned int i);
 int disp_al_init_eink_ctrl_data_16(unsigned int disp, unsigned int wavedata_buf, struct eink_timing_param *eink_timing_info);
 
 

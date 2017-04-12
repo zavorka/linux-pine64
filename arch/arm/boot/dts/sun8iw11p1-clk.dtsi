@@ -5,14 +5,21 @@ clocks {
 	#address-cells = <2>;
 	#size-cells = <2>;
 	ranges;
-	reg = <0x0 0x01c20000 0x0 0x0324> ,  /*cpux space*/
-		<0x0 0x01c20460 0x0 0x4>;
+	reg = <0x0 0x01c20000 0x0 0x0324>;  /*cpux space*/
+
 /* register fixed rate clock*/
-		clk_losc: losc {
+		clk_losc_ext: losc_ext {
 			#clock-cells = <0>;
 			compatible = "allwinner,fixed-clock";
 			clock-frequency = <32768>;
-			clock-output-names = "losc";
+			clock-output-names = "losc_ext";
+		};
+
+		clk_losc_rc: losc_rc{
+			#clock-cells = <0>;
+			compatible = "allwinner,fixed-clock";
+			clock-frequency = <2000000>;
+			clock-output-names = "losc_rc";
 		};
 
 		clk_iosc: iosc {
@@ -52,7 +59,6 @@ clocks {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-pll-clock";
 			lock-mode = "new";
-			assigned-clock-rates = <297000000>;
 			clock-output-names = "pll_video0";
 		};
 		clk_pll_ve: pll_ve {
@@ -70,6 +76,7 @@ clocks {
 		clk_pll_periph0: pll_periph0 {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-pll-clock";
+			assigned-clock-rates = <600000000>;
 			lock-mode = "new";
 			clock-output-names = "pll_periph0";
 		};
@@ -83,7 +90,6 @@ clocks {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-pll-clock";
 			lock-mode = "new";
-			assigned-clock-rates = <297000000>;
 			clock-output-names = "pll_video1";
 		};
 		clk_pll_sata: pll_sata {
@@ -182,7 +188,21 @@ clocks {
 			clock-div = <750>;
 			clock-output-names = "hosc_32k";
 		};
+		clk_hoscx2: hoscx2 {
+			#clock-cells = <0>;
+			compatible = "allwinner,fixed-factor-clock";
+			clocks = <&clk_hosc>;
+			clock-mult = <2>;
+			clock-div = <1>;
+			clock-output-names = "hoscx2";
+		};
 /* register allwinner,sunxi-periph-clock */
+		clk_losc: losc {
+			#clock-cells = <0>;
+			compatible = "allwinner,sunxi-periph-clock";
+			assigned-clock-parents = <&clk_losc_ext>;
+			clock-output-names = "losc";
+		};
 		clk_cpu: cpu {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
@@ -206,16 +226,21 @@ clocks {
 		clk_ahb1: ahb1 {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
+			assigned-clock-parents = <&clk_pll_periphahb0>;
+			assigned-clock-rates = <200000000>;
 			clock-output-names = "ahb1";
 		};
 		clk_apb1: apb1 {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
+			assigned-clock-rates = <100000000>;
 			clock-output-names = "apb1";
 		};
 		clk_apb2: apb2 {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
+			assigned-clock-parents = <&clk_hosc>;
+			assigned-clock-rates = <24000000>;
 			clock-output-names = "apb2";
 		};
 		clk_ths: ths {
@@ -416,7 +441,7 @@ clocks {
 		clk_tcon0: tcon0 {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
-			assigned-clock-parents = <&clk_pll_video0>;
+			assigned-clock-parents = <&clk_pll_mipi>;
 			clock-output-names = "tcon0";
 		};
 		clk_tcon1: tcon1 {
@@ -428,13 +453,13 @@ clocks {
 		clk_tcon_tv0: tcon_tv0 {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
-			assigned-clock-parents = <&clk_pll_video0>;
+			assigned-clock-parents = <&clk_pll_video1>;
 			clock-output-names = "tcon_tv0";
 		};
 		clk_tcon_tv1: tcon_tv1 {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
-			assigned-clock-parents = <&clk_pll_video0>;
+			assigned-clock-parents = <&clk_pll_video1>;
 			clock-output-names = "tcon_tv1";
 		};
 		clk_deinterlace: deinterlace {
@@ -447,15 +472,15 @@ clocks {
 			compatible = "allwinner,sunxi-periph-clock";
 			clock-output-names = "csi_s";
 		};
-		clk_csi_m: csi_m {
+		clk_csi0_m: csi0_m {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
-			clock-output-names = "csi_m";
+			clock-output-names = "csi0_m";
 		};
-		clk_csi_misc: csi_misc {
+		clk_csi1_m: csi1_m {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
-			clock-output-names = "csi_misc";
+			clock-output-names = "csi1_m";
 		};
 		clk_ve: ve {
 			#clock-cells = <0>;
@@ -480,7 +505,7 @@ clocks {
 		clk_hdmi: hdmi {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
-			assigned-clock-parents = <&clk_pll_video0>;
+			assigned-clock-parents = <&clk_pll_video1>;
 			clock-output-names = "hdmi";
 		};
 		clk_hdmi_slow: hdmi_slow {
@@ -491,6 +516,8 @@ clocks {
 		clk_mbus: mbus {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
+			assigned-clock-parents = <&clk_pll_periph0x2>;
+			assigned-clock-rates = <400000000>;
 			clock-output-names = "mbus";
 		};
 		clk_mipidsi: mipidsi {
@@ -547,6 +574,7 @@ clocks {
 		clk_outa: outa {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
+			assigned-clock-parents = <&clk_losc>;
 			clock-output-names = "outa";
 		};
 		clk_outb: outb {
@@ -574,6 +602,21 @@ clocks {
 			compatible = "allwinner,sunxi-periph-clock";
 			clock-output-names = "usbehci2";
 		};
+		clk_usbohci012m: usbohci012m {
+			#clock-cells = <0>;
+			compatible = "allwinner,sunxi-periph-clock";
+			clock-output-names = "usbohci012m";
+		};
+		clk_usbohci112m: usbohci112m {
+			#clock-cells = <0>;
+			compatible = "allwinner,sunxi-periph-clock";
+			clock-output-names = "usbohci112m";
+		};
+		clk_usbohci212m: usbohci212m {
+			#clock-cells = <0>;
+			compatible = "allwinner,sunxi-periph-clock";
+			clock-output-names = "usbohci212m";
+		};
 		clk_usbotg: usbotg {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
@@ -583,6 +626,11 @@ clocks {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
 			clock-output-names = "gmac";
+		};
+		clk_emac: emac {
+			#clock-cells = <0>;
+			compatible = "allwinner,sunxi-periph-clock";
+			clock-output-names = "emac";
 		};
 		clk_sdram: sdram {
 			#clock-cells = <0>;
@@ -639,10 +687,10 @@ clocks {
 			compatible = "allwinner,sunxi-periph-clock";
 			clock-output-names = "uart7";
 		};
-		clk_scr: scr {
+		clk_scr0: scr0 {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
-			clock-output-names = "scr";
+			clock-output-names = "scr0";
 		};
 		clk_twi0: twi0 {
 			#clock-cells = <0>;
@@ -674,11 +722,6 @@ clocks {
 			compatible = "allwinner,sunxi-periph-clock";
 			clock-output-names = "pio";
 		};
-		clk_losc_out: losc_out {
-			#clock-cells = <0>;
-			compatible = "allwinner,sunxi-periph-clock";
-			clock-output-names = "losc_out";
-		};
 		clk_ps20: ps20 {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
@@ -688,6 +731,11 @@ clocks {
 			#clock-cells = <0>;
 			compatible = "allwinner,sunxi-periph-clock";
 			clock-output-names = "ps21";
+		};
+		clk_can: can {
+			#clock-cells = <0>;
+			compatible = "allwinner,sunxi-periph-clock";
+			clock-output-names = "can";
 		};
 	};/*clocks end*/
 };

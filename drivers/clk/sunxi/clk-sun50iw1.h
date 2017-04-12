@@ -13,7 +13,10 @@
 #include <linux/clk-provider.h>
 #include <linux/clkdev.h>
 #include <linux/io.h>
+#ifdef CONFIG_ARM64
 #define IO_ADDRESS(x)            (void __iomem *)(((x) & 0x0fffffff) + (((x) >> 4) & 0x0f000000) + 0xf0000000)
+#endif
+
 //#include <mach/hardware.h>
 #include "clk-factors.h"
 /* register list */

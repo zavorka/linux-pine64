@@ -215,7 +215,8 @@ static void arch_timer_set_mode_phys_mem(enum clock_event_mode mode,
 {
 	timer_set_mode(ARCH_TIMER_MEM_PHYS_ACCESS, mode, clk);
 }
-#ifdef  CONFIG_ARCH_SUN50I
+#if defined(CONFIG_ARCH_SUN50IW1P1) \
+	|| defined(CONFIG_ARCH_SUN50IW2P1)
 #define ARCH_TVAL_TRY_MAX_TIME (12)
 #define ARCH_CVAL_MAX_DELTA    (40)
 static __always_inline void set_next_event(const int access, unsigned long evt,
@@ -224,7 +225,8 @@ static __always_inline void set_next_event(const int access, unsigned long evt,
 	unsigned int  retry = 0;
 	unsigned long ctrl;
 	unsigned long tval;
-	u64           cnt, cval;
+	u64           cnt;
+	u64           cval;
 
 	ctrl = arch_timer_reg_read(access, ARCH_TIMER_REG_CTRL, clk);
 	ctrl |= ARCH_TIMER_CTRL_ENABLE;
@@ -237,11 +239,11 @@ static __always_inline void set_next_event(const int access, unsigned long evt,
 		if (access == ARCH_TIMER_PHYS_ACCESS) {
 			cnt = arch_counter_get_cntpct();
 			arch_timer_reg_write(access, ARCH_TIMER_REG_TVAL, evt, clk);
-			asm volatile("mrs %0, cntp_cval_el0" : "=r" (cval));
+			cval = arch_timer_reg_read_cval(access);
 		} else {
 			cnt = arch_counter_get_cntvct();
 			arch_timer_reg_write(access, ARCH_TIMER_REG_TVAL, evt, clk);
-			asm volatile("mrs %0, cntv_cval_el0" : "=r" (cval));
+			cval = arch_timer_reg_read_cval(access);
 		}
 
 		tval = cval - cnt;
@@ -434,12 +436,12 @@ u64 (*arch_timer_read_counter)(void) = arch_counter_get_cntvct;
 
 static cycle_t arch_counter_read(struct clocksource *cs)
 {
-	return arch_counter_get_cntvct();
+	return arch_timer_read_counter();
 }
 
 static cycle_t arch_counter_read_cc(const struct cyclecounter *cc)
 {
-	return arch_counter_get_cntvct();
+	return arch_timer_read_counter();
 }
 
 static struct clocksource clocksource_counter = {
@@ -467,10 +469,14 @@ static void __init arch_counter_register(unsigned type)
 	u64 start_count;
 
 	/* Register the CP15 based counter if we have one */
-	if (type & ARCH_CP15_TIMER)
-		arch_timer_read_counter = arch_counter_get_cntvct;
-	else
+	if (type & ARCH_CP15_TIMER) {
+		if (arch_timer_use_virtual)
+			arch_timer_read_counter = arch_counter_get_cntvct;
+		else
+			arch_timer_read_counter = arch_counter_get_cntpct;
+	} else {
 		arch_timer_read_counter = arch_counter_get_cntvct_mem;
+	}
 
 	start_count = arch_timer_read_counter();
 	clocksource_register_hz(&clocksource_counter, arch_timer_rate);
@@ -479,7 +485,7 @@ static void __init arch_counter_register(unsigned type)
 	timecounter_init(&timecounter, &cyclecounter, start_count);
 }
 
-static void __cpuinit arch_timer_stop(struct clock_event_device *clk)
+static void arch_timer_stop(struct clock_event_device *clk)
 {
 	pr_debug("arch_timer_teardown disable IRQ%d cpu #%d\n",
 		 clk->irq, smp_processor_id());
@@ -495,7 +501,7 @@ static void __cpuinit arch_timer_stop(struct clock_event_device *clk)
 	clk->set_mode(CLOCK_EVT_MODE_UNUSED, clk);
 }
 
-static int __cpuinit arch_timer_cpu_notify(struct notifier_block *self,
+static int __ref arch_timer_cpu_notify(struct notifier_block *self,
 					   unsigned long action, void *hcpu)
 {
 	/*
@@ -514,7 +520,7 @@ static int __cpuinit arch_timer_cpu_notify(struct notifier_block *self,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block arch_timer_cpu_nb __cpuinitdata = {
+static struct notifier_block arch_timer_cpu_nb = {
 	.notifier_call = arch_timer_cpu_notify,
 };
 

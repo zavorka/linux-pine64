@@ -4,6 +4,8 @@
 #define G2D_BYTE_ALIGN(x) ( ( (x + (4*1024-1)) >> 12) << 12)			 /* alloc based on 4K byte */
 static struct info_mem g2d_mem[MAX_G2D_MEM_INDEX];
 static int	g2d_mem_sel = 0;
+static enum g2d_scan_order scan_order;
+static struct mutex global_lock;
 
 static struct class	*g2d_class;
 static struct cdev	*g2d_cdev;
@@ -201,6 +203,10 @@ static int g2d_release(struct inode *inode, struct file *file)
 		para.opened = false;
 	}
 	mutex_unlock(&para.mutex);
+
+	mutex_lock(&global_lock);
+	scan_order = G2D_SM_TDLR;
+	mutex_unlock(&global_lock);
 	return 0;
 }
 
@@ -321,7 +327,18 @@ int g2d_blit(g2d_blt * para)
 	}
 
 	g2d_ext_hd.finish_flag = 0;
-	err = mixer_blt(para);
+
+	/* Add support inverted order copy, however,
+	 * hardware have a bug when reciving y coordinate,
+	 * it use (y + height) rather than (y) on inverted
+	 * order mode, so here adjust it before pass it to hardware.
+	 */
+	mutex_lock(&global_lock);
+	if (scan_order > G2D_SM_TDRL)
+		para->dst_y += para->src_rect.h;
+	mutex_unlock(&global_lock);
+
+	err = mixer_blt(para, scan_order);
 
 	return err;
 }
@@ -426,7 +443,19 @@ int g2d_stretchblit(g2d_stretchblt * para)
 	}
 
 	g2d_ext_hd.finish_flag = 0;
-	err = mixer_stretchblt(para);
+
+	/* Add support inverted order copy, however,
+	 * hardware have a bug when reciving y coordinate,
+	 * it use (y + height) rather than (y) on inverted
+	 * order mode, so here adjust it before pass it to hardware.
+	 */
+
+	mutex_lock(&global_lock);
+	if (scan_order > G2D_SM_TDRL)
+		para->dst_rect.y += para->src_rect.h;
+	mutex_unlock(&global_lock);
+
+	err = mixer_stretchblt(para, scan_order);
 
 	return err;
 }
@@ -546,6 +575,20 @@ long g2d_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 		break;
 
+	case G2D_CMD_INVERTED_ORDER:
+	{
+		if (arg > G2D_SM_DTRL) {
+			ERR("scan mode is err.\n");
+			ret = -EINVAL;
+			goto err_noput;
+		}
+
+		mutex_lock(&global_lock);
+		scan_order = arg;
+		mutex_unlock(&global_lock);
+		break;
+	}
+
 	/* Invalid IOCTL call */
 	default:
 		return -EINVAL;
@@ -643,6 +686,7 @@ static int g2d_probe(struct platform_device *pdev)
 
 	drv_g2d_init();
 	mutex_init(&info->mutex);
+	mutex_init(&global_lock);
 	return 0;
 
 release_regs:

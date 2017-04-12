@@ -1,5 +1,5 @@
 /*
- * Allwinner A23 SoCs pinctrl driver.
+ * Allwinner sun50iw1p1 SoCs pinctrl driver.
  *
  * Copyright (C) 2014 Jackie Hwang
  *
@@ -865,9 +865,8 @@ static int __init sun50iw1p1_pio_init(void)
 }
 postcore_initcall(sun50iw1p1_pio_init);
 
-
 MODULE_AUTHOR("Jackie Hwang<huangshr@allwinnertech.com>");
 MODULE_AUTHOR("Chen-Yu Tsai <wens@csie.org>");
 MODULE_AUTHOR("Maxime Ripard <maxime.ripard@free-electrons.com");
-MODULE_DESCRIPTION("Allwinner sun50i pinctrl driver");
+MODULE_DESCRIPTION("Allwinner sun50iw1p1 pinctrl driver");
 MODULE_LICENSE("GPL");

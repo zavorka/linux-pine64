@@ -116,9 +116,10 @@
 #define BUS_RST3            0x02D0
 #define BUS_RST4            0x02D8
 
+#define LOSC_CFG            0x0310
+
 #define SUNXI_CLK_MAX_REG   0x0320
 
-#define LOSC_OUT_GATE       0x01F00060
 
 #define F_N8X7_M0X4(nv,mv) FACTOR_ALL(nv,8,7,0,0,0,mv,0,4,0,0,0,0,0,0,0,0,0)
 #define F_N8X5_K4X2(nv,kv) FACTOR_ALL(nv,8,5,kv,4,2,0,0,0,0,0,0,0,0,0,0,0,0)

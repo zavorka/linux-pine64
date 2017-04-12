@@ -36,8 +36,9 @@
 #include <linux/io.h>
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
+#include <linux/regulator/consumer.h>
 
-#define DRV_NAME "ahci-sunxi"
+#define DRV_NAME "sunxi-ahci"
 
 #define AHCI_BISTAFR	0x00a0
 #define AHCI_BISTCR	0x00a4
@@ -61,6 +62,28 @@
 #define AHCI_P0DMACR	0x0170
 #define AHCI_P0PHYCR	0x0178
 #define AHCI_P0PHYSR	0x017c
+
+#define AHCI_SUNXI_DBUG 0
+
+struct ahci_sunxi_platform_data {
+	struct clk *pclk;  /* pll clock */
+	struct clk *mclk;  /* module clock */
+	struct regulator *regu0; /*vdd_sata_25*/
+	struct regulator *regu1; /*vdd_sata_12*/
+	char regu_id0[16];
+	char regu_id1[16];
+};
+
+static struct ata_port_info ahci_sunxi_port_info = {
+	.flags = AHCI_FLAG_COMMON,
+	/*.link_flags = ,*/
+	.pio_mask = ATA_PIO4,
+	/*.mwdma_mask = ,*/
+	.udma_mask = ATA_UDMA6,
+	.port_ops = &ahci_ops,
+	.private_data = (void *)(AHCI_HFLAG_32BIT_ONLY | AHCI_HFLAG_NO_MSI
+		| AHCI_HFLAG_NO_PMP | AHCI_HFLAG_YES_NCQ),
+};
 
 static struct scsi_host_template ahci_platform_sht = {
 	AHCI_SHT(DRV_NAME),
@@ -101,10 +124,258 @@ static u32 sunxi_getbits(void __iomem *reg, u8 mask, u8 shift)
 	return (readl(reg) >> shift) & mask;
 }
 
+static void ahci_sunxi_dump_reg(struct device *dev, void __iomem *base)
+{
+#if AHCI_SUNXI_DBUG
+	int i;
+	dev_info(dev, "base: 0x%px\n", base);
+	for (i = 0; i < 0x200; i += 0x10) {
+		dev_info(dev, "0x%3x = 0x%08x, 0x%3x = 0x%08x, 0x%3x = 0x%08x, 0x%3x = 0x%08x\n",
+			i, readl(base + i),
+			i + 4, readl(base + i + 4),
+			i + 8, readl(base + i + 8),
+			i + 12, readl(base + i + 12));
+	}
+#endif
+}
+
+static int ahci_sunxi_clk_init(struct device *dev)
+{
+	int ret;
+	struct ahci_sunxi_platform_data *pdata = dev_get_platdata(dev);
+
+	/*Enable mclk and pclk for AHCI*/
+	pdata->mclk = of_clk_get(dev->of_node, 1);
+	if (IS_ERR_OR_NULL(pdata->mclk)) {
+		dev_err(dev, "Error to get module clk for AHCI\n");
+		return -1;
+	}
+
+	pdata->pclk = of_clk_get(dev->of_node, 0);
+	if (IS_ERR_OR_NULL(pdata->pclk)) {
+		dev_err(dev, "Error to get pll clk for AHCI\n");
+		return -1;
+	}
+
+	ret = clk_set_parent(pdata->mclk, pdata->pclk);
+	if (ret != 0) {
+		dev_err(dev, "clk_set_parent() failed! return %d\n", ret);
+		return -1;
+	}
+
+	clk_prepare_enable(pdata->mclk);
+	dev_info(dev, "frequncy of module clk for AHCI: %lu\n",
+			clk_get_rate(pdata->mclk));
+	dev_info(dev, "frequncy of pll clk for AHCI: %lu\n",
+			clk_get_rate(pdata->pclk));
+
+	return 0;
+
+}
+
+static int ahci_sunxi_clk_exit(struct device *dev)
+{
+	struct ahci_sunxi_platform_data *pdata = dev_get_platdata(dev);
+	if (IS_ERR_OR_NULL(pdata->mclk)) {
+		dev_err(dev, "AHCI mclk handle is invalid\n");
+		return -1;
+	}
+
+	clk_disable_unprepare(pdata->mclk);
+	clk_put(pdata->mclk);
+	clk_put(pdata->pclk);
+	pdata->mclk = NULL;
+	pdata->pclk = NULL;
+	return 0;
+}
+
+static int ahci_sunxi_regulator_request(struct device *dev)
+{
+	struct ahci_sunxi_platform_data *pdata = dev_get_platdata(dev);
+	const char *regu_id0 = NULL;
+	const char *regu_id1 = NULL;
+	int ret = 0;
+
+	if (IS_ERR_OR_NULL(pdata->regu0)) {
+		ret = of_property_read_string(dev->of_node,
+				"sata_regulator0", &regu_id0);
+		dev_info(dev, "sata_regulator0 \"%s\"!\n", regu_id0);
+		if (ret) {
+			dev_err(dev, "Failed to get \"%s\"!\n", regu_id0);
+			ret = -1;
+			goto err0;
+		}
+
+		pdata->regu0 = regulator_get(NULL, regu_id0);
+		if (IS_ERR_OR_NULL(pdata->regu0)) {
+			dev_err(dev, "Failed to get \"%s\"!\n", regu_id0);
+			ret = -1;
+			goto err0;
+		}
+		strncpy(pdata->regu_id0, regu_id0, sizeof(pdata->regu_id0));
+	}
+
+	if (IS_ERR_OR_NULL(pdata->regu1)) {
+		ret = of_property_read_string(dev->of_node,
+				"sata_regulator1", &regu_id1);
+		dev_info(dev, "sata_regulator1 \"%s\"!\n", regu_id1);
+		if (ret) {
+			dev_err(dev, "Failed to get \"%s\"!\n", regu_id1);
+			ret = -1;
+			goto err1;
+		}
+
+		pdata->regu1 = regulator_get(NULL, regu_id1);
+		if (IS_ERR_OR_NULL(pdata->regu1)) {
+			dev_err(dev, "Failed to get \"%s\"!\n", regu_id1);
+			ret = -1;
+			goto err1;
+		}
+		strncpy(pdata->regu_id1, regu_id1, sizeof(pdata->regu_id1));
+	}
+err0:
+	return ret;
+
+err1:
+	regulator_put(pdata->regu0);
+	goto err0;
+}
+
+static void ahci_sunxi_regulator_release(struct device *dev)
+{
+	struct ahci_sunxi_platform_data *pdata = dev_get_platdata(dev);
+	if (!IS_ERR_OR_NULL(pdata->regu0)) {
+		regulator_put(pdata->regu0);
+		pdata->regu0 = NULL;
+	}
+
+	if (!IS_ERR_OR_NULL(pdata->regu1)) {
+		regulator_put(pdata->regu1);
+		pdata->regu1 = NULL;
+	}
+}
+
+static int ahci_sunxi_set_voltage(struct device *dev)
+{
+	struct ahci_sunxi_platform_data *pdata = dev_get_platdata(dev);
+	int voltage;
+	int ret = 0;
+
+	if (IS_ERR_OR_NULL(pdata->regu0) || IS_ERR_OR_NULL(pdata->regu0))
+		return 0;
+
+	voltage = regulator_get_voltage(pdata->regu0);
+	if (regulator_set_voltage(pdata->regu0, 2500000, 2500000) != 0) {
+		dev_info(dev,
+			"failed to set voltage for regulator \"%s\" !\n",
+			pdata->regu_id0);
+		ret = -1;
+	} else
+		dev_info(dev,
+			"regulator \"%s\" voltage set: %d to 2500000!\n",
+			pdata->regu_id0, voltage);
+
+	voltage = regulator_get_voltage(pdata->regu1);
+	if (regulator_set_voltage(pdata->regu1, 1200000, 1200000) != 0) {
+		dev_info(dev,
+			"failed to set voltage for regulator \"%s\" !\n",
+			pdata->regu_id1);
+		ret = -1;
+	} else
+		dev_info(dev,
+			"regulator \"%s\" voltage set: %d to 1200000!\n",
+			pdata->regu_id1, voltage);
+
+	return ret;
+}
+
+static int ahci_sunxi_regulator_enable(struct device *dev)
+{
+	struct ahci_sunxi_platform_data *pdata = dev_get_platdata(dev);
+	int ret = 0;
+
+	if (IS_ERR_OR_NULL(pdata->regu0) || IS_ERR_OR_NULL(pdata->regu0))
+		return 0;
+
+	if (regulator_enable(pdata->regu0) != 0) {
+		dev_err(dev,
+			"Failed to enable regulator \"%s\"!\n",
+			pdata->regu_id0);
+		ret = -1;
+		goto err0;
+	}
+
+	if (regulator_enable(pdata->regu1) != 0) {
+		dev_err(dev,
+			"Failed to enable regulator \"%s\"!\n",
+			pdata->regu_id1);
+		ret = -1;
+		goto err1;
+	}
+err0:
+	return ret;
+
+err1:
+	regulator_disable(pdata->regu0);
+	goto err0;
+}
+
+static int ahci_sunxi_regulator_disable(struct device *dev)
+{
+	struct ahci_sunxi_platform_data *pdata = dev_get_platdata(dev);
+	int ret = 0;
+
+	if (!IS_ERR_OR_NULL(pdata->regu0)) {
+		if (regulator_disable(pdata->regu0) != 0) {
+			dev_err(dev,
+				"Failed to disable regulator \"%s\"!\n",
+				pdata->regu_id0);
+			ret = -1;
+		}
+	}
+
+	if (!IS_ERR_OR_NULL(pdata->regu1)) {
+		if (regulator_disable(pdata->regu1) != 0) {
+			dev_err(dev,
+				"Failed to disable regulator \"%s\"!\n",
+				pdata->regu_id1);
+			ret = -1;
+		}
+	}
+
+	return ret;
+}
+
+static int ahci_sunxi_regulator_init(struct device *dev)
+{
+	if (ahci_sunxi_regulator_request(dev) != 0)
+		return -1;
+
+	ahci_sunxi_set_voltage(dev);
+
+	if (ahci_sunxi_regulator_enable(dev) != 0)
+		goto err1;
+
+	return 0;
+
+err1:
+	ahci_sunxi_regulator_release(dev);
+	return -1;
+}
+
+static int ahci_sunxi_regulator_exit(struct device *dev)
+{
+	ahci_sunxi_regulator_disable(dev);
+	ahci_sunxi_regulator_release(dev);
+
+	return 0;
+}
+
 static int ahci_sunxi_phy_init(struct device *dev, void __iomem *reg_base)
 {
 	u32 reg_val;
 	int timeout;
+	int rc = 0;
 
 	/* This magic is from the original code */
 	writel(0, reg_base + AHCI_RWCR);
@@ -114,15 +385,20 @@ static int ahci_sunxi_phy_init(struct device *dev, void __iomem *reg_base)
 	sunxi_clrsetbits(reg_base + AHCI_PHYCS0R,
 			 (0x7 << 24),
 			 (0x5 << 24) | BIT(23) | BIT(18));
+
 	sunxi_clrsetbits(reg_base + AHCI_PHYCS1R,
 			 (0x3 << 16) | (0x1f << 8) | (0x3 << 6),
 			 (0x2 << 16) | (0x6 << 8) | (0x2 << 6));
+
 	sunxi_setbits(reg_base + AHCI_PHYCS1R, BIT(28) | BIT(15));
 	sunxi_clrbits(reg_base + AHCI_PHYCS1R, BIT(19));
+
 	sunxi_clrsetbits(reg_base + AHCI_PHYCS0R,
 			 (0x7 << 20), (0x3 << 20));
+
 	sunxi_clrsetbits(reg_base + AHCI_PHYCS2R,
 			 (0x1f << 5), (0x19 << 5));
+
 	msleep(5);
 
 	sunxi_setbits(reg_base + AHCI_PHYCS0R, (0x1 << 19));
@@ -135,7 +411,10 @@ static int ahci_sunxi_phy_init(struct device *dev, void __iomem *reg_base)
 
 		if (--timeout == 0) {
 			dev_err(dev, "PHY power up failed.\n");
-			return -EIO;
+			ahci_sunxi_dump_reg(dev, reg_base);
+			rc = -EIO;
+			/*goto out;*/
+			break;
 		}
 		udelay(1);
 	} while (1);
@@ -150,7 +429,9 @@ static int ahci_sunxi_phy_init(struct device *dev, void __iomem *reg_base)
 
 		if (--timeout == 0) {
 			dev_err(dev, "PHY calibration failed.\n");
-			return -EIO;
+			ahci_sunxi_dump_reg(dev, reg_base);
+			rc = -EIO;
+			break;
 		}
 		udelay(1);
 	} while (1);
@@ -158,8 +439,7 @@ static int ahci_sunxi_phy_init(struct device *dev, void __iomem *reg_base)
 	msleep(15);
 
 	writel(0x7, reg_base + AHCI_RWCR);
-
-	return 0;
+	return rc;
 }
 
 static int ahci_sunxi_is_enabled(struct device *dev)
@@ -171,7 +451,7 @@ static int ahci_sunxi_is_enabled(struct device *dev)
 
 	ret = of_property_read_string(dev->of_node, "status", &used_status);
 	if (ret) {
-		dev_err(dev, "get ahci_sunxi_is_enabled is fail, %d\n", -ret);
+		dev_err(dev, "get ahci_sunxi_is_enabled failed, %d\n", -ret);
 		is_enabled = 0;
 	}else if (!strcmp(used_status, "okay")) {
 		is_enabled = 1;
@@ -214,95 +494,48 @@ err0:
 
 static int ahci_sunxi_start(struct device *dev, void __iomem *addr)
 {
-	struct clk *pclk;
-	struct clk *mclk;
-
 	int rc = 0;
 
-	if(!ahci_sunxi_is_enabled(dev)){
+	if (!ahci_sunxi_is_enabled(dev)) {
+		dev_err(dev, "sunxi AHCI is not enabled\n");
 		return -ENODEV;
 	}
 
-	/*Enable mclk and pclk for AHCI*/
-	mclk = of_clk_get(dev->of_node, 1);
-	if (IS_ERR_OR_NULL(mclk)){
-		dev_err(dev, "Error to get module clk for AHCI\n");
-		rc = -EINVAL;
-		goto err1;
-    }
-
-	pclk = of_clk_get(dev->of_node, 0);
-	if (IS_ERR_OR_NULL(pclk)){
-		dev_err(dev, "Error to get pll clk for AHCI\n");
-		rc = -EINVAL;
+	rc = ahci_sunxi_regulator_init(dev);
+	if (rc)
 		goto err0;
-	}
 
-	/*Enable SATA Clock in SATA PLL*/
-//	ahci_writel(CCMU_PLL6_VBASE, 0, ahci_readl(CCMU_PLL6_VBASE, 0)|(0x1<<14));
-	clk_prepare_enable(mclk);
-	clk_prepare_enable(pclk);
+	rc = ahci_sunxi_clk_init(dev);
+	if (rc)
+		goto err1;
 
 	rc = ahci_sunxi_phy_init(dev, addr);
+	if (rc)
+		goto err2;
 
-	rc = ahci_sunxi_gpio_set(dev, 1);
+	ahci_sunxi_gpio_set(dev, 1);
 
-	clk_put(pclk);
 err0:
-	clk_put(mclk);
-err1:
 	return rc;
+
+err2:
+	ahci_sunxi_clk_exit(dev);
+err1:
+	ahci_sunxi_regulator_exit(dev);
+	goto err0;
 }
 
 static void ahci_sunxi_stop(struct device *dev)
 {
-	struct clk *pclk;
-	struct clk *mclk;
-
-	int rc = 0;
-
-	mclk = of_clk_get(dev->of_node, 1);
-	if (IS_ERR(mclk)){
-		dev_err(dev, "Error to get module clk for AHCI\n");
-		rc = -EINVAL;
-		goto err1;
-    }
-
-	pclk = of_clk_get(dev->of_node, 0);
-	if (IS_ERR(pclk)){
-		dev_err(dev, "Error to get pll clk for AHCI\n");
-		rc = -EINVAL;
-		goto err0;
-	}
-
-	rc = ahci_sunxi_gpio_set(dev, 0);
-
-	/*Disable mclk and pclk for AHCI*/
-	clk_disable_unprepare(mclk);
-	clk_disable_unprepare(pclk);
-	clk_put(pclk);
-err0:
-	clk_put(mclk);
-err1:
-	return;// rc;
+	ahci_sunxi_clk_exit(dev);
+	ahci_sunxi_regulator_exit(dev);
+	ahci_sunxi_gpio_set(dev, 0);
 }
 
-static struct ata_port_info ahci_sunxi_port_info = {
-	.flags = AHCI_FLAG_COMMON,
-	//.link_flags = ,
-	.pio_mask = ATA_PIO4,
-	//.mwdma_mask = ,
-	.udma_mask = ATA_UDMA6,
-	.port_ops = &ahci_ops,
-	.private_data = (void*)(AHCI_HFLAG_32BIT_ONLY | AHCI_HFLAG_NO_MSI
-							| AHCI_HFLAG_NO_PMP | AHCI_HFLAG_YES_NCQ),
-};
-
-static int __init ahci_sunxi_probe(struct platform_device *pdev)
+static int ahci_sunxi_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	struct ahci_platform_data *pdata = dev_get_platdata(dev);
-
+	struct ahci_sunxi_platform_data *pdata;
 	struct ata_port_info pi = ahci_sunxi_port_info;
 	const struct ata_port_info *ppi[] = { &pi, NULL };
 	struct ahci_host_priv *hpriv;
@@ -312,6 +545,14 @@ static int __init ahci_sunxi_probe(struct platform_device *pdev)
 	int n_ports;
 	int i;
 	int rc;
+
+	pdata = devm_kzalloc(dev,
+			sizeof(struct ahci_sunxi_platform_data), GFP_KERNEL);
+	if (pdata == NULL) {
+		dev_err(dev, "can't alloc ahci_sunxi_platform_data!\n");
+		return -ENOMEM;
+	}
+	pdev->dev.platform_data = pdata;
 
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!mem) {
@@ -324,9 +565,6 @@ static int __init ahci_sunxi_probe(struct platform_device *pdev)
 		dev_err(dev, "no irq\n");
 		return -EINVAL;
 	}
-
-	if (pdata && pdata->ata_port_info)
-		pi = *pdata->ata_port_info;
 
 	hpriv = devm_kzalloc(dev, sizeof(*hpriv), GFP_KERNEL);
 	if (!hpriv) {
@@ -353,10 +591,7 @@ static int __init ahci_sunxi_probe(struct platform_device *pdev)
 	if (rc)
 		return rc;
 
-
-	ahci_save_initial_config(dev, hpriv,
-		pdata ? pdata->force_port_map : 0,
-		pdata ? pdata->mask_port_map  : 0);
+	ahci_save_initial_config(dev, hpriv, 0, 0);
 
 	/* prepare host */
 	if (hpriv->cap & HOST_CAP_NCQ)
@@ -423,30 +658,15 @@ err0:
 	return rc;
 }
 
-#ifdef AHCI_SUNXI_DBUG
-static void ahci_sunxi_dump_reg(struct device *dev)
-{
-	struct ata_host *host = dev_get_drvdata(dev);
-	struct ahci_host_priv *hpriv = host->private_data;
-	void __iomem *base = hpriv->mmio;
-	int i = 0;
-
-	for(i=0; i<0x200; i+=0x10) {
-		printk("0x%3x = 0x%x, 0x%3x = 0x%x, 0x%3x = 0x%x, 0x%3x = 0x%x\n", i, readl(base+i), i+4, readl(base+ i+4), i+8, readl(base+i+8), i+12, readl(base+i+12));
-	}
-}
-#endif
-
-#ifdef CONFIG_PM
+#ifdef CONFIG_PM_SLEEP
 
 static int ahci_sunxi_suspend(struct device *dev)
 {
+	struct ata_host *host = dev_get_drvdata(dev);
+	struct ahci_host_priv *hpriv = host->private_data;
 	printk("ahci_sunxi: ahci_sunxi_suspend\n"); //danielwang
 
-#ifdef AHCI_SUNXI_DBUG
-	ahci_sunxi_dump_reg(dev);
-#endif
-
+	ahci_sunxi_dump_reg(dev, hpriv->mmio);
 	ahci_sunxi_stop(dev);
 
 	return 0;
@@ -461,26 +681,16 @@ static int ahci_sunxi_resume(struct device *dev)
 	printk("ahci_sunxi: ahci_sunxi_resume\n"); //danielwang
 
 	ahci_sunxi_start(dev, hpriv->mmio);
-
-#ifdef AHCI_SUNXI_DBUG
-	ahci_sunxi_dump_reg(dev);
-#endif
+	ahci_sunxi_dump_reg(dev, hpriv->mmio);
 
 	ahci_hardware_recover_for_controller_resume(host);
 
 	return 0;
 }
-
-
-static const struct dev_pm_ops  ahci_sunxi_pmops = {
-	.suspend	= ahci_sunxi_suspend,
-	.resume		= ahci_sunxi_resume,
-};
-
-#define AHCI_SUNXI_PMOPS &ahci_sunxi_pmops
-#else
-#define AHCI_SUNXI_PMOPS NULL
 #endif
+
+static SIMPLE_DEV_PM_OPS(ahci_sunxi_pmops,
+			ahci_sunxi_suspend, ahci_sunxi_resume);
 
 static const struct of_device_id ahci_sunxi_of_match[] = {
 	{ .compatible = "allwinner,sun8i-sata", },
@@ -489,29 +699,18 @@ static const struct of_device_id ahci_sunxi_of_match[] = {
 MODULE_DEVICE_TABLE(of, ahci_sunxi_of_match);
 
 static struct platform_driver ahci_sunxi_driver = {
-//	.probe = ahci_sunxi_probe,
+	.probe = ahci_sunxi_probe,
 	.remove = ata_platform_remove_one,
 	.driver = {
-		.name = "ahci_sunxi",
+		.name = "sunxi-ahci",
 		.owner = THIS_MODULE,
 		.of_match_table = ahci_sunxi_of_match,
-		.pm = AHCI_SUNXI_PMOPS,
+		.pm = &ahci_sunxi_pmops,
 	},
 };
-
-static int __init ahci_sunxi_init(void)
-{
-	return platform_driver_probe(&ahci_sunxi_driver, ahci_sunxi_probe);
-}
-module_init(ahci_sunxi_init);
-
-static void __exit ahci_sunxi_exit(void)
-{
-	platform_driver_unregister(&ahci_sunxi_driver);
-}
-module_exit(ahci_sunxi_exit);
+module_platform_driver(ahci_sunxi_driver);
 
 MODULE_DESCRIPTION("SW AHCI SATA platform driver");
 MODULE_AUTHOR("Daniel Wang <danielwang@allwinnertech.com>");
 MODULE_LICENSE("GPL");
-MODULE_ALIAS("platform:ahci_sunxi");
+MODULE_ALIAS("platform:sunxi-ahci");

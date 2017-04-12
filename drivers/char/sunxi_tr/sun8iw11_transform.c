@@ -211,8 +211,8 @@ int de_tr_set_cfg(tr_info *info)
 {
 	int x0,x1,y0,y1;
 	unsigned char haddr[3],degree,hflip_en,vflip_en,burst;
-	unsigned int w,h,fmt,ycnt = 4,ucnt = 0,tmp,pitch[3];
-	long long addr[3];
+	unsigned int w, h, fmt, ycnt = 4, ucnt = 0, tmp, pitch[3] = {0};
+	long long addr[3] = {0};
 
 	de_tr_reset();
 
@@ -262,8 +262,18 @@ int de_tr_set_cfg(tr_info *info)
 	else                                    {ycnt = 4;}
 
 	pitch[0] = info->src_frame.pitch[0] * ycnt;
-	pitch[1] = info->src_frame.pitch[1] * ucnt;
-	pitch[2] = info->src_frame.pitch[2] * ucnt;
+	addr[0] = info->src_frame.laddr[0] + pitch[0] * y0 + x0 * ycnt;
+	if (fmt >= TR_FORMAT_YUV444_P) {
+		pitch[1] = info->src_frame.pitch[1] * ucnt;
+		addr[1] = info->src_frame.laddr[1] + pitch[1] * y1 + x1 * ucnt;
+	}
+	if ((fmt == TR_FORMAT_YUV444_P)
+	    || (fmt == TR_FORMAT_YUV422_P)
+	    || (fmt == TR_FORMAT_YUV420_P)
+	    || (fmt == TR_FORMAT_YUV411_P)) {
+		pitch[2] = info->src_frame.pitch[2] * ucnt;
+		addr[2] = info->src_frame.laddr[2] + pitch[2] * y1 + x1 * ucnt;
+	}
 
 	if((0 != x0) ||(0 != y0)){
 		pr_warn("In buffer coordinate is not original point[%d,%d].\n",	x0, y0);
@@ -276,9 +286,6 @@ int de_tr_set_cfg(tr_info *info)
 		return -1;
 	}
 
-	addr[0] = info->src_frame.laddr[0]+pitch[0]*y0+x0*ycnt;//Y/ARGB
-	addr[1] = info->src_frame.laddr[1]+pitch[1]*y1+x1*ucnt;//UV/U
-	addr[2] = info->src_frame.laddr[2]+pitch[2]*y1+x1*ucnt;//V
 	haddr[0] = ((addr[0]>>32)&0xff) + info->src_frame.haddr[0];
 	haddr[1] = ((addr[1]>>32)&0xff) + info->src_frame.haddr[1];
 	haddr[2] = ((addr[2]>>32)&0xff) + info->src_frame.haddr[2];
@@ -306,7 +313,8 @@ int de_tr_set_cfg(tr_info *info)
 	tr_writel(haddr[1],tr_base + TR_IN_HADDR1);
 	tr_writel(haddr[2],tr_base + TR_IN_HADDR2);
 
-	//dst
+	/* dst */
+	fmt = info->dst_frame.fmt;
 	x0 = info->dst_rect.x;
 	y0 = info->dst_rect.y;
 	w  = info->dst_rect.w;
@@ -318,8 +326,18 @@ int de_tr_set_cfg(tr_info *info)
 	}
 
 	pitch[0] = info->dst_frame.pitch[0] * ycnt;
-	pitch[1] = info->dst_frame.pitch[1] * ucnt;
-	pitch[2] = info->dst_frame.pitch[2] * ucnt;
+	addr[0] = info->dst_frame.laddr[0] + pitch[0] * y0 + x0 * ycnt;
+	if (fmt >= TR_FORMAT_YUV444_P) {
+		pitch[1] = info->dst_frame.pitch[1] * ucnt;
+		addr[1] = info->dst_frame.laddr[1] + pitch[1] * y1 + x1 * ucnt;
+	}
+	if ((fmt == TR_FORMAT_YUV444_P)
+	    || (fmt == TR_FORMAT_YUV422_P)
+	    || (fmt == TR_FORMAT_YUV420_P)
+	    || (fmt == TR_FORMAT_YUV411_P)) {
+		pitch[2] = info->dst_frame.pitch[2] * ucnt;
+		addr[2] = info->dst_frame.laddr[2]+pitch[2]*y1+x1*ucnt;
+	}
 
 	if(fmt >= TR_FORMAT_YUV444_I_AYUV) {
 		if((pitch[0]&0xf) ||(pitch[1]&0xf)||(pitch[2]&0xf)){
@@ -334,9 +352,6 @@ int de_tr_set_cfg(tr_info *info)
 		return -1;
 	}
 
-	addr[0] = info->dst_frame.laddr[0]+pitch[0]*y0+x0*ycnt;//Y/ARGB
-	addr[1] = info->dst_frame.laddr[1]+pitch[1]*y1+x1*ucnt;//UV/U
-	addr[2] = info->dst_frame.laddr[2]+pitch[2]*y1+x1*ucnt;//V
 	haddr[0] = ((addr[0]>>32)&0xff) + info->dst_frame.haddr[0];
 	haddr[1] = ((addr[1]>>32)&0xff) + info->dst_frame.haddr[1];
 	haddr[2] = ((addr[2]>>32)&0xff) + info->dst_frame.haddr[2];

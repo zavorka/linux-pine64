@@ -71,6 +71,11 @@ s32 tcon1_hdmi_clk_enable(u32 sel, u32 en)
 	if (sel >= DEVICE_NUM)
 		return -1;
 
+	if (2 == sel)
+		lcd_top[0]->tcon_clk_gate.bits.tv0_clk_gate = en;
+	else
+		lcd_top[0]->tcon_clk_gate.bits.tv1_clk_gate = en;
+
 	if (en) {
 		if (2 == sel)
 			lcd_top[0]->tcon_clk_gate.bits.hdmi_src = 1;
@@ -482,7 +487,7 @@ static s32 tcon0_cfg_mode_auto(u32 sel, disp_panel_para * panel)
 	lcd_dev[sel]->tcon0_basic2.bits.vbp = (panel->lcd_vbp==0)? 0:panel->lcd_vbp-1;
 	lcd_dev[sel]->tcon0_basic3.bits.hspw = (panel->lcd_hspw==0)? 0:panel->lcd_hspw-1;
 	lcd_dev[sel]->tcon0_basic3.bits.vspw = (panel->lcd_vspw==0)? 0:panel->lcd_vspw-1;
-	start_delay = panel->lcd_vt-panel->lcd_y-10;
+	start_delay = panel->lcd_vt-panel->lcd_y - 8;
   if (panel->lcd_hv_if == LCD_HV_IF_CCIR656_2CYC)
   {
 	if (panel->lcd_interlace){
@@ -510,14 +515,17 @@ static s32 tcon0_cfg_mode_auto(u32 sel, disp_panel_para * panel)
 static s32 tcon0_cfg_mode_tri(u32 sel, disp_panel_para * panel)
 {
 	u32 start_delay = 0;
+	u32 de_clk_rate = de_get_clk_rate() / 1000000;
 
+	de_clk_rate = (de_clk_rate == 0) ? 250 : de_clk_rate;
 	lcd_dev[sel]->tcon0_basic0.bits.x = panel->lcd_x-1;
 	lcd_dev[sel]->tcon0_basic0.bits.y = panel->lcd_y-1;
 	lcd_dev[sel]->tcon0_cpu_tri0.bits.block_size = panel->lcd_x-1;
 	lcd_dev[sel]->tcon0_cpu_tri1.bits.block_num = panel->lcd_y-1;
 	lcd_dev[sel]->tcon0_cpu_tri2.bits.trans_start_mode = 0;
 	lcd_dev[sel]->tcon0_cpu_tri2.bits.sync_mode = 0;
-	start_delay = (panel->lcd_vt -	panel->lcd_y -10-1) * panel->lcd_ht * 149 / panel->lcd_dclk_freq / 8;
+	start_delay = (panel->lcd_vt - panel->lcd_y - 8 - 1)
+	    * panel->lcd_ht * de_clk_rate / panel->lcd_dclk_freq / 8;
 	lcd_dev[sel]->tcon0_cpu_tri2.bits.start_delay = start_delay;
 	/*
 	if (panel->lcd_if==LCD_IF_DSI && panel->lcd_dsi_if==LCD_DSI_IF_VIDEO_MODE)
@@ -644,10 +652,15 @@ s32 tcon0_cfg(u32 sel, disp_panel_para * panel)
 	{
 		lcd_dev[sel]->tcon0_ctl.bits.tcon0_if = 1;
 		lcd_dev[sel]->tcon0_cpu_ctl.bits.cpu_mode = panel->lcd_cpu_if;
+		/*
 		lcd_dev[sel]->tcon0_cpu_ctl.bits.da = 1;
+		*/
 		lcd_dev[sel]->tcon_ecfifo_ctl.bits.ecc_fifo_setting = (1<<3);
 		panel->lcd_fresh_mode = 1;
-        tcon0_cfg_mode_tri(sel,panel);
+		if (panel->lcd_cpu_mode == 0)
+			tcon0_cfg_mode_auto(sel, panel);
+		else
+			tcon0_cfg_mode_tri(sel, panel);
         lcd_dev[sel]->tcon0_cpu_tri4.bits.en 	= 0;
 	}
 	else if (panel->lcd_if == LCD_IF_DSI)
@@ -725,10 +738,21 @@ s32 tcon0_tri_busy(u32 sel)
 	return lcd_dev[sel]->tcon0_cpu_ctl.bits.trigger_start;
 }
 
+s32 tcon0_cpu_set_auto_mode(u32 sel)
+{
+	/* trig mode 0 */
+	lcd_dev[sel]->tcon0_cpu_ctl.bits.auto_ = 1;
+	/* trig mode 1 */
+	lcd_dev[sel]->tcon0_cpu_ctl.bits.flush = 0;
+
+	return 0;
+}
 
 s32 tcon0_tri_start(u32 sel)
 {
+	/*
 	lcd_dev[sel]->tcon0_cpu_ctl.bits.trigger_start = 0;
+	*/
 	lcd_dev[sel]->tcon0_cpu_ctl.bits.trigger_start = 1;
 	return 0;
 }
@@ -802,8 +826,14 @@ s32 tcon0_cpu_wr_24b_index(u32 sel, u32 index)
 		count ++;
 		disp_delay_us(100);
 	}
+	lcd_dev[sel]->tcon0_cpu_ctl.bits.da = 0;
+	/*
+	 * 0: write index
+	 * 1: write param
+	 */
 	lcd_dev[sel]->tcon0_cpu_ctl.bits.ca = 0;
 	lcd_dev[sel]->tcon0_cpu_wr.bits.data_wr = index;
+	lcd_dev[sel]->tcon0_cpu_ctl.bits.da = 1;
 	return 0;
 }
 
@@ -814,8 +844,14 @@ s32 tcon0_cpu_wr_24b_data(u32 sel, u32 data)
 		count ++;
 		disp_delay_us(100);
 	}
+	/*
+	 * 0: write index
+	 * 1: write param
+	 */
+	lcd_dev[sel]->tcon0_cpu_ctl.bits.da = 0;
 	lcd_dev[sel]->tcon0_cpu_ctl.bits.ca = 1;
 	lcd_dev[sel]->tcon0_cpu_wr.bits.data_wr = data;
+	lcd_dev[sel]->tcon0_cpu_ctl.bits.da = 1;
 	return 0;
 }
 
@@ -854,8 +890,6 @@ s32 tcon0_cpu_rd_16b(u32 sel, u32 index, u32 *data)
 	return -1;
 }
 
-
-
 s32 tcon0_set_dclk_div(u32 sel, u8 div)
 {
 	lcd_dev[sel]->tcon0_dclk.bits.tcon0_dclk_div = div;
@@ -870,8 +904,6 @@ u32 tcon0_get_dclk_div(u32 sel)
 
 s32 tcon1_open(u32 sel)
 {
-	tcon1_out_to_gpio(sel);
-
 	lcd_dev[sel]->tcon1_ctl.bits.tcon1_en = 1;
 	tcon_irq_enable(sel,LCD_IRQ_TCON1_VBLK);
 
@@ -969,6 +1001,12 @@ s32 tcon1_cfg_ex(u32 sel, disp_panel_para * panel)
 
 s32 tcon1_hdmi_color_remap(u32 sel,u32 onoff)
 {
+	/*
+	 * plane sequence:
+	 * v: 16~240
+	 * y: 16~235
+	 * u: 16~240
+	 */
 	lcd_dev[sel]->tcon_ceu_coef_rr.bits.value = 0;
 	lcd_dev[sel]->tcon_ceu_coef_rg.bits.value = 0;
 	lcd_dev[sel]->tcon_ceu_coef_rb.bits.value = 0x100;
@@ -1001,6 +1039,12 @@ s32 tcon1_hdmi_color_remap(u32 sel,u32 onoff)
 
 s32 tcon1_yuv_range(u32 sel,u32 onoff)
 {
+	/*
+	 * plane sequence:
+	 * y: 16~235
+	 * u: 16~240
+	 * v: 16~240
+	 */
 	lcd_dev[sel]->tcon_ceu_coef_rr.bits.value = 0x100;
 	lcd_dev[sel]->tcon_ceu_coef_rg.bits.value = 0;
 	lcd_dev[sel]->tcon_ceu_coef_rb.bits.value = 0;

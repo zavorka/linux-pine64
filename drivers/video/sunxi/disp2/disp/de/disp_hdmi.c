@@ -11,6 +11,10 @@ struct disp_device_private_data {
 	struct disp_device_func hdmi_func;
 	struct disp_video_timings *video_info;
 
+	u32                       frame_per_sec;
+	u32                       usec_per_line;
+	u32                       judge_line;
+
 	u32 irq_no;
 
 	struct clk *clk;
@@ -130,9 +134,46 @@ static s32 hdmi_clk_disable(struct disp_device *hdmi)
 	return 0;
 }
 
-//--------------------------------
-//----hdmi interface functions----
-//--------------------------------
+static s32 hdmi_calc_judge_line(struct disp_device *hdmi)
+{
+	struct disp_device_private_data *hdmip =
+	    disp_hdmi_get_priv(hdmi);
+	int start_delay, usec_start_delay;
+	int usec_judge_point;
+
+	if ((NULL == hdmi) || (NULL == hdmip)) {
+		DE_WRN("null  hdl!\n");
+		return DIS_FAIL;
+	}
+
+	/*
+	 * usec_per_line = 1 / fps / vt * 1000000
+	 *               = 1 / (pixel_clk / vt / ht) / vt * 1000000
+	 *               = ht / pixel_clk * 1000000
+	 */
+	hdmip->frame_per_sec = hdmip->video_info->pixel_clk
+	    / hdmip->video_info->hor_total_time
+	    / hdmip->video_info->ver_total_time
+	    * (hdmip->video_info->b_interlace + 1)
+	    / (hdmip->video_info->trd_mode + 1);
+	hdmip->usec_per_line = hdmip->video_info->hor_total_time
+	    * 1000000 / hdmip->video_info->pixel_clk;
+
+	start_delay =
+	    disp_al_device_get_start_delay(hdmi->hwdev_index);
+	usec_start_delay = start_delay * hdmip->usec_per_line;
+
+	if (usec_start_delay <= 200)
+		usec_judge_point = usec_start_delay * 3 / 7;
+	else if (usec_start_delay <= 400)
+		usec_judge_point = usec_start_delay / 2;
+	else
+		usec_judge_point = 200;
+	hdmip->judge_line = usec_judge_point
+	    / hdmip->usec_per_line;
+
+	return 0;
+}
 
 static s32 disp_hdmi_set_func(struct disp_device*  hdmi, struct disp_device_func * func)
 {
@@ -249,6 +290,8 @@ s32 disp_hdmi_enable(struct disp_device* hdmi)
 	if (hdmip->enabled == 1)
 		goto exit;
 	memcpy(&hdmi->timings, hdmip->video_info, sizeof(struct disp_video_timings));
+	hdmi_calc_judge_line(hdmi);
+
 	if (mgr->enable)
 		mgr->enable(mgr);
 
@@ -305,6 +348,8 @@ static s32 disp_hdmi_sw_enable(struct disp_device* hdmi)
 	}
 	mutex_lock(&hdmi_mlock);
 	memcpy(&hdmi->timings, hdmip->video_info, sizeof(struct disp_video_timings));
+	hdmi_calc_judge_line(hdmi);
+
 	if (mgr->sw_enable)
 		mgr->sw_enable(mgr);
 
@@ -449,7 +494,7 @@ static s32 disp_hdmi_set_detect(struct disp_device* hdmi, bool hpd)
 		return DIS_FAIL;
 	}
 	mutex_lock(&hdmi_mlock);
-	if ((1 == hdmip->enabled) && (false == hdmip->hpd) && (true == hpd)) {
+	if ((1 == hdmip->enabled) && (true == hpd)) {
 		if (hdmip->hdmi_func.get_video_timing_info) {
 			hdmip->hdmi_func.get_video_timing_info(&(hdmip->video_info));
 			if (hdmip->video_info == NULL) {
@@ -490,7 +535,7 @@ static s32 disp_hdmi_get_input_csc(struct disp_device* hdmi)
 
 	if ((NULL == hdmi) || (NULL == hdmip)) {
 		DE_WRN("hdmi set func null  hdl!\n");
-		return DIS_FAIL;
+		return 0;
 	}
 
 	if (hdmip->hdmi_func.get_input_csc == NULL)
@@ -507,7 +552,10 @@ static s32 disp_hdmi_get_input_color_range(struct disp_device* hdmi)
 		return DIS_FAIL;
 	}
 
-	return DISP_COLOR_RANGE_0_255;
+	if (1 == disp_hdmi_get_input_csc(hdmi))
+		return DISP_COLOR_RANGE_16_235;
+	else
+		return DISP_COLOR_RANGE_0_255;
 }
 
 static s32 disp_hdmi_suspend(struct disp_device* hdmi)
@@ -562,6 +610,18 @@ static s32 disp_hdmi_get_status(struct disp_device *hdmi)
 	}
 
 	return disp_al_device_get_status(hdmi->hwdev_index);
+}
+
+static s32 disp_hdmi_get_fps(struct disp_device *hdmi)
+{
+	struct disp_device_private_data *hdmip = disp_hdmi_get_priv(hdmi);
+
+	if ((NULL == hdmi) || (NULL == hdmip)) {
+		DE_WRN("hdmi set func null  hdl!\n");
+		return 0;
+	}
+
+	return hdmip->frame_per_sec;
 }
 
 s32 disp_init_hdmi(disp_bsp_init_para * para)
@@ -642,6 +702,7 @@ s32 disp_init_hdmi(disp_bsp_init_para * para)
 			hdmi->detect = disp_hdmi_detect;
 			hdmi->set_detect = disp_hdmi_set_detect;
 			hdmi->get_status = disp_hdmi_get_status;
+			hdmi->get_fps = disp_hdmi_get_fps;
 
 			hdmi->init(hdmi);
 			disp_device_register(hdmi);

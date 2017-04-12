@@ -1,5 +1,5 @@
 /*
- * Allwinner 1689 pin config info.
+ * Allwinner sun50iw1p1 pin config info.
  */
 
 / {
@@ -406,6 +406,14 @@
 				allwinner,muxsel = <5>;
 				allwinner,drive = <1>;
 				allwinner,pull = <1>;
+			};
+
+			scr_pins_b: smartcard@1 {
+				allwinner,pins = "PB1", "PB4", "PB5", "PB6","PB7";
+				allwinner,function = "io_disabled";
+				allwinner,muxsel = <7>;
+				allwinner,drive = <0>;
+				allwinner,pull = <0>;
 			};
 
 			nand0_pins_a: nand0@0 {

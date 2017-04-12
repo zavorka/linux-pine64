@@ -24,6 +24,21 @@ static int regulator_virtual_consumer_probe(struct platform_device *pdev)
 	char *reg_id = pdev->dev.platform_data;
 	struct virtual_consumer_data *drvdata;
 	int ret, i;
+	const char *pmu_name;
+
+	for (i = 0; i < AXP_ONLINE_SUM; i++) {
+		pmu_name = get_pmu_cur_name(i);
+		if (pmu_name == NULL)
+			continue;
+
+		if (strncmp("axp20", pmu_name, 5))
+			continue;
+		else
+			break;
+	}
+
+	if (i == AXP_ONLINE_SUM)
+		return 0;
 
 	drvdata = kzalloc(sizeof(struct virtual_consumer_data), GFP_KERNEL);
 	if (drvdata == NULL) {
@@ -32,20 +47,13 @@ static int regulator_virtual_consumer_probe(struct platform_device *pdev)
 	}
 
 	mutex_init(&drvdata->lock);
-
-	drvdata->regulator = regulator_get(NULL, reg_id);
-	if (IS_ERR(drvdata->regulator)) {
-		ret = PTR_ERR(drvdata->regulator);
-		goto err;
-	}
+	sprintf(drvdata->regu_name, reg_id);
 
 	for (i = 0; i < ARRAY_SIZE(attributes_virtual); i++) {
 		ret = device_create_file(&pdev->dev, attributes_virtual[i]);
 		if (ret != 0)
 			goto err;
 	}
-
-	drvdata->mode = regulator_get_mode(drvdata->regulator);
 
 	platform_set_drvdata(pdev, drvdata);
 
@@ -55,7 +63,6 @@ err:
 	for (i = 0; i < ARRAY_SIZE(attributes_virtual); i++)
 		device_remove_file(&pdev->dev, attributes_virtual[i]);
 	kfree(drvdata);
-//  printk("axp22 regulator  virtual get drvdata->regulator = %d err\n",drvdata->regulator);
 	return ret;
 }
 
@@ -66,9 +73,6 @@ static int regulator_virtual_consumer_remove(struct platform_device *pdev)
 
 	for (i = 0; i < ARRAY_SIZE(attributes_virtual); i++)
 		device_remove_file(&pdev->dev, attributes_virtual[i]);
-	if (drvdata->enabled)
-		regulator_disable(drvdata->regulator);
-	regulator_put(drvdata->regulator);
 
 	kfree(drvdata);
 
@@ -127,21 +131,23 @@ static struct platform_driver regulator_virtual_consumer_driver[] = {
 	},
 };
 
-
 static int __init regulator_virtual_consumer_init(void)
 {
-	int j,ret;
+	int j, ret;
 
 	for (j = 0; j < ARRAY_SIZE(regulator_virtual_consumer_driver); j++) {
-		ret =  platform_driver_register(&regulator_virtual_consumer_driver[j]);
+		ret = platform_driver_register(
+				&regulator_virtual_consumer_driver[j]);
 		if (ret)
 			goto creat_drivers_failed;
 	}
+
 	return ret;
 
 creat_drivers_failed:
 	while (j--)
-		platform_driver_unregister(&regulator_virtual_consumer_driver[j]);
+		platform_driver_unregister(
+				&regulator_virtual_consumer_driver[j]);
 	return ret;
 }
 module_init(regulator_virtual_consumer_init);
@@ -150,9 +156,9 @@ static void __exit regulator_virtual_consumer_exit(void)
 {
 	int j;
 
-	for (j = ARRAY_SIZE(regulator_virtual_consumer_driver) - 1; j >= 0; j--) {
-		platform_driver_unregister(&regulator_virtual_consumer_driver[j]);
-	}
+	for (j = ARRAY_SIZE(regulator_virtual_consumer_driver) - 1; j >= 0; j--)
+		platform_driver_unregister(
+			&regulator_virtual_consumer_driver[j]);
 }
 module_exit(regulator_virtual_consumer_exit);
 

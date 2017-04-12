@@ -39,6 +39,8 @@
 #include <linux/of_device.h>
 #include <linux/of_platform.h>
 
+#define FLITER_NUM 1
+#define TVD_3D_COMP_BUFFER_SIZE (0x400000)
 
 //
 // detail information of registers
@@ -108,9 +110,11 @@ typedef union
 	u32 dwval;
 	struct
 	{
-		u32 res0		                                             :  4 ;    // default: ;
-		u32 lpf_dig_en                                               :  1 ;    // default: 0x0;
-		u32 res1                                                     : 27 ;    // default: ;
+		u32 res0:4;
+		u32 lpf_dig_en:1;
+		u32 res1:19;
+		u32 lpf_dig_sel:1;
+		u32 res2:7;
 	} bits;
 } tvd_adc_dig_reg_t;
 
@@ -421,18 +425,20 @@ typedef union
 	u32 dwval;
 	struct
 	{
-		u32 wb_en                                                    :  1 ;    // default: 0x0;
-		u32 wb_format                                                :  1 ;    // default: 0x0;
-		u32 field_sel                                                :  1 ;    // default: 0x0;
-		u32 hyscale_en                                               :  1 ;    // default: 0x0;
-		u32 wb_mb_mode                                               :  1 ;    // default: 0x0;
-		u32 wb_frame_mode                                            :  1 ;    // default: 0x0;
-		u32 flip_field                                               :  1 ;    // default: 0x0;
-		u32 res0                                                     :  1 ;    // default: ;
-		u32 wb_addr_valid                                            :  1 ;    // default: 0x0;
-		u32 res1                                                     :  7 ;    // default: ;
-		u32 hactive_stride                                           : 12 ;    // default: 0x2d0;
-		u32 res2                                                     :  4 ;    // default: ;
+		u32 wb_en:1;
+		u32 wb_format:1;
+		u32 field_sel:1;
+		u32 hyscale_en:1;
+		u32 wb_mb_mode:1;
+		u32 wb_frame_mode:1;
+		u32 flip_field:1;
+		u32 res0:1;
+		u32 wb_addr_valid:1;
+		u32 res1:7;
+		u32 hactive_stride:12;
+		u32 res2:3;
+		/* 0x0->nv12, 0x1->nv21 */
+		u32 wb_uv_swap:1;
 	} bits;
 } tvd_wb1_reg_t;
 
@@ -1051,20 +1057,18 @@ typedef struct
 
 typedef enum
 {
-	TVD_IRQ_LOCK					=   0 ,
-	TVD_IRQ_UNLOCK					=	1 ,
-	TVD_IRQ_FIFO_V_O 				=	3 ,
-	TVD_IRQ_FIFO_U_O 				=	4 ,
-	TVD_IRQ_FIFO_Y_O   				=	5 ,
-	TVD_IRQ_FIFO_Y_V    			=	6 ,
-	TVD_IRQ_FIFO_Y_U       			=	7 ,
-	TVD_IRQ_FIFO_Y_U_    			=	8 ,
-	TVD_IRQ_WB_ADDR_CHANGE_ERR  	=	16,
-	TVD_IRQ_FRAME_END  				=	24,
-	TVD_IRQ_FIFO_3D_RX_U  			=	28,
-	TVD_IRQ_FIFO_3D_RX_O   			=	29,
-	TVD_IRQ_FIFO_3D_TX_U      		=	30,
-	TVD_IRQ_FIFO_3D_TX_O  			=	31,
+	TVD_IRQ_LOCK = 0,
+	TVD_IRQ_UNLOCK = 1,
+	TVD_IRQ_FIFO_C_O = 4,
+	TVD_IRQ_FIFO_Y_O = 5,
+	TVD_IRQ_FIFO_C_U = 7,
+	TVD_IRQ_FIFO_Y_U = 8,
+	TVD_IRQ_WB_ADDR_CHANGE_ERR = 16,
+	TVD_IRQ_FRAME_END = 24,
+	TVD_IRQ_FIFO_3D_RX_U = 28,
+	TVD_IRQ_FIFO_3D_RX_O = 29,
+	TVD_IRQ_FIFO_3D_TX_U = 30,
+	TVD_IRQ_FIFO_3D_TX_O = 31,
 }TVD_IRQ_T;
 
 typedef enum
@@ -1084,6 +1088,7 @@ s32 tvd_set_wb_width_jump(u32 sel,u32 width_jump);
 s32 tvd_set_wb_height(u32 sel,u32 height);
 s32 tvd_set_wb_addr(u32 sel,u32 addr_y,u32 addr_c);
 s32 tvd_set_wb_fmt(u32 sel,TVD_FMT_T fmt);
+s32 tvd_set_wb_uv_swap(u32 sel, u32 swap);
 s32 tvd_set_wb_field(u32 sel,u32 is_field_mode,u32 is_field_even);
 s32 tvd_capture_on(u32 sel);
 s32 tvd_capture_off(u32 sel);
@@ -1091,6 +1096,9 @@ s32 tvd_irq_enable(u32 sel,TVD_IRQ_T irq_id);
 s32 tvd_irq_disable(u32 sel,TVD_IRQ_T irq_id);
 s32 tvd_irq_status_get(u32 sel,TVD_IRQ_T irq_id,u32* irq_status);
 s32 tvd_irq_status_clear(u32 sel,TVD_IRQ_T irq_id);
+s32 tvd_dma_irq_status_get(u32 sel, u32 *irq_status);
+s32 tvd_dma_irq_status_clear_err_flag(u32 sel, u32 irq_status);
+
 s32 tvd_adc_config(u32 adc);
 s32 tvd_set_saturation(u32 sel, u32 saturation);
 s32 tvd_set_luma(u32 sel,u32 luma);
@@ -1098,6 +1106,10 @@ s32 tvd_set_contrast(u32 sel, u32 contrast);
 u32 tvd_get_saturation(u32 sel);
 u32 tvd_get_luma(u32 sel);
 u32 tvd_get_contrast(u32 sel);
-
-
+void tvd_3d_mode(u32 _3d_sel, u32 _3d_en, u32 _3d_addr);
+u32 tvd_dbgmode_dump_data(u32 chan_sel, u32 mode, uintptr_t dump_dst_addr,
+			  u32 data_length);
+void tvd_agc_auto_config(u32 sel);
+void tvd_agc_manual_config(u32 sel, u32 agc_manual_val);
+void tvd_cagc_config(u32 sel, u32 enable);
 #endif

@@ -41,6 +41,7 @@
 struct sunxi_pctrltest_data {
 	char dev_name[SUNXI_DEV_NAME_MAX_LEN];
 	char exec[SUNXI_FUNC_NAME_MAX_LEN];
+	struct completion done;
 	int result;
 	int gpio_index;
 	int funcs;
@@ -171,6 +172,7 @@ static irqreturn_t sunxi_pinctrl_irq_handler_demo1(int irq, void *dev_id)
 	pr_warn("%s: demo1 for test pinctrl repeat eint api.\n", __func__);
 	pr_warn("-----------------------------------------------\n");
 	disable_irq_nosync(irq);
+	complete(&sunxi_ptest_data->done);
 	return IRQ_HANDLED;
 }
 
@@ -952,32 +954,31 @@ static int pctrltest_direction_output(void)
 
 static int pctrltest_request_eint(void)
 {
+	int ret;
 	int virq;
-	int req_status;
-	int set_direct_status;
-	int req_IRQ_status;
 	int gpio_index;
 	char pin_name[SUNXI_PIN_NAME_MAX_LEN];
 
 	gpio_index = sunxi_ptest_data->gpio_index;
 	sunxi_gpio_to_name(gpio_index, pin_name);
+	INIT_COMPLETION(sunxi_ptest_data->done);
 
 	pr_warn("++++++++++++++++++++++++++++%s++++++++++++++++++++++++++++\n", __func__);
 	pr_warn("gpio name is : %s	gpio index is : %d\n", pin_name, gpio_index);
 	pr_warn("-----------------------------------------------\n");
 
 	pr_warn("step1: request gpio [%s].\n", pin_name);
-	req_status = gpio_request(gpio_index, NULL);
-	if(0 != req_status){
+	ret = gpio_request(gpio_index, NULL);
+	if (0 != ret) {
 		pr_warn("gpio request failed \n");
 		return -EINVAL;
 	}
 
 	pr_warn("step2: set gpio[%s]direction output and data value 0.\n", pin_name);
-	set_direct_status = gpio_direction_output(gpio_index, 0);
-	if (IS_ERR_VALUE(set_direct_status)) {
+	ret = gpio_direction_output(gpio_index, 0);
+	if (IS_ERR_VALUE(ret)) {
 		pr_warn("set gpio direction output failed for check gpio get value %d\n",
-			set_direct_status);
+			ret);
 		return -EINVAL;
 	}
 	gpio_free(gpio_index);
@@ -990,27 +991,34 @@ static int pctrltest_request_eint(void)
 	}
 
 	pr_warn("step4: request irq(low level trigger).\n");
-	req_IRQ_status = request_irq(virq, sunxi_pinctrl_irq_handler_demo1,
+	ret = request_irq(virq, sunxi_pinctrl_irq_handler_demo1,
 					IRQF_TRIGGER_LOW, "PIN_EINT", NULL);
-	if (IS_ERR_VALUE(req_IRQ_status)) {
+	if (IS_ERR_VALUE(ret)) {
 		pr_warn("request irq failed !\n");
 		return -EINVAL;
 	}
+
+	pr_warn("step5: wait for irq.\n");
+	ret = wait_for_completion_timeout(&sunxi_ptest_data->done, HZ);
+	if (ret == 0) {
+		pr_warn("wait for irq timeout!\n");
+		free_irq(virq, NULL);
+		return -EINVAL;
+	}
+
 	free_irq(virq, NULL);
 
 	pr_warn("-----------------------------------------------\n");
-	pr_warn("test pin eint sunccess !\n");
+	pr_warn("test pin eint success !\n");
 	pr_warn("+++++++++++++++++++++++++++end++++++++++++++++++++++++++++\n\n\n");
+
 	return 0;
 }
 
 static int pctrltest_re_request_eint(void)
 {
+	int ret;
 	int virq;
-	int req_status;
-	int set_direct_status;
-	int req_IRQ_status;
-	int re_req_IRQ_status;
 	int gpio_index;
 	char pin_name[SUNXI_PIN_NAME_MAX_LEN];
 
@@ -1022,17 +1030,17 @@ static int pctrltest_re_request_eint(void)
 	pr_warn("-----------------------------------------------\n");
 
 	pr_warn("step1: request gpio [%s].\n", pin_name);
-	req_status = gpio_request(gpio_index, NULL);
-	if (0 != req_status) {
+	ret = gpio_request(gpio_index, NULL);
+	if (0 != ret) {
 		pr_warn("gpio request failed \n");
 		return -EINVAL;
 	}
 
 	pr_warn("step2: set gpio[%s]direction output and data value 0.\n", pin_name);
-	set_direct_status = gpio_direction_output(gpio_index, 0);
-	if (IS_ERR_VALUE(set_direct_status)) {
+	ret = gpio_direction_output(gpio_index, 0);
+	if (IS_ERR_VALUE(ret)) {
 		pr_warn("set gpio direction output failed for check gpio get value %d\n",
-			set_direct_status);
+			ret);
 		return -EINVAL;
 	}
 	gpio_free(gpio_index);
@@ -1045,26 +1053,25 @@ static int pctrltest_re_request_eint(void)
 	}
 
 	pr_warn("step4: first time request irq(low level trigger).\n");
-	req_IRQ_status = request_irq(virq, sunxi_pinctrl_irq_handler_demo1,
+	ret = request_irq(virq, sunxi_pinctrl_irq_handler_demo1,
 				    IRQF_TRIGGER_LOW, "PIN_EINT", NULL);
-	if (IS_ERR_VALUE(req_IRQ_status)) {
+	if (IS_ERR_VALUE(ret)) {
 		free_irq(virq, NULL);
 		pr_warn("test pin request irq failed !\n");
 		return -EINVAL;
 	}
 
 	pr_warn("step5: repeat request irq(low level trigger).\n");
-	re_req_IRQ_status = request_irq(virq, sunxi_pinctrl_irq_handler_demo2,
+	ret = request_irq(virq, sunxi_pinctrl_irq_handler_demo2,
 					IRQF_TRIGGER_LOW, "PIN_EINT", NULL);
 	free_irq(virq, NULL);
-	if (!IS_ERR_VALUE(re_req_IRQ_status)) {
+	if (!IS_ERR_VALUE(ret)) {
 		pr_warn("      repeat request irq success!\n\n");
 		pr_warn("test failed! for repeat request is umpermitted.\n");
 		return -EINVAL;
 	}
-
 	pr_warn("      repeat request irq failed!\n");
-	pr_warn("test sunccess! for repeat request is umpermitted.\n");
+	pr_warn("test success! for repeat request is umpermitted.\n");
 
 	pr_warn("-----------------------------------------------\n");
 	pr_warn("test picntrl repeat eint success!\n");
@@ -1587,14 +1594,27 @@ static struct class sunxi_pctrltest_class = {
 
 static int sunxi_pctrltest_probe(struct platform_device *pdev)
 {
+	struct device_node *np = pdev->dev.of_node;
+	struct gpio_config config;
+	int gpio;
 	int ret;
+
+	if (np == NULL) {
+		pr_err("Vdevice failed to get of_node\n");
+		return -ENODEV;
+	}
+
+	gpio = of_get_named_gpio_flags(np, "test-gpios", 0, (enum of_gpio_flags *)&config);
+	if (!gpio_is_valid(gpio)) {
+		pr_err("Vdevice failed to get test-gpios\n");
+		return -ENODEV;
+	}
 
 	sunxi_ptest_data = devm_kzalloc(&pdev->dev, sizeof(struct sunxi_pctrltest_data), GFP_KERNEL);
 	if (!sunxi_ptest_data) {
 		pr_err("no enougt memory for sunxi pinctrl test data\n");
 		return -ENOMEM;
 	}
-	sunxi_ptest_data->result = -1;
 
 	ret = class_register(&sunxi_pctrltest_class);
 	if(ret < 0) {
@@ -1605,6 +1625,16 @@ static int sunxi_pctrltest_probe(struct platform_device *pdev)
 	pdev->dev.class = &sunxi_pctrltest_class;
 	dev_set_name(&pdev->dev, "Vdevice");
 	platform_set_drvdata(pdev, sunxi_ptest_data);
+
+	/* Set default parameters */
+	strlcpy(sunxi_ptest_data->dev_name, "Vdevice", SUNXI_DEV_NAME_MAX_LEN);
+	sunxi_ptest_data->result = -1;
+	sunxi_ptest_data->gpio_index = config.gpio;
+	sunxi_ptest_data->funcs = config.mul_sel;
+	sunxi_ptest_data->pull = config.pull;
+	sunxi_ptest_data->dlevel = config.drv_level;
+	sunxi_ptest_data->data = config.data;
+	init_completion(&sunxi_ptest_data->done);
 
 	return ret;
 }

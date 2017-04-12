@@ -527,6 +527,19 @@ static s32 disp_mgr_clk_disable(struct disp_manager *mgr)
 	return 0;
 }
 
+/* Return: unit(hz) */
+static s32 disp_mgr_get_clk_rate(struct disp_manager *mgr)
+{
+	struct disp_manager_private_data *mgrp = disp_mgr_get_priv(mgr);
+
+	if ((NULL == mgr) || (NULL == mgrp)) {
+		DE_WRN("NULL hdl!\n");
+		return 0;
+	}
+
+	return mgrp->cfg->config.de_freq;
+}
+
 static s32 disp_mgr_init(struct disp_manager *mgr)
 {
 	struct disp_manager_private_data *mgrp = disp_mgr_get_priv(mgr);
@@ -1038,6 +1051,9 @@ static s32 disp_mgr_enable(struct disp_manager *mgr)
 
 	disp_mgr_force_apply(mgr);
 
+	if (mgr->enhance && mgr->enhance->enable)
+		mgr->enhance->enable(mgr->enhance);
+
 	return 0;
 }
 
@@ -1090,6 +1106,9 @@ static s32 disp_mgr_sw_enable(struct disp_manager *mgr)
 
 	disp_mgr_force_apply(mgr);
 
+	if (mgr->enhance && mgr->enhance->enable)
+		mgr->enhance->enable(mgr->enhance);
+
 	return 0;
 }
 
@@ -1105,6 +1124,9 @@ static s32 disp_mgr_disable(struct disp_manager *mgr)
 	}
 
 	DE_INF("mgr %d disable\n", mgr->disp);
+
+	if (mgr->enhance && mgr->enhance->disable)
+		mgr->enhance->disable(mgr->enhance);
 
 	spin_lock_irqsave(&mgr_data_lock, flags);
 	mgrp->enabled = 0;
@@ -1234,6 +1256,7 @@ s32 disp_init_mgr(disp_bsp_init_para * para)
 		mgr->update_color_space = disp_mgr_update_color_space;
 		mgr->dump = disp_mgr_dump;
 		mgr->blank = disp_mgr_blank;
+		mgr->get_clk_rate = disp_mgr_get_clk_rate;
 
 		mgr->init = disp_mgr_init;
 		mgr->exit = disp_mgr_exit;

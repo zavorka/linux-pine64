@@ -58,16 +58,16 @@
 #define   ARMV7_CC_C_BIT        (1 << 29)
 #define   ARMV7_CC_Z_BIT        (1 << 30)
 #define   ARMV7_CC_N_BIT        (1 << 31)
-#define   ARMV7_CC_E_BIT        (1 << 9 )
+#define   ARMV7_CC_E_BIT        (1 << 9)
 
-#define   ARMV7_C1_M_BIT        (1 << 0 )
-#define   ARMV7_C1_A_BIT        (1 << 1 )
-#define   ARMV7_C1_C_BIT        (1 << 2 )
+#define   ARMV7_C1_M_BIT        (1 << 0)
+#define   ARMV7_C1_A_BIT        (1 << 1)
+#define   ARMV7_C1_C_BIT        (1 << 2)
 #define   ARMV7_C1_Z_BIT        (1 << 11)
 #define   ARMV7_C1_I_BIT        (1 << 12)
 
 	/* PRESERVE8 */
-	/* AREA	Monitor_Code, CODE, ALIGN=5, READONLY */
+	/* AREA	Monitor_Code, CODE, ALIGN = 5, READONLY */
 
 	/* Defines used in the code */
 #define	Mode_MON	(0x16)
@@ -77,24 +77,24 @@
 	/* SCR Bit Masks */
 	/* Bit masks for SCR bit settings (CP15-C1 SCR register) */
 	/* For details see ARM ARM Security Extensions Supplement (DDI 0309B) */
-#define SCR_BIT_0_NS                	(0x01)
-#define SCR_BIT_1_IRQ_INTO_MON      	(0x02)
-#define SCR_BIT_2_FIQ_INTO_MON      	(0x04)
-#define SCR_BIT_3_EA_INTO_MON       	(0x08)
-#define SCR_BIT_4_FW_MODIFY_ENABLE  	(0x10)
-#define SCR_BIT_5_AW_MODIFY_ENABLE  	(0x20)
-#define SCR_BIT_4_FW_MODIFY_DISABLE 	(0x00)
-#define SCR_BIT_5_AW_MODIFY_DISABLE 	(0x00)
+#define SCR_BIT_0_NS			(0x01)
+#define SCR_BIT_1_IRQ_INTO_MON		(0x02)
+#define SCR_BIT_2_FIQ_INTO_MON		(0x04)
+#define SCR_BIT_3_EA_INTO_MON		(0x08)
+#define SCR_BIT_4_FW_MODIFY_ENABLE	(0x10)
+#define SCR_BIT_5_AW_MODIFY_ENABLE	(0x20)
+#define SCR_BIT_4_FW_MODIFY_DISABLE	(0x00)
+#define SCR_BIT_5_AW_MODIFY_DISABLE	(0x00)
 
-	// Bit masks for NSACR bit setting
-#define NSACR_ACTLR_ENABLE     	(0x1<<18)
-#define NSACR_L2ECTLR_ENABLE   	(0x1<<17)
+	/* Bit masks for NSACR bit setting*/
+#define NSACR_ACTLR_ENABLE	(0x1<<18)
+#define NSACR_L2ECTLR_ENABLE	(0x1<<17)
 #define NS_ACCESS_CP10_ENABLE	(0x1<<10)
 #define NS_ACCESS_CP11_ENABLE	(0x1<<11)
 
 	/* config SCR:  secure configuration register
 	 * affect:      CPSR, mode entry, secure or non-secure state.
-	 * config:      bit4,bit5: FW, AW; F bit Writable, A bit Writable -> 1;
+	 * config:      bit4, bit5: FW, AW; F bit Writable, A bit Writable -> 1;
 	 *              can be modified in any security state.
 	 *              in normal world, irq is take care by normal os
 	 *              fiq is take care by FIQ mode.?
@@ -120,10 +120,12 @@
 	.globl cpu_brom_start
 cpu_brom_start:
 #if defined(CONFIG_ARCH_SUN8IW3P1) || defined(CONFIG_ARCH_SUN8IW5P1) \
-	|| defined(CONFIG_ARCH_SUN8IW7P1) || defined(CONFIG_ARCH_SUN8IW10P1)
+	|| defined(CONFIG_ARCH_SUN8IW7P1) || defined(CONFIG_ARCH_SUN8IW10P1) \
+	|| defined(CONFIG_ARCH_SUN8IW11P1)
+	/* version contrl reg */
 	ldr     r0, =0x01c00024
 	ldr     r1, [r0]
-	/* 1 -> bit15 to enable write */
+	/* 1 -> bit15 to enable read */
 	orr     r1, #0x8000
 	str     r1, [r0]
 	/* read version */
@@ -132,12 +134,17 @@ cpu_brom_start:
 	ldr     r3, =0x1680
 	cmp     r2, r3
 	beq     config_80
-
+	ldr     r3, =0x1699
+	cmp     r2, r3
+	beq     config_99
+	ldr     r3, =0x1701
+	cmp     r2, r3
+	beq     config_99
 	/* setting to 0x22223a22 */
 config_50:
 	ldr     r0, =0x01c00044
 	ldr     r1,[r0]
-	orr     r1,#0x1800
+	orr     r1, #0x1800
 	str     r1,[r0]
 	b       config_end
 
@@ -145,13 +152,18 @@ config_50:
 config_80:
 	ldr     r0, =0x01c00044
 	ldr     r1,[r0]
-	orr     r1,#0xc0
+	orr     r1, #0xc0
 	str     r1,[r0]
+	b	config_end
+
+	/* setting to 0xxxx */
+config_99:
+	b	config_end
 
 config_end:
 #endif
 
-	//ldr r0, =(SUNXI_SRAM_A1_PBASE + SRAMA1_PARA_OFFSET)
+	/*ldr r0, =(SUNXI_SRAM_A1_PBASE + SRAMA1_PARA_OFFSET)*/
 #ifdef CONFIG_SUNXI_TRUSTZONE
 	/* config banked gic */
 	ldr     r1, [r0, #REGS_NUM]
@@ -166,10 +178,10 @@ regs_resume:
 	cmp     r1, #0
 	bne     regs_resume
 
-	/* config TZPC, make sure rtc&alarm region is non-secure */
-	//ldr     r4, =0x01c23408
-	//ldr     r5, =0x2
-	//str     r5,[r4]
+	/* config TZPC, make sure rtc & alarm region is non-secure */
+	/*ldr     r4, =0x01c23408*/
+	/*ldr     r5, =0x2*/
+	/*str     r5,[r4]*/
 
 	/* config cci */
 
@@ -186,7 +198,7 @@ regs_resume:
 	mcr     p15, 0, r1, c3, c0, 0
 
 	/* CR2 */
-	/* when translate 0x0000,0000, use ttb0,
+	/* when translate 0x0000, 0000, use ttb0,
 	 * while ttb0 shoudbe the same with ttb1
 	 */
 	ldr     r1, [r0, #CP15_TTB0R]
@@ -248,19 +260,19 @@ regs_resume:
 	mrs     r0, cpsr
 	bic     r0, r0, #ARMV7_MODE_MASK
 	orr     r0, r0, #ARMV7_SVC_MODE
-	orr     r0, r0, #( ARMV7_IRQ_MASK | ARMV7_FIQ_MASK )    @ After reset, ARM automaticly disables IRQ and FIQ, and runs in SVC mode.
+	orr     r0, r0, #(ARMV7_IRQ_MASK | ARMV7_FIQ_MASK)    @ After reset, ARM automaticly disables IRQ and FIQ, and runs in SVC mode.
 	bic     r0, r0, #ARMV7_CC_E_BIT                         @ set little-endian
 	msr     cpsr_c, r0
 
 	/* config smp */
 
-	/* configure memory system : disable MMU,cache and write buffer;
+	/* configure memory system  :  disable MMU, cache and write buffer;
 	 * set little_endian */
-	mrc     p15, 0, r0, c1, c0
-	bic     r0, r0, #( ARMV7_C1_M_BIT | ARMV7_C1_C_BIT )  @ disable MMU, data cache
-	bic     r0, r0, #( ARMV7_C1_I_BIT | ARMV7_C1_Z_BIT )  @ disable instruction cache, disable flow prediction
-	bic     r0, r0, #( ARMV7_C1_A_BIT)                    @ disable align
-	mcr     p15, 0, r0, c1, c0
+	mrc     p15, 0, r0, c1, c0, 0
+	bic     r0, r0, #(ARMV7_C1_M_BIT | ARMV7_C1_C_BIT)  @ disable MMU, data cache
+	bic     r0, r0, #(ARMV7_C1_I_BIT | ARMV7_C1_Z_BIT)  @ disable instruction cache, disable flow prediction
+	bic     r0, r0, #(ARMV7_C1_A_BIT)                    @ disable align
+	mcr     p15, 0, r0, c1, c0, 0
 
 	dsb
 	isb
@@ -303,12 +315,12 @@ A7f:
 	 * MMU is off so we need to get to various variables in a
 	 * position independent way.
 	 */
-	//adr	r5, 3f
-	//ldmia	r5, {r0, r6}
-	//add	r0, r5, r0              @ r0 = cpu_brom_addr[0]
-	//add	r6, r5, r6              @ r6 = cpu_brom_addr[1]
-	//dmb
-	//bx r0
+	/*adr	r5, 3f*/
+	/*ldmia	r5, {r0, r6}*/
+	/*add	r0, r5, r0              @ r0 = cpu_brom_addr[0]*/
+	/*add	r6, r5, r6              @ r6 = cpu_brom_addr[1]*/
+	/*dmb*/
+	/*bx r0*/
 
 	/* Clear general purpose registers*/
 	mov     r2,  #0
@@ -332,10 +344,10 @@ A7f:
 	dmb
 	movs    pc, r0
 
- 	b .                             @ infinite loop
+	b .                             @ infinite loop
 
- 	.align	2
-3: 	.word	cpu_brom_addr - .
+	.align	2
+3:	.word	cpu_brom_addr - .
 
 	.type	cpu_brom_addr, #object
 ENTRY(cpu_brom_addr)

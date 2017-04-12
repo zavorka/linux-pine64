@@ -5116,27 +5116,7 @@ static int sensor_g_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 }
 
 static int sensor_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
-{
-  struct v4l2_queryctrl qc;
-  int ret;
-  struct v4l2_pix_size *pix;
-  
-//  vfe_dev_dbg("sensor_s_ctrl ctrl->id=0x%8x\n", ctrl->id);
-  qc.id = ctrl->id;
-  ret = sensor_queryctrl(sd, &qc);
-  if (ret < 0) {
-    return ret;
-  }
-
-	if (qc.type == V4L2_CTRL_TYPE_MENU ||
-		qc.type == V4L2_CTRL_TYPE_INTEGER ||
-		qc.type == V4L2_CTRL_TYPE_BOOLEAN)
-	{
-	  if (ctrl->value < qc.minimum || ctrl->value > qc.maximum) {
-	    return -ERANGE;
-	  }
-	}
-	
+{	
   switch (ctrl->id) {
     case V4L2_CID_BRIGHTNESS:
       return sensor_s_brightness(sd, ctrl->value);
