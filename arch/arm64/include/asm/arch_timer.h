@@ -85,6 +85,21 @@ u32 arch_timer_reg_read_cp15(int access, enum arch_timer_reg reg)
 	return val;
 }
 
+static __always_inline
+u64 arch_timer_reg_read_cval(int access)
+{
+	u64 cval;
+
+	if (access == ARCH_TIMER_PHYS_ACCESS)
+		asm volatile("mrs %0, cntp_cval_el0" : "=r" (cval));
+	else if (access == ARCH_TIMER_VIRT_ACCESS)
+		asm volatile("mrs %0, cntv_cval_el0" : "=r" (cval));
+	else
+		cval = 0;
+
+	return cval;
+}
+
 static inline u32 arch_timer_get_cntfrq(void)
 {
 	u32 val;
@@ -135,7 +150,8 @@ static inline void arch_timer_evtstrm_enable(int divider)
 #endif
 }
 
-#ifdef  CONFIG_ARCH_SUN50I
+#if defined(CONFIG_ARCH_SUN50IW1P1) \
+	|| defined(CONFIG_ARCH_SUN50IW2P1)
 #define ARCH_VCNT_TRY_MAX_TIME (12)
 #define ARCH_VCNT_MAX_DELTA    (8)
 static inline u64 arch_counter_get_cntvct(void)
@@ -178,7 +194,8 @@ static inline u64 arch_counter_get_cntvct(void)
 }
 #endif /* CONFIG_ARCH_SUN50I */
 
-#ifdef  CONFIG_ARCH_SUN50I
+#if defined(CONFIG_ARCH_SUN50IW1P1) \
+	|| defined(CONFIG_ARCH_SUN50IW2P1)
 #define ARCH_PCNT_TRY_MAX_TIME (12)
 #define ARCH_PCNT_MAX_DELTA    (8)
 static inline u64 arch_counter_get_cntpct(void)

@@ -15,8 +15,8 @@
 
 int eink_config(unsigned char in_mode, unsigned int out_mode);
 int eink_start_idx(struct ee_img *last_img, struct ee_img *curr_img, unsigned char flash_mode, unsigned char win_en,
-                   unsigned int last_idx_addr, unsigned int curr_idx_addr, struct area_info *info);
-int eink_set_base(unsigned int reg_base);
+					unsigned long last_idx_addr, unsigned long curr_idx_addr, struct area_info *info);
+int eink_set_base(unsigned long reg_base);
 int eink_irq_enable(void);
 int eink_irq_disable(void);
 int eink_irq_query(void);
@@ -25,16 +25,16 @@ int eink_get_updata_area(struct area_info *info);
 int eink_pipe_enable(unsigned int pipe_no);
 int eink_pipe_disable(unsigned int pipe_no);
 int eink_pipe_config(struct area_info *info, unsigned int pipe_no);
-int eink_pipe_config_wavefile(unsigned int wav_file_addr, unsigned int pipe_no);
+int eink_pipe_config_wavefile(unsigned long wav_file_addr, unsigned int pipe_no);
 
 int eink_edma_init(unsigned char mode);
 int eink_edma_en(unsigned char en);
 int eink_dbuf_rdy(void);
-int eink_set_wb(unsigned char wb_en, unsigned int wb_addr);
-int eink_decoder_start(unsigned int new_idx_addr, unsigned int wav_data_addr, 
-                       struct eink_init_param* para);
-int eink_edma_cfg(unsigned int wav_addr, struct eink_init_param* para);
-int eink_edma_cfg_addr(unsigned int wav_addr);
+int eink_set_wb(unsigned char wb_en, unsigned long wb_addr);
+int eink_decoder_start(unsigned long new_idx_addr, unsigned long wav_data_addr,
+						struct eink_init_param *para);
+int eink_edma_cfg(unsigned long wav_addr, struct eink_init_param *para);
+int eink_edma_cfg_addr(unsigned long wav_addr);
 int eink_index_finish(void);
 
 

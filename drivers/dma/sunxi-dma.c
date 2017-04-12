@@ -28,7 +28,7 @@
 #include <linux/slab.h>
 #include <linux/debugfs.h>
 #include <linux/dma/sunxi-dma.h>
-#include <linux/sunxi-chip.h>
+#include <linux/sunxi-smc.h>
 #include <linux/of.h>
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
@@ -42,9 +42,12 @@
 #include "virt-dma.h"
 
 #if defined(CONFIG_ARCH_SUN8IW1) \
-	|| defined(CONFIG_ARCH_SUN8IW11)
+	|| defined(CONFIG_ARCH_SUN8IW11) \
+	|| defined(CONFIG_ARCH_SUN50IW6)
 #define NR_MAX_CHAN	16			/* total of channels */
-#elif defined(CONFIG_ARCH_SUN8IW7)
+#elif defined(CONFIG_ARCH_SUN8IW7) \
+	|| defined(CONFIG_ARCH_SUN50IW2) \
+	|| defined(CONFIG_ARCH_SUN50IW3)
 #define NR_MAX_CHAN	12			/* total of channels */
 #else
 #define NR_MAX_CHAN	8			/* total of channels */
@@ -63,9 +66,18 @@
 #if defined(CONFIG_ARCH_SUN9I) \
 	|| defined(CONFIG_ARCH_SUN50I)
 #define DMA_SECU	0x20			/* DMA security register */
-#define DMA_GATE	0x28			/* DMA gating rgister */
-#else
+#endif
+
+#if defined(CONFIG_ARCH_SUN8IW1)
+#undef DMA_GATE					/* Doesn't have gating register */
+#elif defined(CONFIG_ARCH_SUN8IW3) \
+	|| defined(CONFIG_ARCH_SUN8IW5) \
+	|| defined(CONFIG_ARCH_SUN8IW6) \
+	|| defined(CONFIG_ARCH_SUN8IW8) \
+	|| defined(CONFIG_ARCH_SUN8IW9)
 #define DMA_GATE	0x20			/* DMA gating rgister */
+#else
+#define DMA_GATE	0x28			/* DMA gating rgister */
 #endif
 
 #define DMA_STAT	0x30			/* DMA Status Register RO */
@@ -79,24 +91,33 @@
 #define DMA_PARA(x)	(0x11C + ((x) << 6))	/* Parameter register RO */
 
 #if defined(CONFIG_ARCH_SUN9I)
-
-#define DMA_OP_MODE(x)	(0x128 + ((x) << 6))	/* DMA mode options register */
-#define SRC_HS_MASK	(0x1 << 2)		/* bit 2: Source handshark mode */
-#define DST_HS_MASK	(0x2 << 3)		/* bit 3: Destination handshark mode */
-
-#define SET_OP_MODE(d, x, val)	({	\
-		writel(val, d->base + DMA_OP_MODE(x));	\
-		})
-
 #define LINK_END	0x1FFFF800		/* lastest link must be 0x1ffff800 */
-
 #else
+#define LINK_END	0xFFFFF800		/* lastest link must be 0xfffff800 */
+#endif
+
+/* DMA opertions mode */
+#if defined(CONFIG_ARCH_SUN8IW1) \
+	|| defined(CONFIG_ARCH_SUN8IW3) \
+	|| defined(CONFIG_ARCH_SUN8IW5) \
+	|| defined(CONFIG_ARCH_SUN8IW6) \
+	|| defined(CONFIG_ARCH_SUN8IW8) \
+	|| defined(CONFIG_ARCH_SUN8IW9)
 
 #define DMA_OP_MODE(x)
 #define SRC_HS_MASK
 #define DST_HS_MASK
-#define SET_OP_MODE(d, x, val)	do{}while(0)
-#define LINK_END	0xFFFFF800		/* lastest link must be 0xfffff800 */
+#define SET_OP_MODE(d, x, val)  do { } while (0)
+
+#else
+
+#define DMA_OP_MODE(x)	(0x128 + ((x) << 6))	/* DMA mode options register */
+#define SRC_HS_MASK	(0x1 << 2)		/* bit 2: Source handshark mode */
+#define DST_HS_MASK	(0x1 << 3)		/* bit 3: Destination handshark mode */
+
+#define SET_OP_MODE(d, x, val)	({	\
+		writel(val, d->base + DMA_OP_MODE(x));	\
+		})
 
 #endif
 
@@ -112,23 +133,47 @@
 
 /* The detail information of DMA configuration */
 #define SRC_WIDTH(x)	((x) << 9)
-#ifdef CONFIG_ARCH_SUN9I
-#define SRC_BURST(x)	((x) << 6)
-#else
+#if defined(CONFIG_ARCH_SUN8IW1) \
+	|| defined(CONFIG_ARCH_SUN8IW3) \
+	|| defined(CONFIG_ARCH_SUN8IW5) \
+	|| defined(CONFIG_ARCH_SUN8IW6) \
+	|| defined(CONFIG_ARCH_SUN8IW8) \
+	|| defined(CONFIG_ARCH_SUN8IW9)
 #define SRC_BURST(x)	((x) << 7)
+#else
+#define SRC_BURST(x)	((x) << 6)
 #endif
+
+#if defined(CONFIG_ARCH_SUN50IW3) \
+	|| defined(CONFIG_ARCH_SUN50IW6)
+#define SRC_IO_MODE	(0x01 << 8)
+#define SRC_LINEAR_MODE	(0x00 << 8)
+#else
 #define SRC_IO_MODE	(0x01 << 5)
 #define SRC_LINEAR_MODE	(0x00 << 5)
+#endif
 #define SRC_DRQ(x)	((x) << 0)
 
 #define DST_WIDTH(x)	((x) << 25)
-#ifdef CONFIG_ARCH_SUN9I
-#define DST_BURST(x)	((x) << 22)
-#else
+#if defined(CONFIG_ARCH_SUN8IW1) \
+	|| defined(CONFIG_ARCH_SUN8IW3) \
+	|| defined(CONFIG_ARCH_SUN8IW5) \
+	|| defined(CONFIG_ARCH_SUN8IW6) \
+	|| defined(CONFIG_ARCH_SUN8IW8) \
+	|| defined(CONFIG_ARCH_SUN8IW9)
 #define DST_BURST(x)	((x) << 23)
+#else
+#define DST_BURST(x)	((x) << 22)
 #endif
+
+#if defined(CONFIG_ARCH_SUN50IW3) \
+	|| defined(CONFIG_ARCH_SUN50IW6)
+#define DST_IO_MODE	(0x01 << 24)
+#define DST_LINEAR_MODE	(0x00 << 24)
+#else
 #define DST_IO_MODE	(0x01 << 21)
 #define DST_LINEAR_MODE	(0x00 << 21)
+#endif
 #define DST_DRQ(x)	((x) << 16)
 
 #define CHAN_START	1
@@ -337,8 +382,10 @@ static inline void sunxi_dump_com_regs(struct sunxi_chan *ch)
 			"\tmask1(%04x): 0x%08x\n"
 			"\tpend0(%04x): 0x%08x\n"
 			"\tpend1(%04x): 0x%08x\n"
-#ifdef CONFIG_ARCH_SUN9I
+#ifdef DMA_SECU
 			"\tsecur(%04x): 0x%08x\n"
+#endif
+#ifdef DMA_GATE
 			"\t_gate(%04x): 0x%08x\n"
 #endif
 			"\tstats(%04x): 0x%08x\n",
@@ -346,8 +393,10 @@ static inline void sunxi_dump_com_regs(struct sunxi_chan *ch)
 			DMA_IRQ_EN(1),  readl(sdev->base + DMA_IRQ_EN(1)),
 			DMA_IRQ_STAT(0),readl(sdev->base + DMA_IRQ_STAT(0)),
 			DMA_IRQ_STAT(1),readl(sdev->base + DMA_IRQ_STAT(1)),
-#ifdef CONFIG_ARCH_SUN9I
+#ifdef DMA_SECU
 			DMA_SECU, readl(sdev->base + DMA_SECU),
+#endif
+#ifdef DMA_GATE
 			DMA_GATE, readl(sdev->base + DMA_GATE),
 #endif
 			DMA_STAT, readl(sdev->base + DMA_STAT));
@@ -624,10 +673,7 @@ static irqreturn_t sunxi_dma_interrupt(int irq, void *dev_id)
 
 	/* Get the status of irq */
 	status_lo = readl(sdev->base + DMA_IRQ_STAT(0));
-#if !defined(CONFIG_ARCH_SUN8IW3) \
-	|| !defined(CONFIG_ARCH_SUN8IW5) \
-	|| !defined(CONFIG_ARCH_SUN8IW6) \
-	|| !defined(CONFIG_ARCH_SUN8IW8)
+#if NR_MAX_CHAN > HIGH_CHAN
 	status_hi = readl(sdev->base + DMA_IRQ_STAT(1));
 #endif
 
@@ -636,10 +682,7 @@ static irqreturn_t sunxi_dma_interrupt(int irq, void *dev_id)
 
 	/* Clear the bit of irq status */
 	writel(status_lo, sdev->base + DMA_IRQ_STAT(0));
-#if !defined(CONFIG_ARCH_SUN8IW3) \
-	|| !defined(CONFIG_ARCH_SUN8IW5) \
-	|| !defined(CONFIG_ARCH_SUN8IW6) \
-	|| !defined(CONFIG_ARCH_SUN8IW8)
+#if NR_MAX_CHAN > HIGH_CHAN
 	writel(status_hi, sdev->base + DMA_IRQ_STAT(1));
 #endif
 
@@ -1088,7 +1131,7 @@ static void sunxi_dma_hw_init(struct sunxi_dmadev *dev)
 	struct sunxi_dmadev *sunxi_dev = dev;
 
 	clk_prepare_enable(sunxi_dev->ahb_clk);
-#if defined(CONFIG_ARCH_SUN50I)
+#if defined(CONFIG_SUNXI_SMC)
 	sunxi_smc_writel(0xff, sunxi_dev->pbase + DMA_SECU);
 #endif
 
@@ -1107,7 +1150,7 @@ static int sunxi_probe(struct platform_device *pdev)
 	struct resource *res;
 	int irq;
 	int ret, i;
-	
+
 #ifdef CONFIG_OF
 	pdev->dev.dma_mask = &sunxi_dma_mask;
 	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32);

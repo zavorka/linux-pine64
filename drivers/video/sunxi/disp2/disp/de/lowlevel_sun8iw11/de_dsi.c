@@ -56,7 +56,7 @@ u32 dsi_get_start_delay(u32	sel)
 	if (start_delay > dsi_dev[sel]->dsi_basic_size1.bits.vt)
 		start_delay	-= dsi_dev[sel]->dsi_basic_size1.bits.vt;
 
-	return (vt-y-10);
+	return vt - y - 8;
 }
 
 

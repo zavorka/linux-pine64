@@ -79,7 +79,10 @@ typedef union
 		unsigned int lay_fmt		:5;//bit8~12
 		unsigned int r2				:2;//bit13~14
 		unsigned int ui_sel			:1;//bit15
-		unsigned int r3				:7;//bit16~22
+		unsigned int yburst:2;
+		unsigned int uburst:2;
+		unsigned int vburst:2;
+		unsigned int r3:1;
 		unsigned int lay_top_down	:1;//bit23
 		unsigned int r4				:8;//bit24~31
 	}bits;
@@ -241,7 +244,9 @@ typedef union
 		unsigned int lay_fmt		:5;//bit8~12
 		unsigned int r2				:3;//bit13~15
 		unsigned int lay_alpctl		:2;//bit16~17
-		unsigned int r3				:5;//bit18~22
+		unsigned int r3:2;
+		unsigned int burst:2;
+		unsigned int r4:1;
 		unsigned int lay_top_down	:1;//bit23
 		unsigned int lay_alpha		:8;//bit24~31
 	}bits;

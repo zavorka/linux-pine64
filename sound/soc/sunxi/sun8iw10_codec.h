@@ -15,17 +15,21 @@
 #ifndef _SUN8IW10_CODEC_H
 #define _SUN8IW10_CODEC_H
 
-#define AC_DAC_DPC		0x00
-#define AC_DAC_FIFOC	0x04
-#define AC_DAC_FIFOS	0x08
-#define AC_ADC_FIFOC	0x10
-#define AC_ADC_FIFOS	0x14
-#define AC_ADC_RXDATA	0x18
-#define AC_ADC_TXDATA	0x20
-#define AC_DAC_CNT		0x40
-#define AC_ADC_CNT		0x44
-#define AC_DAC_DG		0x48
-#define AC_ADC_DG		0x4c
+#define SUNXI_DAC_DPC		0x00
+#define SUNXI_DAC_FIFOC		0x04
+#define SUNXI_DAC_FIFOS		0x08
+#define SUNXI_ADC_FIFOC		0x10
+#define SUNXI_ADC_FIFOS		0x14
+#define SUNXI_ADC_RXDATA	0x18
+#define SUNXI_DAC_TXDATA	0x20
+#define SUNXI_DAC_CNT		0x40
+#define SUNXI_ADC_CNT		0x44
+#define SUNXI_DAC_DG		0x48
+#define SUNXI_ADC_DG		0x4c
+
+#define SUNXI_ADC_DAP_CTR 	0x70
+#define SUNXI_ADC_DRC_HHPFC 	0x200
+#define SUNXI_ADC_DRC_LHPFC 	0x204
 
 #define AC_PR_CFG		0x400
 
@@ -128,6 +132,16 @@
 
 /*AC_ADC_DG:0x4c*/
 #define AD_SWP			24
+
+/*AC_ADC_DAP_CTR : 0x70*/
+#define ADC_DRC_HPF_EN 		24
+#define ENADC_DRC 		26
+
+/*AC_ADC_DRC_HHPFC : 0x200*/
+#define ADC_HHPF_CONF 	0
+
+/*AC_ADC_DRC_LHPFC : 0x204*/
+#define ADC_LHPF_CONF 	0
 
 /*AC_PR_CFG:0x400*/
 #define AC_PR_RST		28
@@ -245,8 +259,7 @@ struct codec_hw_config {
 };
 
 struct voltage_supply {
-	struct regulator *cpvdd;
-	struct regulator *avcc;
+	struct regulator *pa_shdn;
 };
 
 struct sunxi_codec {

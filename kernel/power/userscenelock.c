@@ -262,7 +262,7 @@ ssize_t wakeup_src_show(
 
 		s += scnprintf(s, end - s, "%s\n", "dynamic wakeup src config:");
 		s += scnprintf(s, end - s, "wakeup_src 0x%lx\n", manager->event);
-		s += parse_wakeup_event(s, end - s, manager->event, CPUS_ID);	
+		s += parse_wakeup_event(s, end - s, manager->event);
 		s += scnprintf(s, end - s, "wakeup_gpio_map 0x%lx\n", manager->wakeup_gpio_map);
 		s += parse_wakeup_gpio_map(s, end -s, manager->wakeup_gpio_map);	
 		s += scnprintf(s, end - s, "wakeup_gpio_group 0x%lx\n", manager->wakeup_gpio_group);
@@ -275,7 +275,7 @@ ssize_t wakeup_src_show(
 	s += scnprintf(s, end - s, "%s\n", "echo wakeup_src_e para (1:enable)/(0:disable) > /sys/power/wakeup_src");
 	s += scnprintf(s, end - s, "%s\n", "demo: echo 0x2000 0x200 1 > /sys/power/wakeup_src");
 	s += scnprintf(s, end - s, "%s\n", "wakeup_src_e para info: ");
-	s += parse_wakeup_event(s, end - s, 0xffffffff, CPUS_ID);
+	s += parse_wakeup_event(s, end - s, 0xffffffff);
 	s += scnprintf(s, end - s, "%s\n", "gpio para info: ");
 	s += show_gpio_config(s, end - s);
 
@@ -323,11 +323,8 @@ ssize_t sys_pwr_dm_mask_store(struct kobject *kobj, struct kobj_attribute *attr,
 
 static int __init userscene_lock_init(void)
 {
-
-#if defined(CONFIG_ARCH_SUN8IW6P1) || defined(CONFIG_ARCH_SUN8IW8P1) || defined(CONFIG_ARCH_SUN50IW1P1)
 	printk(KERN_INFO "lock super standby defaultly!\n");
 	scene_lock_store(NULL, NULL, "super_standby", 0);
-#endif
 	return 0;
 }
 
@@ -338,4 +335,3 @@ static void __exit userscene_lock_exit(void)
 
 module_init(userscene_lock_init);
 module_exit(userscene_lock_exit);
-

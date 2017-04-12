@@ -134,7 +134,8 @@ s32 	tcon0_close(u32 sel);
 s32   tcon0_set_dclk_div(u32 sel, u8 div);
 u32   tcon0_get_dclk_div(u32 sel);
 s32	tcon0_tri_busy(u32 sel);
-s32   tcon0_tri_start(u32 sel);
+s32 tcon0_cpu_set_auto_mode(u32 sel);
+s32 tcon0_tri_start(u32 sel);
 u32 tcon0_cpu_16b_to_24b(u32 value);
 u32 tcon0_cpu_24b_to_16b(u32 value);
 u32 tcon0_cpu_busy(u32 sel);
@@ -159,5 +160,6 @@ s32 hmdi_src_sel(u32 sel);
 s32 tcon1_hdmi_color_remap(u32 sel,u32 onoff);
 s32 tcon1_yuv_range(u32 sel,u32 onoff);
 
+extern int de_get_clk_rate(void);
 #endif
 

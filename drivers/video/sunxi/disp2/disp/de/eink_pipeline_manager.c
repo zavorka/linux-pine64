@@ -6,63 +6,38 @@
  * published by the Free Software Foundation.
  *
  */
- 
+
 #include "disp_eink.h"
+
 #ifdef SUPPORT_EINK
 
 #define PIPELINE_NUM 16
+static int op_skip;
+static struct mutex mlock;
 
-#if 0
-/* return 0, no overlap, 1 overlap.*/
-static int overlap_judge(struct area_info pipeline_area, struct area_info update_area)
+static int __overlap_judge_skip(struct pipeline_manager *manager, u32 skip)
 {
-	int pipe_width, pipe_height, update_width, update_height;
-	int ret = 0;
-
-	pipe_width = pipeline_area.x_bottom - pipeline_area.x_top;
-	pipe_height = pipeline_area.y_bottom - pipeline_area.y_top;
-	update_width = update_area.x_bottom - update_area.x_top;
-	update_height = update_area.y_bottom - update_area.y_top;
-	//__debug("in..\n");
-	/* judge x overlap */
-	if (pipeline_area.x_top <= update_area.x_top) {
-		if (abs(update_area.x_bottom - pipeline_area.x_top) <= pipe_width + update_width) {
-			ret = 1;
-			return ret;
-		}
-	}else {
-		if (abs(pipeline_area.x_bottom - update_area.x_top) <= pipe_width + update_width) {
-			ret = 1;
-			return ret;
-		}
-	}
-
-	/* judge y overlap */
-	if (pipeline_area.y_top <= update_area.y_top) {
-		if (abs(update_area.y_bottom - pipeline_area.y_top) <= pipe_height + update_height) {
-			ret = 1;
-			return ret;
-		}
-	}else {
-		if (abs(pipeline_area.y_bottom - update_area.y_top) <= pipe_height + pipe_height) {
-			ret = 1;
-			return ret;
-		}
-	}
-
-	//__debug("out..\n");
-	return ret;
-
+	mutex_lock(&mlock);
+	op_skip = skip;
+	mutex_unlock(&mlock);
+	return 0;
 }
-#else
+
 /* return 0, no overlap, 1 overlap.*/
-static int overlap_judge(struct area_info pipeline_area, struct area_info update_area)
+static int __overlap_judge(struct area_info pipeline_area, struct area_info update_area)
 {
 	struct area_info *left_area;
 	struct area_info *right_area;
 
 	struct area_info *top_area;
 	struct area_info *bottom_area;
+
+	mutex_lock(&mlock);
+	if (op_skip) {
+		mutex_unlock(&mlock);
+		return 0;
+	}
+	mutex_unlock(&mlock);
 
 	if (update_area.x_top > pipeline_area.x_top) {
 		right_area = &update_area;
@@ -72,8 +47,10 @@ static int overlap_judge(struct area_info pipeline_area, struct area_info update
 		left_area = &update_area;
 	}
 
-	/* x not overlap, two area could not be overlay */
-	if (right_area->x_top > left_area->x_bottom) {
+	/* x not overlap, two area could not be overlay,
+	 * if equal,is also not overlap.
+	*/
+	if (right_area->x_top >= left_area->x_bottom) {
 		return 0;
 	}
 
@@ -86,17 +63,20 @@ static int overlap_judge(struct area_info pipeline_area, struct area_info update
 	}
 
 	/* y not overlap, two area could not be overlay */
-	if (top_area->y_top > bottom_area->y_bottom) {
+	if (top_area->y_top >= bottom_area->y_bottom) {
 		return 0;
 	}
+
+	__debug("xtop=%u ,ytop=%u ,x_bo=%u ,y_bo=%u\n",
+		update_area.x_top, update_area.y_top,
+		update_area.x_bottom, update_area.y_bottom);
 
 	return 1;
 
 }
-#endif
 
 /* return 0: empty, return 1: full*/
-int free_list_status(struct pipeline_manager * manager)
+int __free_list_status(struct pipeline_manager *manager)
 {
 	struct pipeline_info* pipeline, *tpipeline;
 	int num = 0;
@@ -114,25 +94,25 @@ int free_list_status(struct pipeline_manager * manager)
 	if (num == PIPELINE_NUM) {
 		ret = 1;
 		goto out;
-	}
-	else if (num > PIPELINE_NUM)
+	} else if (num > PIPELINE_NUM) {
 		ret = -1;
+	}
 
 out:
 	mutex_unlock(&manager->list.mlock);
 
 	return ret;
-
 }
 
-
-/* return 0: empty, return 1: full, return 2: not full,not empty, return -1: err*/
-int used_list_status(struct pipeline_manager * manager)
+/* return 0: empty, return 1: full,
+ * return 2: not full,not empty,
+ * return -1: err
+*/
+int __used_list_status(struct pipeline_manager *manager)
 {
-	struct pipeline_info* pipeline, *tpipeline;
-	int num = 0;
+	struct pipeline_info *pipeline, *tpipeline;
 	int ret = 0;
-
+	int used_num = 0;
 	mutex_lock(&manager->list.mlock);
 
 	if (list_empty(&manager->list.used_list)) {
@@ -140,27 +120,24 @@ int used_list_status(struct pipeline_manager * manager)
 		goto out;
 	}
 
-	list_for_each_entry_safe(pipeline, tpipeline, &manager->list.used_list, node) {
-		num++;
-	}
+	list_for_each_entry_safe(pipeline, tpipeline,
+				&manager->list.used_list, node)
+		used_num++;
 
-	if (num == PIPELINE_NUM) {
+	if (used_num == PIPELINE_NUM)
 		ret = 1;
-		goto out;
-	}
-	else if (num > PIPELINE_NUM)
+	else if (used_num > PIPELINE_NUM)
 		ret = -1;
-	else {
+	else
 		ret = 2;
-	}
+
 out:
 	mutex_unlock(&manager->list.mlock);
 
 	return ret;
-
 }
 
-int check_overlap(struct pipeline_manager * manager, struct area_info area)
+int __check_overlap(struct pipeline_manager *manager, struct area_info area)
 {
 	int ret = 0;
 	struct pipeline_info* pipeline, *tpipeline;
@@ -168,7 +145,7 @@ int check_overlap(struct pipeline_manager * manager, struct area_info area)
 	mutex_lock(&manager->list.mlock);
 
 	list_for_each_entry_safe(pipeline, tpipeline, &manager->list.used_list, node) {
-		if (overlap_judge(pipeline->area, area)) {
+		if (__overlap_judge(pipeline->area, area)) {
 			pipeline->overlap_flag = 1;
 			mutex_lock(&manager->mlock);
 			manager->overlap_num++;
@@ -180,7 +157,8 @@ int check_overlap(struct pipeline_manager * manager, struct area_info area)
 
 	return ret;
 }
-int check_overlap_num(struct pipeline_manager * manager)
+
+int __check_overlap_num(struct pipeline_manager *manager)
 {
 	int ret;
 
@@ -195,11 +173,38 @@ int check_overlap_num(struct pipeline_manager * manager)
 
 	return ret;
 }
+
+int __clear_pipeline_list(struct pipeline_manager *manager)
+{
+	int ret = 0;
+	struct pipeline_info *pipeline, *tpipeline;
+
+	mutex_lock(&manager->mlock);
+
+	list_for_each_entry_safe(pipeline, tpipeline,
+				&manager->list.used_list, node) {
+
+		list_move_tail(&pipeline->node, &manager->list.free_list);
+
+		pipeline->overlap_flag = 0;
+		pipeline->frame_index = 0;
+		pipeline->total_frames = 0;
+		pipeline->enable_flag = 0;
+
+	}
+	manager->overlap_num = 0;
+
+	mutex_unlock(&manager->mlock);
+	return ret;
+}
+
 /* return 0:no new pipeline insert
-    return 1:one new pipeline insert
-    return -1:more than one pipeline insert,something is wrong.
+ * return 1:one new pipeline insert
+ * return -1:more than one pipeline insert,something is wrong.
 */
-int update_pipeline_list(struct pipeline_manager * manager, unsigned int temperature, unsigned int *tframes)
+int __update_pipeline_list(struct pipeline_manager *manager,
+							unsigned int temperature,
+							unsigned int *tframes)
 {
 	int ret = 0;
 	struct pipeline_info* pipeline, *tpipeline;
@@ -230,7 +235,7 @@ int update_pipeline_list(struct pipeline_manager * manager, unsigned int tempera
 		}
 
 		if (pipeline->frame_index < 1) {
-			ret = disp_al_get_eink_panel_bit_num(manager->disp, &pipeline->bit_num);//fix this function need modify.
+			ret = disp_al_get_eink_panel_bit_num(manager->disp, &pipeline->bit_num);
 			ret = disp_al_get_waveform_data(manager->disp, pipeline->mode, temperature, &pipeline->total_frames,&pipeline->wave_file_addr);
 		}
 		cur_wave_paddr = pipeline->wave_file_addr + (1<< (pipeline->bit_num << 1)) * pipeline->frame_index;
@@ -256,8 +261,11 @@ int update_pipeline_list(struct pipeline_manager * manager, unsigned int tempera
 	return ret;
 }
 
-int config_and_enable_one_pipeline(struct pipeline_manager * manager, struct area_info update_area,
-							enum eink_update_mode mode, unsigned int temperature, unsigned int* tframes)
+int __config_and_enable_one_pipeline(struct pipeline_manager *manager,
+										struct area_info update_area,
+										enum eink_update_mode mode,
+										unsigned int temperature,
+										unsigned int *tframes)
 {
 	struct pipeline_info* pipeline, *tpipeline;
 	int ret = 0;
@@ -278,12 +286,17 @@ int config_and_enable_one_pipeline(struct pipeline_manager * manager, struct are
 
 		ret  = disp_al_get_eink_panel_bit_num(manager->disp, &pipeline->bit_num);
 
-		ret = disp_al_get_waveform_data(manager->disp,pipeline->mode, temperature, &pipeline->total_frames, &pipeline->wave_file_addr);
+		ret = disp_al_get_waveform_data(manager->disp, pipeline->mode,
+										temperature, &pipeline->total_frames,
+										&pipeline->wave_file_addr);
 		*tframes = pipeline->total_frames;
-		cur_wave_paddr = pipeline->wave_file_addr + (1<< (pipeline->bit_num << 1)) * pipeline->frame_index;
+		cur_wave_paddr = pipeline->wave_file_addr
+					   + (1 << (pipeline->bit_num << 1)) * pipeline->frame_index;
 
-		ret = disp_al_eink_pipe_config(manager->disp, pipeline->pipeline_no, pipeline->area);
-		ret = disp_al_eink_pipe_config_wavefile(manager->disp, cur_wave_paddr, pipeline->pipeline_no);
+		ret = disp_al_eink_pipe_config(manager->disp, pipeline->pipeline_no,
+									   pipeline->area);
+		ret = disp_al_eink_pipe_config_wavefile(manager->disp, cur_wave_paddr,
+													pipeline->pipeline_no);
 		ret = disp_al_eink_pipe_enable(manager->disp, pipeline->pipeline_no);
 
 		pipeline->frame_index++;
@@ -299,7 +312,8 @@ int config_and_enable_one_pipeline(struct pipeline_manager * manager, struct are
 }
 
 
-int config_one_pipeline(struct pipeline_manager * manager, struct area_info update_area, enum eink_update_mode mode)
+int __config_one_pipeline(struct pipeline_manager *manager, struct area_info update_area,
+							enum eink_update_mode mode)
 {
 	struct pipeline_info* pipeline, *tpipeline;
 	int ret = 0;
@@ -312,18 +326,16 @@ int config_one_pipeline(struct pipeline_manager * manager, struct area_info upda
 		pipeline->mode = mode;
 
 		if (pipeline->enable_flag) {
-			pipeline->enable_flag= false;
+			pipeline->enable_flag = false;
 			__wrn("free pipeline list have used pipeline,something is wrong!");
 		}
 
 		memcpy((void*)&pipeline->area, (void*)&update_area, sizeof(struct area_info));
 
-		/*no need config wave file addr,it will config when next decode task.*/
+		/* no need config wave file addr,it will config when next decode task. */
 		disp_al_eink_pipe_config(manager->disp, pipeline->pipeline_no, pipeline->area);
-
-		/*__debug("add one pipe, no=%d\n", pipeline->pipeline_no);*/
+		/*__debug("add one pipe, no=%d\n", pipeline->pipeline_no); */
 		list_move_tail(&pipeline->node, &manager->list.used_list);
-
 		break;
 	}
 
@@ -331,6 +343,7 @@ int config_one_pipeline(struct pipeline_manager * manager, struct area_info upda
 
 	return ret;
 }
+
 int pipeline_manager_init(struct disp_eink_manager* eink_manager)
 {
 	int ret = 0;
@@ -339,7 +352,6 @@ int pipeline_manager_init(struct disp_eink_manager* eink_manager)
 	struct pipeline_info* pipeline[PIPELINE_NUM];
 
 	pipeline_manager = (struct pipeline_manager*) disp_sys_malloc(sizeof(struct pipeline_manager));
-
 	if (!pipeline_manager) {
 			__wrn("malloc eink pipeline manager memory fail!\n");
 			ret = -ENOMEM;
@@ -355,9 +367,10 @@ int pipeline_manager_init(struct disp_eink_manager* eink_manager)
 
 	mutex_init(&pipeline_manager->mlock);
 	mutex_init(&pipeline_manager->list.mlock);
+	mutex_init(&mlock);
 
 	for (i = 0; i < PIPELINE_NUM; i++) {
-		pipeline[i] =  (struct pipeline_info*) disp_sys_malloc(sizeof(struct pipeline_info));
+		pipeline[i] = (struct pipeline_info *)disp_sys_malloc(sizeof(struct pipeline_info));
 		if (!pipeline[i]) {
 			__wrn("malloc eink pipeline memory fail!\n");
 			ret = -ENOMEM;
@@ -368,14 +381,15 @@ int pipeline_manager_init(struct disp_eink_manager* eink_manager)
 		list_add_tail(&pipeline[i]->node, &pipeline_manager->list.free_list);
 	}
 
-	pipeline_manager->check_overlap = check_overlap;
-	pipeline_manager->config_one_pipeline = config_one_pipeline;
-	pipeline_manager->config_and_enable_one_pipeline = config_and_enable_one_pipeline;
-	pipeline_manager->update_pipeline_list = update_pipeline_list;
-	pipeline_manager->used_list_status = used_list_status;
-	pipeline_manager->free_list_status = free_list_status;
-	pipeline_manager->check_overlap_num = check_overlap_num;
-
+	pipeline_manager->check_overlap = __check_overlap;
+	pipeline_manager->op_skip = __overlap_judge_skip;
+	pipeline_manager->config_one_pipeline = __config_one_pipeline;
+	pipeline_manager->config_and_enable_one_pipeline = __config_and_enable_one_pipeline;
+	pipeline_manager->update_pipeline_list = __update_pipeline_list;
+	pipeline_manager->used_list_status = __used_list_status;
+	pipeline_manager->free_list_status = __free_list_status;
+	pipeline_manager->check_overlap_num = __check_overlap_num;
+	pipeline_manager->clear_pipeline_list = __clear_pipeline_list;
 	eink_manager->pipeline_mgr = pipeline_manager;
 
 	return ret;

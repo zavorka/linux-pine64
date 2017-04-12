@@ -96,28 +96,30 @@
 #define F_N8X5_K4X2(nv,kv) FACTOR_ALL(nv,8,5,kv,4,2,0,0,0,0,0,0,0,0,0,0,0,0)
 #define F_N8X7_M0X2(nv,mv) FACTOR_ALL(nv,8,7,0,0,0,mv,0,2,0,0,0,0,0,0,0,0,0)
 #define F_N8X5_K4X2_M0X2(nv,kv,mv) FACTOR_ALL(nv,8,5,kv,4,2,mv,0,2,0,0,0,0,0,0,0,0,0)
-#define F_N8X5_K4X2_M0X2_P16x2(nv,kv,mv,pv) \
-               FACTOR_ALL(nv,8,5, \
-                          kv,4,2, \
-                          mv,0,2, \
-                          pv,16,2, \
-                          0,0,0,0,0,0)
-#define F_N8X7_N116X5_M0X2_M14x4(nv,kv,mv,pv) \
-               FACTOR_ALL(nv,8,7, \
-                          kv,16,5, \
-                          mv,0,2, \
-                          pv,4,4, \
-                          0,0,0,0,0,0)
+
+#define F_N8X5_K4X2_M0X2_P16x2(nv, kv, mv, pv) \
+			FACTOR_ALL(nv, 8, 5, \
+			kv, 4, 2, \
+			mv, 0, 2, \
+			pv, 16, 2, \
+			0, 0, 0, 0, 0, 0)
+
+#define F_N8X8_N116X5_M0X2_M14x4(nv, kv, mv, pv) \
+			FACTOR_ALL(nv, 8, 7, \
+			kv, 16, 5, \
+			mv, 0, 2, \
+			pv, 4, 4, \
+			0, 0, 0, 0, 0, 0)
 
 
-#define PLLCPU(n,k,m,p,freq)    {F_N8X5_K4X2_M0X2_P16x2(n, k, m, p),  freq}
-#define PLLVIDEO0(n,m,freq)     {F_N8X7_M0X4( n, m),  freq}
-#define PLLDDR0(n,k,m,freq)     {F_N8X7_M0X2( n, m),  freq}
-#define PLLPERIPH0(n,k,freq)    {F_N8X5_K4X2( n, k),  freq}
-#define PLLPERIPH1(n,k,freq)    {F_N8X5_K4X2( n, k),  freq}
-#define PLLVIDEO1(n,m,freq)     {F_N8X7_M0X4( n, m),  freq}
-#define PLL24M(n,n1,m,m1,freq)  {F_N8X7_N116X5_M0X2_M14x4(n, n1, m, m1),  freq}
-#define PLLDE(n,m,freq)         {F_N8X7_M0X4( n, m),  freq}
-#define PLLDDR1(n,m,freq)       {F_N8X7_M0X2(n,m),  freq}
+#define PLLCPU(n, k, m, p, freq)    {F_N8X5_K4X2_M0X2_P16x2(n, k, m, p), freq}
+#define PLLVIDEO0(n, m, freq)       {F_N8X7_M0X4(n, m), freq}
+#define PLLDDR0(n, m, freq)         {F_N8X7_M0X2(n, m), freq}
+#define PLLPERIPH0(n, k, freq)      {F_N8X5_K4X2(n, k), freq}
+#define PLLPERIPH1(n, k, freq)      {F_N8X5_K4X2(n, k), freq}
+#define PLLVIDEO1(n, m, freq)       {F_N8X7_M0X4(n, m), freq}
+#define PLL24M(n, n1, m, m1, freq)  {F_N8X8_N116X5_M0X2_M14x4(n, n1, m, m1), freq}
+#define PLLDE(n, m, freq)           {F_N8X7_M0X4(n, m), freq}
+#define PLLDDR1(n, m, freq)         {F_N8X7_M0X2(n, m), freq}
 
 #endif

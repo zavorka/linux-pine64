@@ -47,6 +47,7 @@ int disp_al_manager_apply(unsigned int disp, struct disp_manager_data *data)
 		else
 			tcon1_hdmi_color_remap(al_priv.disp_device[disp],0);
 	}
+	de_update_clk_rate(data->config.de_freq);
 
 	return de_al_mgr_apply(disp, data);
 }
@@ -520,7 +521,10 @@ int disp_al_vdevice_cfg(u32 screen_id, struct disp_video_timings *video_info, st
 	struct lcd_clk_info clk_info;
 	disp_panel_para info;
 
-	al_priv.output_type[screen_id] = (u32)DISP_OUTPUT_TYPE_LCD;
+	if (para->sub_intf == LCD_HV_IF_CCIR656_2CYC)
+		al_priv.output_type[screen_id] = (u32)DISP_OUTPUT_TYPE_TV;
+	else
+		al_priv.output_type[screen_id] = (u32)DISP_OUTPUT_TYPE_LCD;
 	al_priv.output_mode[screen_id] = (u32)para->intf;
 	al_priv.output_fps[screen_id] = video_info->pixel_clk / video_info->hor_total_time /\
 		video_info->ver_total_time;
@@ -554,6 +558,8 @@ int disp_al_vdevice_cfg(u32 screen_id, struct disp_video_timings *video_info, st
 	clk_info.tcon_div = 11;//fixme
 	tcon0_set_dclk_div(screen_id, clk_info.tcon_div);
 
+	if (para->sub_intf == LCD_HV_IF_CCIR656_2CYC)
+		tcon1_yuv_range(screen_id, 1);
 	if (0 != tcon0_cfg(screen_id, &info))
 		DE_WRN("lcd cfg fail!\n");
 	else
@@ -596,7 +602,7 @@ int disp_al_device_get_start_delay(u32 screen_id)
 {
 	u32 tcon_index = al_priv.tcon_index[screen_id];
 
-	tcon_index = (al_priv.output_type[screen_id] == (u32)DISP_OUTPUT_TYPE_LCD)?0:1;
+	tcon_index = (al_priv.tcon_index[screen_id] == 0) ? 0 : 1;
 	return tcon_get_start_delay(screen_id, tcon_index);
 }
 

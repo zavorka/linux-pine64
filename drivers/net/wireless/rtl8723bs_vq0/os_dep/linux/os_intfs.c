@@ -608,21 +608,69 @@ _func_exit_;
 	return status;
 }
 
-static int rtw_net_set_mac_address(struct net_device *pnetdev, void *p)
+/**
+ * rtw_net_set_mac_address
+ * This callback function is used for the Media Access Control address
+ * of each net_device needs to be changed.
+ *
+ * Arguments:
+ * @pnetdev: net_device pointer.
+ * @addr: new MAC address.
+ *
+ * Return:
+ * ret = 0: Permit to change net_device's MAC address.
+ * ret = -1 (Default): Operation not permitted.
+ *
+ * Auther: Arvin Liu
+ * Date: 2015/05/29
+ */
+static int rtw_net_set_mac_address(struct net_device *pnetdev, void *addr)
 {
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(pnetdev);
-	struct sockaddr *addr = p;
+	struct mlme_priv *pmlmepriv = &padapter->mlmepriv;
+	struct sockaddr *sa = (struct sockaddr *)addr;
+	int ret = -1;
 
-	if(padapter->bup == _FALSE)
-	{
-		//DBG_871X("r8711_net_set_mac_address(), MAC=%x:%x:%x:%x:%x:%x\n", addr->sa_data[0], addr->sa_data[1], addr->sa_data[2], addr->sa_data[3],
-		//addr->sa_data[4], addr->sa_data[5]);
-		_rtw_memcpy(adapter_mac_addr(padapter), addr->sa_data, ETH_ALEN);
-		//_rtw_memcpy(pnetdev->dev_addr, addr->sa_data, ETH_ALEN);
-		//padapter->bset_hwaddr = _TRUE;
+	/* only the net_device is in down state to permit modifying mac addr */
+	if ((pnetdev->flags & IFF_UP) == _TRUE) {
+		DBG_871X(FUNC_ADPT_FMT": The net_device's is not in down state\n"
+			, FUNC_ADPT_ARG(padapter));
+
+		return ret;
 	}
 
-	return 0;
+	/* if the net_device is linked, it's not permit to modify mac addr */
+	if (check_fwstate(pmlmepriv, _FW_UNDER_LINKING) ||
+		check_fwstate(pmlmepriv, _FW_LINKED) ||
+		check_fwstate(pmlmepriv, _FW_UNDER_SURVEY)) {
+		DBG_871X(FUNC_ADPT_FMT": The net_device's is not idle currently\n"
+			, FUNC_ADPT_ARG(padapter));
+
+		return ret;
+	}
+
+	/* check whether the input mac address is valid to permit modifying mac addr */
+	if (rtw_check_invalid_mac_address(sa->sa_data, _FALSE) == _TRUE) {
+		DBG_871X(FUNC_ADPT_FMT": Invalid Mac Addr for "MAC_FMT"\n"
+			, FUNC_ADPT_ARG(padapter), MAC_ARG(sa->sa_data));
+
+		return ret;
+	}
+
+	_rtw_memcpy(adapter_mac_addr(padapter), sa->sa_data, ETH_ALEN); /* set mac addr to adapter */
+	_rtw_memcpy(pnetdev->dev_addr, sa->sa_data, ETH_ALEN); /* set mac addr to net_device */
+
+	rtw_ps_deny(padapter, PS_DENY_IOCTL);
+	LeaveAllPowerSaveModeDirect(padapter); /* leave PS mode for guaranteeing to access hw register successfully */
+	rtw_hal_set_hwreg(padapter, HW_VAR_MAC_ADDR, sa->sa_data); /* set mac addr to mac register */
+	rtw_ps_deny_cancel(padapter, PS_DENY_IOCTL);
+
+	DBG_871X(FUNC_ADPT_FMT": Set Mac Addr to "MAC_FMT" Successfully\n"
+		, FUNC_ADPT_ARG(padapter), MAC_ARG(sa->sa_data));
+
+	ret = 0;
+
+	return ret;
 }
 
 static struct net_device_stats *rtw_net_get_stats(struct net_device *pnetdev)
@@ -3164,9 +3212,10 @@ int rtw_suspend_wow(_adapter *padapter)
 
 		// 2.2 free irq
 		//sdio_free_irq(adapter_to_dvobj(padapter));
+		#if !(CONFIG_RTW_SDIO_KEEP_IRQ)
 		if(padapter->intf_free_irq)
 			padapter->intf_free_irq(adapter_to_dvobj(padapter));
-
+		#endif
 		#ifdef CONFIG_RUNTIME_PORT_SWITCH
 		if (rtw_port_switch_chk(padapter)) {
 			DBG_871X(" ### PORT SWITCH ### \n");
@@ -3398,7 +3447,10 @@ int rtw_suspend_normal(_adapter *padapter)
 	//sdio_deinit(adapter_to_dvobj(padapter));
 	if(padapter->intf_deinit)
 		padapter->intf_deinit(adapter_to_dvobj(padapter));
-
+	#if !(CONFIG_RTW_SDIO_KEEP_IRQ)
+	if(padapter->intf_free_irq)
+		padapter->intf_free_irq(adapter_to_dvobj(padapter));
+	#endif
 	DBG_871X("<== "FUNC_ADPT_FMT" exit....\n", FUNC_ADPT_ARG(padapter));
 	return ret;
 }
@@ -3597,14 +3649,14 @@ _func_enter_;
 
 		rtw_hal_clear_interrupt(padapter);
 #endif //CONFIG_SDIO_HCI
-
+#if !(CONFIG_RTW_SDIO_KEEP_IRQ)
 		//if (sdio_alloc_irq(adapter_to_dvobj(padapter)) != _SUCCESS) {		
 		if((padapter->intf_alloc_irq) && (padapter->intf_alloc_irq(adapter_to_dvobj(padapter)) != _SUCCESS)){
 			ret = -1;
 			RT_TRACE(_module_hci_intfs_c_, _drv_err_, ("%s: sdio_alloc_irq Failed!!\n", __FUNCTION__));
 			goto exit;
 		}
-
+#endif
 		//Disable WOW, set H2C command
 		poidparam.subcode=WOWLAN_DISABLE;
 		rtw_hal_set_hwreg(padapter,HW_VAR_WOWLAN,(u8 *)&poidparam);
@@ -3912,6 +3964,8 @@ _func_enter_;
 		goto exit;
 	}
 	rtw_hal_disable_interrupt(padapter);
+#if !(CONFIG_RTW_SDIO_KEEP_IRQ)
+
 	//if (sdio_alloc_irq(adapter_to_dvobj(padapter)) != _SUCCESS)
 	if ((padapter->intf_alloc_irq)&&(padapter->intf_alloc_irq(adapter_to_dvobj(padapter)) != _SUCCESS))
 	{
@@ -3919,7 +3973,7 @@ _func_enter_;
 		RT_TRACE(_module_hci_intfs_c_, _drv_err_, ("%s: sdio_alloc_irq Failed!!\n", __FUNCTION__));
 		goto exit;
 	}
-
+#endif
 	rtw_reset_drv_sw(padapter);
 	#ifdef CONFIG_CONCURRENT_MODE
 	rtw_reset_drv_sw(padapter->pbuddy_adapter);

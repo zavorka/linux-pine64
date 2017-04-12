@@ -632,7 +632,7 @@ static int sunxi_pwm_config_single(struct pwm_chip *chip, struct pwm_device *pwm
 		temp = SET_BITS(reg_shift, reg_width, temp, 0);
 		sunxi_pwm_writel(chip, reg_offset, temp);
 	}
-	pr_info("%s: duty_ns=%d, period_ns=%d.c =%llu.\n", __func__, duty_ns, period_ns, c);
+	pwm_debug("duty_ns=%d period_ns=%d c =%llu.\n", duty_ns, period_ns, c);
 
 	c = c * period_ns;
 	do_div(c, 1000000000);
@@ -689,8 +689,8 @@ static int sunxi_pwm_config_single(struct pwm_chip *chip, struct pwm_device *pwm
 
 	sunxi_pwm_writel(chip, reg_offset, temp);
 
-	pr_info("%s: active_cycles=%lu, entire_cycles=%lu, prescale=%u, div_m=%u\n",
-				__func__, active_cycles, entire_cycles, prescale, div_m);
+	pwm_debug("active_cycles=%lu entire_cycles=%lu prescale=%u div_m=%u\n",
+			active_cycles, entire_cycles, prescale, div_m);
 	return 0;
 }
 
@@ -857,8 +857,8 @@ static int sunxi_pwm_config_dual(struct pwm_chip *chip, struct pwm_device *pwm,
 		sunxi_pwm_writel(chip, reg_offset[i], temp);
 	}
 
-	pr_info("%s: active_cycles=%lu, entire_cycles=%lu, prescale=%u, div_m=%u\n",
-				__func__, active_cycles, entire_cycles, prescale, div_m);
+	pwm_debug("active_cycles=%lu entire_cycles=%lu prescale=%u div_m=%u\n",
+			active_cycles, entire_cycles, prescale, div_m);
 
 	/* config dead zone, one config for two pwm */
 	reg_offset[0] = pc->config[pwm_index[0]].reg_pdzintv_offset;

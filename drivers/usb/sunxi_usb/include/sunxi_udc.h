@@ -48,7 +48,8 @@ typedef struct sunxi_udc_ep {
 //#define  EP0_FIFO_SIZE		 8
 #define  EP0_FIFO_SIZE		   	64
 
-#define  SW_UDC_EP_FIFO_SIZE	    	512
+#define SW_UDC_EP_FIFO_SIZE		512
+#define SW_UDC_EP_ISO_FIFO_SIZE		1024
 
 #define	 SW_UDC_EP_CTRL_INDEX		0x00
 #define  SW_UDC_EP_BULK_IN_INDEX	0x01
@@ -82,7 +83,7 @@ struct sw_udc_fifo{
 	u8  double_fifo;
 };
 
-#if defined (CONFIG_ARCH_SUN50I)
+#if defined(CONFIG_ARCH_SUN50IW1)
 //fifo 8k
 
 /*

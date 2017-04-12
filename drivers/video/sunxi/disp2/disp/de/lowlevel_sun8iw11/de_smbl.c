@@ -469,19 +469,6 @@ int de_smbl_set_lut(unsigned int sel, unsigned short *lut)
 
 int de_smbl_get_hist(unsigned int sel, unsigned int *cnt)
 {
-#if 0
-	int i;
-	//for_test
-	//FIXME
-	for (i=0; i<IEP_LH_INTERVAL_NUM/2; i++) {
-		cnt[i] = 0x17700;
-	}
-	for (i=IEP_LH_INTERVAL_NUM/2; i<IEP_LH_INTERVAL_NUM; i++) {
-		cnt[i] = 0x0;
-	}
-	return 0;
-#endif
-
 	//Read histogram
 	memcpy((unsigned char *)cnt, (unsigned char *)smbl_hist_block[sel].off, sizeof(unsigned int)*IEP_LH_INTERVAL_NUM);
 

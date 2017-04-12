@@ -201,10 +201,15 @@ static int bluesleep_start(void)
 		retval = request_irq(bsi->host_wake_irq, bluesleep_hostwake_isr, IRQF_TRIGGER_RISING | IRQF_NO_SUSPEND, "bluetooth hostwake", NULL);
 	}
 	if (retval < 0) {
-		BT_ERR("Couldn't acquire bt_host_wake IRQ or enable it");
+		BT_ERR("Couldn't acquire bt_host_wake IRQ");
 		goto fail;
 	}
-
+	retval = enable_irq_wake(bsi->host_wake_irq);
+	if (retval < 0) {
+		BT_ERR("Couldn't enable BT_HOST_WAKE as wakeup interrupt");
+		free_irq(bsi->host_wake_irq, NULL);
+		goto fail;
+	}
 	set_bit(BT_PROTO, &flags);
 
 	return 0;

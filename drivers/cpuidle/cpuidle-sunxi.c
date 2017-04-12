@@ -21,16 +21,13 @@
 #include <asm/cacheflush.h>
 #include <linux/clockchips.h>
 #include <linux/irqchip/arm-gic.h>
-
-#define BOOT_CPU_HP_FLAG_REG		(0xb8)
-#define CPU_SOFT_ENTRY_REG0			(0xbc)
-#define CPUCFG_CPUIDLE_EN_REG		(0x140)
-#define CPUCFG_CORE_FLAG_REG		(0x144)
-#define CPUCFG_PWR_SWITCH_DELAY_REG	(0x150)
+#include <linux/cpu.h>
+#include <linux/sunxi-cpuidle.h>
+#include <linux/syscore_ops.h>
 
 #ifndef CONFIG_SMP
-#define SUNXI_CPUCFG_PBASE			(0x01C25C00)
-#define SUNXI_SYSCTL_PBASE			(0x01C00000)
+#define SUNXI_CPUCFG_PBASE		(0x01C25C00)
+#define SUNXI_SYSCTL_PBASE		(0x01C00000)
 static void __iomem *sunxi_cpucfg_base;
 static void __iomem *sunxi_sysctl_base;
 #else
@@ -38,8 +35,12 @@ extern void __iomem *sunxi_cpucfg_base;
 extern void __iomem *sunxi_sysctl_base;
 #endif
 
-#define GIC_DIST_PBASE				(0x01C81000)
 static void __iomem *gic_distbase;
+static int cpu0_entry_flag __cacheline_aligned_in_smp;
+static int cpu1_entry_flag __cacheline_aligned_in_smp;
+static int cpu2_entry_flag __cacheline_aligned_in_smp;
+static int cpu3_entry_flag __cacheline_aligned_in_smp;
+void *cpux_flag_entry[NR_CPUS];
 
 static inline bool sunxi_idle_pending_sgi(void)
 {
@@ -49,21 +50,46 @@ static inline bool sunxi_idle_pending_sgi(void)
 	return pending_set & 0xFFFF ? true : false;
 }
 
+void sunxi_idle_cpux_flag_set(unsigned int cpu, int hotplug)
+{
+	if (cpu == 0)
+		cpu0_entry_flag = hotplug;
+	else if (cpu == 1)
+		cpu1_entry_flag = hotplug;
+	else if (cpu == 2)
+		cpu2_entry_flag = hotplug;
+	else if (cpu == 3)
+		cpu3_entry_flag = hotplug;
+}
+
+void sunxi_idle_cpux_flag_valid(unsigned int cpu, int value)
+{
+	if (cpu == 0)
+		BUG_ON(cpu0_entry_flag != value);
+	else if (cpu == 1)
+		BUG_ON(cpu1_entry_flag != value);
+	else if (cpu == 2)
+		BUG_ON(cpu2_entry_flag != value);
+	else if (cpu == 3)
+		BUG_ON(cpu3_entry_flag != value);
+}
+
 static int sunxi_idle_core_power_down(unsigned long val)
 {
 	unsigned int value;
 	unsigned int target_cpu = raw_smp_processor_id();
 
-	pr_debug("cpu%d power down\n", target_cpu);
-
 	if (sunxi_idle_pending_sgi())
 		return 1;
+
+	sunxi_idle_cpux_flag_set(target_cpu, 0);
 
 	/* disable gic cpu interface */
 	gic_cpu_if_down();
 
 	/* set core flag */
-	writel_relaxed(0x1 << target_cpu, sunxi_cpucfg_base + CPUCFG_CORE_FLAG_REG);
+	writel_relaxed(0x1 << target_cpu,
+				sunxi_cpucfg_base + CPUCFG_CORE_FLAG_REG);
 
 	/* disable the data cache */
 	asm("mrc p15, 0, %0, c1, c0, 0" : "=r" (value) );
@@ -76,7 +102,10 @@ static int sunxi_idle_core_power_down(unsigned long val)
 	/* execute a CLREX instruction */
 	asm("clrex" : : : "memory", "cc");
 
-	/* step4: switch cpu from SMP mode to AMP mode, aim is to disable cache coherency */
+	/*
+	 * step4: switch cpu from SMP mode to AMP mode,
+	 * aim is to disable cache coherency
+	 */
 	asm("mrc p15, 0, %0, c1, c0, 1" : "=r" (value) );
 	value &= ~(1<<6);
 	asm volatile("mcr p15, 0, %0, c1, c0, 1\n" : : "r" (value));
@@ -96,20 +125,20 @@ static int sunxi_idle_core_power_down(unsigned long val)
 }
 
 static int sunxi_idle_enter_c1(struct cpuidle_device *dev,
-				  struct cpuidle_driver *drv, int idx)
+				struct cpuidle_driver *drv, int idx)
 {
 	int ret;
 
+#ifndef CONFIG_SMP
 	writel_relaxed((void *)(virt_to_phys(cpu_resume)),
-							sunxi_sysctl_base + CPU_SOFT_ENTRY_REG0);
+				sunxi_sysctl_base + CPU_SOFT_ENTRY_REG0);
+#endif
 
 	cpu_pm_enter();
 	clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &dev->cpu);
 	smp_wmb();
 
-	pr_debug("cpu%d enter C1\n", dev->cpu);
 	ret = cpu_suspend(0, sunxi_idle_core_power_down);
-	pr_debug("cpu%d exit C1\n", dev->cpu);
 
 	clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_EXIT, &dev->cpu);
 	cpu_pm_exit();
@@ -123,8 +152,8 @@ static struct cpuidle_driver sunxi_idle_driver = {
 	.states[0] = ARM_CPUIDLE_WFI_STATE,
 	.states[1] = {
 		.enter                  = sunxi_idle_enter_c1,
-		.exit_latency           = 30,
-		.target_residency       = 500,
+		.exit_latency           = 10,
+		.target_residency       = 10000,
 		.flags                  = CPUIDLE_FLAG_TIME_VALID,
 		.name                   = "CPD",
 		.desc                   = "CORE POWER DOWN",
@@ -138,9 +167,9 @@ static void sunxi_idle_iomap_init(void)
 #ifndef CONFIG_SMP
 	sunxi_cpucfg_base = ioremap(SUNXI_CPUCFG_PBASE, SZ_1K);
 	sunxi_sysctl_base = ioremap(SUNXI_SYSCTL_PBASE, SZ_1K);
-	pr_debug("%s: cpucfg_base=0x%p sysctl_base=0x%p\n", __func__,
-					sunxi_cpucfg_base, sunxi_sysctl_base);
 #endif
+	pr_debug("%s: cpucfg_base=0x%p sysctl_base=0x%p\n", __func__,
+				sunxi_cpucfg_base, sunxi_sysctl_base);
 }
 
 static void sunxi_idle_hw_init(void)
@@ -148,13 +177,72 @@ static void sunxi_idle_hw_init(void)
 	/* write hotplug flag, cpu0 use */
 	writel_relaxed(0xFA50392F, sunxi_sysctl_base + BOOT_CPU_HP_FLAG_REG);
 
-	/* set delay0 to 5us */
-	writel_relaxed(0x5, sunxi_cpucfg_base + CPUCFG_PWR_SWITCH_DELAY_REG);
+	/* set delay0 to 1us */
+	writel_relaxed(0x1, sunxi_cpucfg_base + CPUCFG_PWR_SWITCH_DELAY_REG);
 
 	/* enable cpuidle */
 	writel_relaxed(0x16AA0000, sunxi_cpucfg_base + CPUCFG_CPUIDLE_EN_REG);
 	writel_relaxed(0xAA160001, sunxi_cpucfg_base + CPUCFG_CPUIDLE_EN_REG);
 }
+
+static int cpuidle_notify(struct notifier_block *self, unsigned long action,
+				void *hcpu)
+{
+	switch (action) {
+	case CPU_UP_PREPARE:
+		cpuidle_pause_and_lock();
+		break;
+	case CPU_ONLINE:
+		cpuidle_resume_and_unlock();
+		break;
+	case CPU_DOWN_PREPARE:
+		cpuidle_pause_and_lock();
+		break;
+	case CPU_POST_DEAD:
+		cpuidle_resume_and_unlock();
+		break;
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block cpuidle_nb = {
+	.notifier_call = cpuidle_notify,
+};
+
+void sunxi_idle_cpux_flag_init(void)
+{
+	unsigned int cpu;
+
+	for_each_possible_cpu(cpu) {
+		if (cpu == 0) {
+			cpu0_entry_flag = 1;
+			cpux_flag_entry[cpu] = (void *)(virt_to_phys(
+				&cpu0_entry_flag));
+		} else if (cpu == 1) {
+			cpu1_entry_flag = 1;
+			cpux_flag_entry[cpu] = (void *)(virt_to_phys(
+				&cpu1_entry_flag));
+		} else if (cpu == 2) {
+			cpu2_entry_flag = 1;
+			cpux_flag_entry[cpu] = (void *)(virt_to_phys(
+				&cpu2_entry_flag));
+		} else if (cpu == 3) {
+			cpu3_entry_flag = 1;
+			cpux_flag_entry[cpu] = (void *)(virt_to_phys(
+				&cpu3_entry_flag));
+		}
+	}
+}
+
+static void sunxi_idle_pm_resume(void)
+{
+	sunxi_idle_hw_init();
+}
+
+static struct syscore_ops sunxi_idle_pm_syscore_ops = {
+	.resume = sunxi_idle_pm_resume,
+};
 
 static int __init sunxi_idle_init(void)
 {
@@ -165,10 +253,24 @@ static int __init sunxi_idle_init(void)
 
 	sunxi_idle_iomap_init();
 
+	ret = register_cpu_notifier(&cpuidle_nb);
+	if (ret)
+		goto err_cpu_notifier;
+
+	register_syscore_ops(&sunxi_idle_pm_syscore_ops);
+
 	ret = cpuidle_register(&sunxi_idle_driver, NULL);
 	if (!ret)
 		sunxi_idle_hw_init();
+	else
+		goto err_cpuidle_register;
 
+	return 0;
+
+err_cpuidle_register:
+	unregister_syscore_ops(&sunxi_idle_pm_syscore_ops);
+	unregister_cpu_notifier(&cpuidle_nb);
+err_cpu_notifier:
 	return ret;
 }
 device_initcall(sunxi_idle_init);

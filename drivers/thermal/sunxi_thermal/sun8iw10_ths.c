@@ -27,6 +27,7 @@
 #include <linux/of_address.h>
 #include "sunxi_ths.h"
 #include "sun8iw10_ths.h"
+#include <linux/sunxi-sid.h>
 
 struct sunxi_ths_data {
 	void __iomem *base_addr;
@@ -50,21 +51,22 @@ enum {
 	DEBUG_ERR = 1U << 4,
 };
 
-static u32 thermal_debug_mask = 0;
+/* default = 0 */
+static u32 thermal_debug_mask;
 static struct sunxi_ths_controller *main_ctrl;
 
 static long sun8_th_reg_to_temp(u32 reg_data)
 {
 	s32 t;
 	t = (MINUPA - reg_data * MULPA);
-	t = t / DIVPA;
+	t >>= DIVPA;
 	return (long)t;
 }
 
 static u32 sun8_th_temp_to_reg(long temp)
 {
 	s32 reg;
-	reg = (MINUPA - temp * DIVPA);
+	reg = (MINUPA - (temp << DIVPA));
 	reg = reg / MULPA;
 	return (u32)reg;
 }
@@ -72,12 +74,17 @@ static u32 sun8_th_temp_to_reg(long temp)
 static void ths_sensor_init(struct sunxi_ths_data *ths_data)///gai
 {
 	u32 reg_value,i;
+	u32 ths_cal_data;
 
 	thsprintk(DEBUG_INIT, "ths_sensor_init: ths setup start!!\n");
 
 	writel(THS_CTRL_VALUE, ths_data->base_addr + THS_CTRL_REG);
 	writel(THS_CLEAR_INT_STA, ths_data->base_addr + THS_INT_STA_REG);
 	writel(THS_FILT_CTRL_VALUE, ths_data->base_addr + THS_FILT_CTRL_REG);
+
+	sunxi_efuse_read(EFUSE_THM_SENSOR_NAME, (void *)(&ths_cal_data));
+	if (ths_cal_data != 0)
+		writel(ths_cal_data, ths_data->base_addr + THS_0_1_CDATA_REG);
 
 	reg_value = sun8_th_temp_to_reg(ths_data->shut_temp);
 	reg_value = (reg_value<<16);
@@ -95,6 +102,8 @@ static void ths_sensor_init(struct sunxi_ths_data *ths_data)///gai
 	thsprintk(DEBUG_INIT, "THS_INT_CTRL_REG = 0x%x\n", readl(ths_data->base_addr + THS_INT_CTRL_REG));
 	thsprintk(DEBUG_INIT, "THS_INT_STA_REG = 0x%x\n", readl(ths_data->base_addr + THS_INT_STA_REG));
 	thsprintk(DEBUG_INIT, "THS_FILT_CTRL_REG = 0x%x\n", readl(ths_data->base_addr + THS_FILT_CTRL_REG));
+	thsprintk(DEBUG_INIT, "THS_0_1_CDATA_REG = 0x%x\n",
+		readl(ths_data->base_addr + THS_0_1_CDATA_REG));
 
 	thsprintk(DEBUG_INIT, "ths_sensor_init: ths setup end!!\n");
 	return;
@@ -321,10 +330,9 @@ static void __exit sunxi_ths_sensor_exit(void)
 	platform_driver_unregister(&sunxi_ths_driver);
 }
 
-late_initcall(sunxi_ths_sensor_init);
+subsys_initcall_sync(sunxi_ths_sensor_init);
 module_exit(sunxi_ths_sensor_exit);
 module_param_named(debug_mask, thermal_debug_mask, int, 0644);
 MODULE_DESCRIPTION("SUNXI thermal sensor driver");
 MODULE_AUTHOR("QIn");
 MODULE_LICENSE("GPL v2");
-

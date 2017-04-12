@@ -10,6 +10,7 @@
 
 #include "de_wb_type.h"
 #include <linux/kernel.h>
+#include "../include.h"
 
 //#include "../include.h"
 #define WB_MODULE_NUMBER 1
@@ -45,7 +46,6 @@ int WB_eink_Set_Reg_Base(unsigned int sel, unsigned int base)
 	//__inf("sel=%d, base=0x%x\n", sel, base + WB_OFFSET);
 	wb_dev[sel] = (__ewb_reg_t *)(base + WB_OFFSET);
 
-	printk("%s: set write back base = 0x%x\n", __func__, (unsigned int)wb_dev[sel]);
 	return 0;
 }
 
@@ -148,17 +148,16 @@ int WB_eink_Set_Para(unsigned int sel, __einkwb_config_t *cfg)
 	csc_std=cfg->csc_std;/////////add para in struct disp_capture_config to init this, else use default bt601
 	self_sync=(out_fmt==9)?1:0;/////////add para in struct disp_capture_config to init this, else control by format
 
-	//gctrl
-	wb_dev[sel]->gctrl.dwval |= (0x10000000|(in_port<<16)|(self_sync == 1)?0x20:0x0);
-	//__inf("gctrl_adrr=0x%x, val=0x%x\n", (unsigned int)(&(wb_dev[sel]->gctrl)), wb_dev[sel]->gctrl.dwval);
-	//input size
+
+	/* (0x30000000|(in_port<<16)|(self_sync == 1)?0x20:0x0); */
+	wb_dev[sel]->gctrl.dwval |= 0x20000020;
+
 	wb_dev[sel]->size.dwval = (in_w-1)|((in_h-1)<<16);
-	//input crop window
+	/* input crop window */
 	wb_dev[sel]->crop_coord.dwval = crop_x|((crop_y)<<16);
 	wb_dev[sel]->crop_size.dwval = (crop_w - 1)|((crop_h - 1)<<16);
-	//__inf("crop_size=0x%x, val=0x%x\n", (unsigned int)(&wb_dev[sel]->crop_size), wb_dev[sel]->crop_size.dwval);
-	//output fmt
-	wb_dev[sel]->fmt.dwval = 9;//DISP_FORMAT_Y;
+	/* output fmt */
+	wb_dev[sel]->fmt.dwval = 9;
 
 	if(out_fmt == 9/*DISP_FORMAT_Y*/)
 	{
@@ -171,7 +170,7 @@ int WB_eink_Set_Para(unsigned int sel, __einkwb_config_t *cfg)
 		wb_dev[sel]->wb_pitch0.dwval = out_buf_w;
 		wb_dev[sel]->wb_pitch1.dwval = 0;
 
-	  //CSC
+	  /* CSC */
 		wb_dev[sel]->bypass.dwval |= 0x00000001;
   	if(csc_std==0 || csc_std>2)//bt601_limit
   	{
@@ -233,8 +232,6 @@ int WB_eink_Get_Status(unsigned int sel)
 	unsigned int status;
 
 	status = wb_dev[sel]->status.dwval & 0x71;
-	wb_dev[sel]->status.dwval = 0x71;
-
 	if(status == 0x11)
 	{
 		return EWB_OK;

@@ -14,11 +14,13 @@
 #elif defined(CONFIG_ARCH_SUN8IW10)
 #include "./lowlevel_sun8iw10/de_feat.h"
 #elif defined(CONFIG_ARCH_SUN8IW11)
-#include "lowlevel_sun8iw11/de_feat.h"
-#elif defined(CONFIG_ARCH_SUN50I)
+#include "./lowlevel_v2x/de_feat.h"
+#elif defined(CONFIG_ARCH_SUN50IW1)
 #include "./lowlevel_sun50iw1/de_feat.h"
+#elif defined(CONFIG_ARCH_SUN50IW2)
+#include "./lowlevel_v2x/de_feat.h"
 #else
-//#error "undefined platform!!!"
+#error "undefined platform!!!"
 #endif
 
 #define DISP_DEVICE_NUM DEVICE_NUM

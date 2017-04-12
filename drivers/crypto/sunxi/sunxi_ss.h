@@ -73,6 +73,32 @@
 
 #define SS_SHA384_ENABLE		1
 #define SS_SHA512_ENABLE		1
+#define SS_SUPPORT_CE_V3_1		1
+#endif
+
+#if defined(CONFIG_ARCH_SUN50IW1) || defined(CONFIG_ARCH_SUN50IW2)
+#define SS_SUPPORT_CE_V3_1		1
+#endif
+
+#if defined(CONFIG_ARCH_SUN50IW3) || defined(CONFIG_ARCH_SUN50IW6)
+#define SS_XTS_MODE_ENABLE		1
+#define SS_CFB_MODE_ENABLE		1
+#define SS_OFB_MODE_ENABLE		1
+#define SS_HASH_HW_PADDING		1
+
+#define SS_SHA384_ENABLE		1
+#define SS_SHA512_ENABLE		1
+#define SS_HMAC_SHA256_ENABLE		1
+
+#define SS_RSA3072_ENABLE		1
+#define SS_RSA4096_ENABLE		1
+#define SS_DH3072_ENABLE		1
+#define SS_DH4096_ENABLE		1
+
+#define SS_DH_ENABLE			1
+#define SS_ECC_ENABLE			1
+
+#define SS_SUPPORT_CE_V3_2		1
 #endif
 
 #if defined(SS_RSA512_ENABLE) || defined(SS_RSA1024_ENABLE) \
@@ -120,6 +146,8 @@
 #define SS_RES_NS_INDEX	0
 #define SS_RES_S_INDEX	1
 #ifdef CONFIG_EVB_PLATFORM
+#define SS_RES_INDEX	SS_RES_NS_INDEX
+#elif defined(CONFIG_ARCH_SUN50IW3) || defined(CONFIG_ARCH_SUN50IW6)
 #define SS_RES_INDEX	SS_RES_NS_INDEX
 #else
 #define SS_RES_INDEX	SS_RES_S_INDEX
@@ -209,6 +237,7 @@ typedef struct {
 
 	u8  md[SS_DIGEST_SIZE];
 	u8  pad[SS_HASH_PAD_SIZE];
+	u32 tail_len;
 	u32 md_size;
 	u32 cnt;	/* in Byte */
 } ss_hash_ctx_t;
@@ -229,7 +258,6 @@ typedef struct {
 
 	struct clk *mclk;  /* module clock */
 	u32 gen_clkrate;
-	u32 rsa_clkrate;
 	u32 irq;
 	s8  dev_name[8];
 	
@@ -247,7 +275,6 @@ void ss_dev_lock(void);
 void ss_dev_unlock(void);
 void __iomem *ss_membase(void);
 void ss_reset(void);
-void ss_clk_set(u32 rate);
 
 #endif /* end of _SUNXI_SECURITY_SYSTEM_H_ */
 

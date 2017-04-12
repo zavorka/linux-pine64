@@ -87,7 +87,7 @@ int disp_al_get_eink_wb_status(u32 disp)
 }
 #endif
 
-int disp_al_set_eink_base(u32 disp, unsigned int base)
+int disp_al_set_eink_base(u32 disp, unsigned long base)
 {
 	return eink_set_base(base);
 }
@@ -124,20 +124,22 @@ int disp_al_eink_disable(u32 disp)
 }
 
 
-s32 disp_al_eink_start_calculate_index(u32 disp, u32 old_index_data_paddr, u32 new_index_data_paddr, struct eink_8bpp_image* last_image,
-										struct eink_8bpp_image* current_image)
+s32 disp_al_eink_start_calculate_index(u32 disp, unsigned long old_index_data_paddr,
+										unsigned long new_index_data_paddr,
+										struct eink_8bpp_image *last_image,
+										struct eink_8bpp_image *current_image)
 {
 	struct ee_img tcurrent_img, tlast_img;
 	struct area_info update_area;
 
 	unsigned char  flash_mode, win_en;
 
-	tcurrent_img.addr = current_image->paddr;
+	tcurrent_img.addr = (unsigned long)current_image->paddr;
 	tcurrent_img.w = current_image->size.width;
 	tcurrent_img.h = current_image->size.height;
 	tcurrent_img.pitch = DISPALIGN(current_image->size.width, current_image->size.align);
-	//__debug("current image pitch:%u\n",tcurrent_img.pitch);
-	tlast_img.addr = last_image->paddr;
+
+	tlast_img.addr = (unsigned long)last_image->paddr;
 	tlast_img.w = last_image->size.width;
 	tlast_img.h = last_image->size.height;
 	tlast_img.pitch = DISPALIGN(last_image->size.width, last_image->size.align);
@@ -148,7 +150,7 @@ s32 disp_al_eink_start_calculate_index(u32 disp, u32 old_index_data_paddr, u32 n
 	memcpy((void*)&update_area, (void*)&current_image->update_area, sizeof(struct area_info));
 
 	eink_start_idx(&tlast_img, &tcurrent_img, flash_mode, win_en,
-                  	old_index_data_paddr, new_index_data_paddr, &update_area);
+					old_index_data_paddr, new_index_data_paddr, &update_area);
 
 	return 0;
 }
@@ -193,9 +195,9 @@ int disp_al_eink_pipe_config_wavefile(u32 disp, unsigned int wav_file_addr, unsi
 	return eink_pipe_config_wavefile(wav_file_addr, pipe_no);
 }
 
-
-int disp_al_eink_start_decode(unsigned int disp, unsigned int new_idx_addr, unsigned int wav_data_addr,
-									struct eink_init_param* param)
+int disp_al_eink_start_decode(unsigned int disp, unsigned long new_idx_addr,
+								unsigned long wav_data_addr,
+								struct eink_init_param *param)
 {
 		return eink_decoder_start(new_idx_addr, wav_data_addr, param);
 }
@@ -206,14 +208,13 @@ int disp_al_edma_init(unsigned int disp,struct eink_init_param* param)
 	return eink_edma_init(param->eink_mode);
 }
 
-int disp_al_eink_edma_cfg_addr(unsigned int disp, unsigned int wav_addr)
+int disp_al_eink_edma_cfg_addr(unsigned int disp, unsigned long wav_addr)
 {
-	//printk(KERN_ALERT "addr=0x%x\n", wav_addr);
 	return  eink_edma_cfg_addr(wav_addr);
 }
 
 
-int disp_al_edma_config(unsigned int disp,unsigned int wave_data_addr, struct eink_init_param* param)
+int disp_al_edma_config(unsigned int disp, unsigned long wave_data_addr, struct eink_init_param *param)
 {
 
 	return eink_edma_cfg(wave_data_addr, param);
@@ -258,7 +259,7 @@ int disp_al_get_eink_panel_bit_num(unsigned int disp, enum  eink_bit_num *bit_nu
 	return get_eink_panel_bit_num(bit_num);
 }
 
-int disp_al_init_eink_ctrl_data_8(unsigned int disp, unsigned int wavedata_buf, struct eink_timing_param *eink_timing_info, unsigned int i)
+int disp_al_init_eink_ctrl_data_8(unsigned int disp, unsigned long wavedata_buf, struct eink_timing_param *eink_timing_info, unsigned int i)
 {
 	return init_eink_ctrl_data_8(wavedata_buf, eink_timing_info, i);
 
@@ -500,6 +501,16 @@ int disp_al_lcd_get_clk_info(u32 screen_id, struct lcd_clk_info *info, disp_pane
 	if (0 == find)
 		__wrn("cant find clk info for lcd_if %d\n", panel->lcd_if);
 
+	if (panel->lcd_dclk_freq < 10) {
+		tcon_div = 30;
+		lcd_div = 1;
+	} else if (panel->lcd_dclk_freq < 40 && panel->lcd_dclk_freq >= 10) {
+		tcon_div = 20;
+		lcd_div = 1;
+	} else {
+		tcon_div = 6;
+		lcd_div = 1;
+	}
 	info->tcon_div = tcon_div;
 	info->lcd_div = lcd_div;
 	info->dsi_div = dsi_div;

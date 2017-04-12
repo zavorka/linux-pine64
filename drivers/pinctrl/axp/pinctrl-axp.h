@@ -38,20 +38,6 @@
 #define AXP_GPIO3_CFG                   (AXP81X_HOTOVER_CTL)//0x8f
 #define AXP_GPIO3_STA                   (AXP81X_IPS_SET)//0x30
 #define AXP_GPIO01_STATE                (AXP81X_GPIO01_SIGNAL)
-
-#elif defined(CONFIG_AW_AXP20)
-#define AXP_PINCTRL_GPIO0               PINCTRL_PIN(0, "GPIO0")     /* axp20x GPIO0 */
-#define AXP_PINCTRL_GPIO1               PINCTRL_PIN(1, "GPIO1")     /* axp20x GPIO1 */
-#define AXP_PINCTRL_GPIO2               PINCTRL_PIN(2, "GPIO2")     /* axp20x GPIO2 */
-#define AXP_PINCTRL_GPIO3               PINCTRL_PIN(3, "GPIO3")     /* axp20x GPIO3 */
-#define AXP_PINCTRL_GPIO4               PINCTRL_PIN(4, "GPIO4")     /* axp20x CHGLED */
-
-#define AXP20_GPIO0_CFG                 (POWER20_GPIO0_CTL)
-#define AXP20_GPIO1_CFG                 (POWER20_GPIO1_CTL)
-#define AXP20_GPIO2_CFG                 (POWER20_GPIO2_CTL)
-#define AXP20_GPIO3_CFG                 (POWER20_GPIO3_CTL)
-#define AXP20_GPIO4_CFG                 (POWER20_OFF_CTL)
-#define AXP20_GPIO012_STATE             (POWER20_GPIO012_SIGNAL)
 #endif
 
 #ifndef AXP_GPIO0_CFG

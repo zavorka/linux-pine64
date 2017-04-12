@@ -17,6 +17,10 @@
 #ifndef __PLAT_SMP_H
 #define __PLAT_SMP_H
 
+#ifdef CONFIG_CPU_IDLE_SUNXI
+#include <linux/sunxi-cpuidle.h>
+#endif
+
 #define get_nr_cores()					\
 	({						\
 		unsigned int __val;			\

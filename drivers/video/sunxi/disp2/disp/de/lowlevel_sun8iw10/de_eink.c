@@ -35,7 +35,7 @@
 #define EDMA_WB_ADDR         (0x440)
 #define EDMA_WB_STS          (0x444)
 
-static unsigned int ee_base;
+static unsigned long ee_base;
 
 //#define ee_writel writel
 //#define ee_readl readl
@@ -46,7 +46,7 @@ static unsigned int ee_base;
 extern s32 disp_delay_us(u32 us);
 extern s32 disp_delay_ms(u32 ms);
 
-int eink_set_base(unsigned int reg_base)
+int eink_set_base(unsigned long reg_base)
 {
 	ee_base = reg_base;
 
@@ -107,6 +107,21 @@ int eink_irq_query(void)
 	return -1;
 }
 
+int eink_irq_query_index(void)
+{
+	unsigned int idx_irq;
+	unsigned reg_val = 0;
+
+	reg_val = EINK_RUINT32(ee_base + EE_IRQ);
+	idx_irq = reg_val&0x2;
+
+	if (0x2 == idx_irq) {
+		EINK_WUINT32(reg_val&0x1e, ee_base + EE_IRQ);
+		return 1;
+	}
+	return -1;
+}
+
 /*
 int eink_start_idx	(u32 disp, u32 old_index_data_paddr, u32 new_index_data_paddr, struct ee_img* last_image,
 										struct ee_img* current_image, unsigned char flash_mode, unsigned char win_en, struct area_info* area)
@@ -117,7 +132,7 @@ int eink_start_idx	(u32 disp, u32 old_index_data_paddr, u32 new_index_data_paddr
 */
 
 int eink_start_idx(struct ee_img *last_img, struct ee_img *curr_img, unsigned char flash_mode, unsigned char win_en,
-                   unsigned int last_idx_addr, unsigned int curr_idx_addr, struct area_info *info)
+					unsigned long last_idx_addr, unsigned long curr_idx_addr, struct area_info *info)
 {
 	unsigned int tmp,w,h;
 	unsigned int x,y;
@@ -223,7 +238,7 @@ int  eink_pipe_config(struct area_info *info, unsigned int pipe_no)
 	return 0;
 }
 
-int eink_pipe_config_wavefile(unsigned int wav_file_addr, unsigned int pipe_no)
+int eink_pipe_config_wavefile(unsigned long wav_file_addr, unsigned int pipe_no)
 {
 	unsigned int pipe_base;
 
@@ -233,7 +248,7 @@ int eink_pipe_config_wavefile(unsigned int wav_file_addr, unsigned int pipe_no)
 	return 0;
 }
 
-int eink_decoder_start(unsigned int new_idx_addr, unsigned int wav_data_addr, struct eink_init_param* para)
+int eink_decoder_start(unsigned long new_idx_addr, unsigned long wav_data_addr, struct eink_init_param *para)
 {
 	unsigned int w,h,tmp;
 
@@ -274,7 +289,7 @@ int eink_edma_init(unsigned char mode)
 	return 0;
 }
 
-int eink_edma_cfg(unsigned int wav_addr, struct eink_init_param* para)
+int eink_edma_cfg(unsigned long wav_addr, struct eink_init_param *para)
 {
 	unsigned int tmp,w,h,hsync,vsync;
 
@@ -303,7 +318,7 @@ int eink_edma_cfg(unsigned int wav_addr, struct eink_init_param* para)
 	return 0;
 }
 
-int eink_edma_cfg_addr(unsigned int wav_addr)
+int eink_edma_cfg_addr(unsigned long wav_addr)
 {
 
 	EINK_WUINT32(wav_addr,ee_base + EDMA_WAV_ADDR);
@@ -341,7 +356,7 @@ int eink_dbuf_rdy(void)
 }
 
 /* wb_en: default :0, enablen write back for debug */
-int  eink_set_wb(unsigned char wb_en, unsigned int wb_addr)
+int  eink_set_wb(unsigned char wb_en, unsigned long wb_addr)
 {
 	unsigned int tmp;
 

@@ -700,7 +700,7 @@ Input 		: eink_timing_info -- specify the eink panel timing parameter
 Ouput		: wavedata_buf -- wavedata buffer address(virturl address)
 Return		: 0 -- success, others -- fail
 */
-int init_eink_ctrl_data_8(unsigned int wavedata_buf, struct eink_timing_param *eink_timing_info, unsigned int i)
+int init_eink_ctrl_data_8(unsigned long wavedata_buf, struct eink_timing_param *eink_timing_info, unsigned int i)
 {
 	u8 *point = NULL;
 	//u8 *dest_point = NULL;
@@ -736,7 +736,7 @@ Input 		: eink_timing_info -- specify the eink panel timing parameter
 Ouput		: wavedata_buf -- wavedata buffer address(virturl address)
 Return		: 0 -- success, others -- fail
 */
-int init_eink_ctrl_data_8(unsigned int wavedata_buf, struct eink_timing_param *eink_timing_info, unsigned int i)
+int init_eink_ctrl_data_8(unsigned long wavedata_buf, struct eink_timing_param *eink_timing_info, unsigned int i)
 {
 	u32 row, col = 0, row_temp = 0;
 
@@ -751,9 +751,9 @@ int init_eink_ctrl_data_8(unsigned int wavedata_buf, struct eink_timing_param *e
 	A13_WAVEDATA *global_ctrl_buffer = NULL;
 
 	A13_WAVEDATA *src = NULL;
-	B100_WAVEDATA_8 *dest = NULL;
+	WAVEDATA_8 *dest = NULL;
 
-	if ((NULL == wavedata_buf) || (NULL == eink_timing_info)) {
+	if ((0 == wavedata_buf) || (NULL == eink_timing_info)) {
 		printk(KERN_ERR "%s: input param is null\n", __func__);
 		return -EINVAL;
 	}
@@ -821,7 +821,7 @@ int init_eink_ctrl_data_8(unsigned int wavedata_buf, struct eink_timing_param *e
 	}
 
 	src = global_ctrl_buffer;
-	dest = (B100_WAVEDATA_8 *)wavedata_buf;
+	dest = (WAVEDATA_8 *)wavedata_buf;
 
 	for (row = 0; row < wav_height; row++) {
 		for (col = 0; col < wav_width; col++) {
@@ -852,7 +852,7 @@ Input 		: eink_timing_info -- specify the eink panel timing parameter
 Ouput		: wavedata_buf -- wavedata buffer address(virturl address)
 Return		: 0 -- success, others -- fail
 */
-int init_eink_ctrl_data_16(unsigned int wavedata_buf, struct eink_timing_param *eink_timing_info)
+int init_eink_ctrl_data_16(unsigned long wavedata_buf, struct eink_timing_param *eink_timing_info)
 {
 	u32 row, col = 0, row_temp = 0;
 
@@ -867,7 +867,7 @@ int init_eink_ctrl_data_16(unsigned int wavedata_buf, struct eink_timing_param *
 	A13_WAVEDATA *global_ctrl_buffer = NULL;
 
 	A13_WAVEDATA *src = NULL;
-	B100_WAVEDATA_16 *dest = NULL;
+	WAVEDATA_16 *dest = NULL;
 
 	if ((0 == wavedata_buf) || (NULL == eink_timing_info)) {
 		printk(KERN_ERR "%s: input param is null\n", __func__);
@@ -938,7 +938,7 @@ int init_eink_ctrl_data_16(unsigned int wavedata_buf, struct eink_timing_param *
 
 	//convert to new format
 	src = global_ctrl_buffer;
-	dest = (B100_WAVEDATA_16 *)wavedata_buf;
+	dest = (WAVEDATA_16 *)wavedata_buf;
 	for (row = 0; row < wav_height; row++) {
 		for (col = 0; col < wav_width; col++) {
 			dest->bits.mode = src->bits.mode;

@@ -445,11 +445,16 @@ int de_rtmx_set_lay_cfg(unsigned int sel, unsigned int chno, unsigned int layno,
 
 	if (chno >= vi_chno)
 	{
+		__ui_lay_reg_t *lyr_cfg =
+		    &de200_rtmx[sel].ui_ovl[chno-vi_chno]->ui_lay_cfg[layno];
+
 		de200_rtmx[sel].ui_ovl[chno-vi_chno]->ui_lay_cfg[layno].lay_attr.bits.lay_en        = cfg->en;
 		de200_rtmx[sel].ui_ovl[chno-vi_chno]->ui_lay_cfg[layno].lay_attr.bits.lay_alpmod    = cfg->alpha_mode;
 		de200_rtmx[sel].ui_ovl[chno-vi_chno]->ui_lay_cfg[layno].lay_attr.bits.lay_fcolor_en = cfg->fcolor_en;
 		de200_rtmx[sel].ui_ovl[chno-vi_chno]->ui_lay_cfg[layno].lay_attr.bits.lay_fmt       = cfg->fmt;
 		de200_rtmx[sel].ui_ovl[chno-vi_chno]->ui_lay_cfg[layno].lay_attr.bits.lay_alpctl    = cfg->premul_ctl;
+		/* Using burst 4 for better efficiency */
+		lyr_cfg->lay_attr.bits.burst = 0x1;
 		de200_rtmx[sel].ui_ovl[chno-vi_chno]->ui_lay_cfg[layno].lay_attr.bits.lay_top_down  = cfg->top_bot_en;
 		de200_rtmx[sel].ui_ovl[chno-vi_chno]->ui_lay_cfg[layno].lay_attr.bits.lay_alpha     = cfg->alpha;
 
@@ -463,6 +468,9 @@ int de_rtmx_set_lay_cfg(unsigned int sel, unsigned int chno, unsigned int layno,
 	}
 	else
 	{
+		__vi_lay_reg_t *lyr_cfg =
+		    &de200_rtmx[sel].vi_ovl[chno]->vi_lay_cfg[layno];
+
 		if		(DE_FORMAT_YUV422_I_VYUY	== cfg->fmt){ui_sel = 0x0;fmt = 0x0;}
 		else if (DE_FORMAT_YUV422_I_YVYU	== cfg->fmt){ui_sel = 0x0;fmt = 0x1;}
 		else if (DE_FORMAT_YUV422_I_UYVY	== cfg->fmt){ui_sel = 0x0;fmt = 0x2;}
@@ -482,6 +490,10 @@ int de_rtmx_set_lay_cfg(unsigned int sel, unsigned int chno, unsigned int layno,
 		de200_rtmx[sel].vi_ovl[chno]->vi_lay_cfg[layno].lay_attr.bits.lay_fcolor_en = cfg->fcolor_en;
 		de200_rtmx[sel].vi_ovl[chno]->vi_lay_cfg[layno].lay_attr.bits.lay_fmt       = fmt;
 		de200_rtmx[sel].vi_ovl[chno]->vi_lay_cfg[layno].lay_attr.bits.ui_sel        = ui_sel;
+		/* Using burst 4 for better efficiency */
+		lyr_cfg->lay_attr.bits.yburst = 0x1;
+		lyr_cfg->lay_attr.bits.uburst = 0x1;
+		lyr_cfg->lay_attr.bits.vburst = 0x1;
 		de200_rtmx[sel].vi_ovl[chno]->vi_lay_cfg[layno].lay_attr.bits.lay_top_down  = cfg->top_bot_en;
 
 		de200_rtmx[sel].vi_ovl[chno]->vi_lay_cfg[layno].lay_size.bits.lay_width     = cfg->layer.w==0?0:cfg->layer.w-1;
@@ -1252,7 +1264,8 @@ int de_rtmx_set_pipe_cfg(unsigned int sel, unsigned char pno, unsigned int color
 	 * when ab = 0, the result is	( Cs );
 	 *  when 1, the result is ( Cs * as ), this is what we want.
 	 */
-	de200_rtmx[sel].bld_ctl->bld_pipe_attr[pno].fcolor.dwval = 0xff000000;
+	de200_rtmx[sel].bld_ctl->bld_pipe_attr[pno].fcolor.dwval = 0xff000000
+		| color;
 	de200_rtmx[sel].bld_ctl->bld_pipe_attr[pno].insize.bits.width = bldrc.w==0?0:bldrc.w-1;
 	de200_rtmx[sel].bld_ctl->bld_pipe_attr[pno].insize.bits.height = bldrc.h==0?0:bldrc.h-1;
 	de200_rtmx[sel].bld_ctl->bld_pipe_attr[pno].offset.bits.coorx = bldrc.x;

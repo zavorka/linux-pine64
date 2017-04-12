@@ -30,6 +30,8 @@
 #include <asm/irq.h>
 #include "sunxi-di.h"
 
+#define DI_MAX_USERS 1
+
 static di_struct *di_data;
 static s32 sunxi_di_major = -1;
 static struct class *di_dev_class;
@@ -385,6 +387,7 @@ static s32 sunxi_di_suspend(struct device *dev)
 {
 	dprintk(DEBUG_SUSPEND, "enter: sunxi_di_suspend. \n");
 
+	del_timer_sync(s_timer);
 	if (atomic_read(&di_data->enable)) {
 		di_irq_enable(0);
 		di_reset();
@@ -409,7 +412,8 @@ static s32 sunxi_di_resume(struct device *dev)
 
 static long sunxi_di_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
-	void __user *argp = (void __user *)arg;
+	__di_para_t di_paras;
+	__di_para_t *di_para = &di_paras;
 	s32 ret = 0;
 	u32 field = 0;
 
@@ -418,8 +422,11 @@ static long sunxi_di_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 	switch (cmd) {
 	case DI_IOCSTART:
 		{
-			__di_para_t __user *di_para = argp;
-
+			if (copy_from_user((void *)di_para,
+				(void __user *)arg, sizeof(__di_para_t))) {
+				pr_warning("copy_from_user fail\n");
+				return -EFAULT;
+			}
 			dprintk(DEBUG_DATA_INFO, "%s: input_fb.addr[0] = 0x%lx\n", __func__, (unsigned long)(di_para->input_fb.addr[0]));
 			dprintk(DEBUG_DATA_INFO, "%s: input_fb.addr[1] = 0x%lx\n", __func__, (unsigned long)(di_para->input_fb.addr[1]));
 			dprintk(DEBUG_DATA_INFO, "%s: input_fb.size.width = %d\n", __func__, di_para->input_fb.size.width);
@@ -451,7 +458,6 @@ static long sunxi_di_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 				ret = di_complete_check_get();
 			}
 			di_complete_check_set(1);
-
 			field = di_para->top_field_first?di_para->field:(1-di_para->field);
 
 			dprintk(DEBUG_DATA_INFO, "%s: field = %d\n", __func__, field);
@@ -502,6 +508,12 @@ static int sunxi_di_open(struct inode *inode, struct file *file)
 
 	dprintk(DEBUG_DATA_INFO, "%s: enter!!\n", __func__);
 
+	if (di_data->users >= DI_MAX_USERS) {
+		pr_err("%s: users number is out of range(%d)!\n", __func__,
+		    DI_MAX_USERS);
+		return -EMFILE;
+	}
+
 	atomic_set(&di_data->enable, 1);
 
 	di_data->flag_size = (FLAG_WIDTH*FLAG_HIGH)/4;
@@ -535,6 +547,8 @@ static int sunxi_di_open(struct inode *inode, struct file *file)
 	di_internal_clk_enable();
 	di_set_init();
 
+	di_data->users++;
+
 	return 0;
 }
 
@@ -542,12 +556,20 @@ static int sunxi_di_release(struct inode *inode, struct file *file)
 {
 	dprintk(DEBUG_DATA_INFO, "%s: enter!!\n", __func__);
 
+	if (0 == di_data->users) {
+		pr_err("%s:users number is already Zero, no need to release!\n",
+		    __func__);
+		return 0;
+	}
+	di_data->users--;
 	atomic_set(&di_data->enable, 0);
 
 	di_irq_enable(0);
 	di_reset();
 	di_internal_clk_disable();
 	di_clk_disable();
+
+	del_timer_sync(s_timer);
 	if (NULL != di_data->mem_in_params.v_addr)
 		di_mem_release(&(di_data->mem_in_params));
 	if (NULL != di_data->mem_out_params.v_addr)
@@ -566,6 +588,8 @@ static const struct file_operations sunxi_di_fops = {
 	.open = sunxi_di_open,
 	.release = sunxi_di_release,
 };
+
+static u64 sunxi_di_dma_mask = DMA_BIT_MASK(32);
 
 static int sunxi_di_probe(struct platform_device *pdev)
 {
@@ -625,7 +649,8 @@ static int sunxi_di_probe(struct platform_device *pdev)
 	if (IS_ERR(di_dev_class))
 		return -1;
 	di_device = device_create(di_dev_class, NULL,  MKDEV(sunxi_di_major, 0), NULL, DI_MODULE_NAME);
-
+	di_device->dma_mask = &sunxi_di_dma_mask;
+	di_device->coherent_dma_mask = DMA_BIT_MASK(32);
 	ret = sunxi_di_params_init(pdev);
 	if (ret) {
 		printk(KERN_ERR "%s di init params failed!\n", __func__);

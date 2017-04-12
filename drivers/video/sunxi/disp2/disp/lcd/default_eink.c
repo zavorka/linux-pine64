@@ -2,11 +2,6 @@
 
 static void EINK_power_on(u32 sel);
 static void EINK_power_off(u32 sel);
-static void EINK_bl_open(u32 sel);
-static void EINK_bl_close(u32 sel);
-
-//static void EINK_panel_init(u32 sel);
-//static void EINK_panel_exit(u32 sel);
 
 static void EINK_cfg_panel_info(panel_extend_para * info)
 {
@@ -67,58 +62,54 @@ static void EINK_cfg_panel_info(panel_extend_para * info)
 
 static s32 EINK_open_flow(u32 sel)
 {
-	LCD_OPEN_FUNC(sel, EINK_power_on, 2);   //open lcd power, and delay 50ms
-	//LCD_OPEN_FUNC(sel, EINK_panel_init, 50);   //open lcd power, than delay 200ms
-	LCD_OPEN_FUNC(sel, sunxi_lcd_tcon_enable, 0);     //open lcd controller, and delay 100ms
-	LCD_OPEN_FUNC(sel, EINK_bl_open, 0);     //open lcd backlight, and delay 0ms
-
+	LCD_OPEN_FUNC(sel, EINK_power_on, 2);
+	LCD_OPEN_FUNC(sel, sunxi_lcd_tcon_enable, 0);
 	return 0;
 }
 
 static s32 EINK_close_flow(u32 sel)
 {
-	LCD_CLOSE_FUNC(sel, EINK_bl_close, 0);       //close lcd backlight, and delay 0ms
-	LCD_CLOSE_FUNC(sel, sunxi_lcd_tcon_disable, 0);         //close lcd controller, and delay 0ms
-	//LCD_CLOSE_FUNC(sel, EINK_panel_exit,	200);   //open lcd power, than delay 200ms
-	LCD_CLOSE_FUNC(sel, EINK_power_off, 2);   //close lcd power, and delay 500ms
+	LCD_CLOSE_FUNC(sel, sunxi_lcd_tcon_disable, 0);
+	LCD_CLOSE_FUNC(sel, EINK_power_off, 2);
 
 	return 0;
 }
 
 static void EINK_power_on(u32 sel)
 {
-	sunxi_lcd_power_enable(sel, 0);//config lcd_power pin to open lcd power0
-	//sunxi_lcd_pin_cfg(sel, 1);
+	/* pwr3 pb2 */
+	sunxi_lcd_gpio_set_value(sel, 0, 1);
+	sunxi_lcd_delay_ms(1);
+	/* pwr0 pb0 */
+	sunxi_lcd_gpio_set_value(sel, 1, 1);
+	sunxi_lcd_delay_ms(1);
+	/* pb1 */
+	sunxi_lcd_gpio_set_value(sel, 2, 1);
+	sunxi_lcd_delay_ms(1);
+	/* pwr2 pd6 */
+	sunxi_lcd_gpio_set_value(sel, 3, 1);
+	sunxi_lcd_delay_ms(1);
+	/* pwr com pd7 */
+	sunxi_lcd_gpio_set_value(sel, 4, 1);
+
+	sunxi_lcd_pin_cfg(sel, 1);
 }
 
 static void EINK_power_off(u32 sel)
 {
-	//sunxi_lcd_pin_cfg(sel, 0);
-	sunxi_lcd_power_disable(sel, 0);//config lcd_power pin to close lcd power0
+	sunxi_lcd_pin_cfg(sel, 0);
+
+	sunxi_lcd_gpio_set_value(sel, 4, 0);
+	sunxi_lcd_delay_ms(1);
+	sunxi_lcd_gpio_set_value(sel, 3, 0);
+	sunxi_lcd_delay_ms(1);
+	sunxi_lcd_gpio_set_value(sel, 2, 0);
+	sunxi_lcd_delay_ms(1);
+	sunxi_lcd_gpio_set_value(sel, 1, 0);
+	sunxi_lcd_delay_ms(1);
+	sunxi_lcd_gpio_set_value(sel, 0, 0);
 }
 
-static void EINK_bl_open(u32 sel)
-{
-	//sunxi_lcd_pwm_enable(sel);
-	//sunxi_lcd_backlight_enable(sel);//config lcd_bl_en pin to open lcd backlight
-}
-
-static void EINK_bl_close(u32 sel)
-{
-	//sunxi_lcd_backlight_disable(sel);//config lcd_bl_en pin to close lcd backlight
-	//sunxi_lcd_pwm_disable(sel);
-}
-/*
-static void EINK_panel_init(u32 sel)
-{
-	return;
-}
-
-static void EINK_panel_exit(u32 sel)
-{
-	return ;
-}
-*/
 //sel: 0:lcd0; 1:lcd1
 static s32 EINK_user_defined_func(u32 sel, u32 para1, u32 para2, u32 para3)
 {

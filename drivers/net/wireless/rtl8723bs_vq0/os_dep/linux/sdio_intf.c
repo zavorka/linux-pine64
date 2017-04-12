@@ -286,7 +286,7 @@ static void sdio_deinit(struct dvobj_priv *dvobj)
 			dvobj->drv_dbg.dbg_sdio_deinit_error_cnt++;
 			DBG_8192C(KERN_ERR "%s: sdio_disable_func(%d)\n", __func__, err);
 		}
-
+#if 0
 		if (dvobj->irq_alloc) {
 			err = sdio_release_irq(func);
 			if (err)
@@ -297,7 +297,7 @@ static void sdio_deinit(struct dvobj_priv *dvobj)
 			else
 				dvobj->drv_dbg.dbg_sdio_free_irq_cnt++;
 		}
-
+#endif
 		sdio_release_host(func);
 	}
 }
@@ -345,6 +345,7 @@ _func_enter_;
 	sdio_set_drvdata(func, NULL);
 	if (dvobj) {
 		sdio_deinit(dvobj);
+		sdio_free_irq(dvobj);
 		devobj_deinit(dvobj);
 	}
 

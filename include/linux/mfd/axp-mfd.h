@@ -16,7 +16,6 @@
 #include <linux/module.h>
 
 #include <linux/mfd/axp-mfd-81x.h>
-#include <linux/mfd/axp-mfd-20.h>
 
 #define AXP_MFD_ATTR(_name)				\
 {							\
@@ -133,6 +132,7 @@ extern void axp_reg_debug(s32 reg, s32 len, u8 *val);
 extern s32 axp_usbcur(aw_charge_type type);
 extern s32 axp_usbvol(aw_charge_type type);
 extern s32 axp_usb_det(void);
+extern s32 axp_usb_vbus_output(int high);
 extern s32 axp_powerkey_get(void);
 extern void axp_powerkey_set(s32 value);
 extern u64 axp_read_power_sply(void);

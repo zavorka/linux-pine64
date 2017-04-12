@@ -104,7 +104,6 @@ struct composer_private_data {
     struct write_back check_wb[WB_CHECK_SIZE];
     struct composer_health_info health_info;
 };
-
 static struct composer_private_data composer_priv;
 
 static s32 composer_get_frame_fps(u32 type)
@@ -114,7 +113,7 @@ static s32 composer_get_frame_fps(u32 type)
 	__u32 fps = 0xff;
 
 	pre_time_index = composer_priv.health_info.time_index[type];
-	cur_time_index = (pre_time_index == 0) ? (DBG_TIME_SIZE -1) : (pre_time_index-1);
+	cur_time_index = (pre_time_index == 0)? (DBG_TIME_SIZE -1):(pre_time_index-1);
 
 	pre_time = composer_priv.health_info.time[type][pre_time_index];
 	cur_time = composer_priv.health_info.time[type][cur_time_index];
@@ -225,7 +224,7 @@ inline bool hwc_pridisp_sync(void)
             == composer_priv.cur_disp_cnt[composer_priv.primary_disp];
 }
 
-unsigned int hwc_get_sync(int sync_disp, int fd)
+unsigned int hwc_get_sync(int sync_disp,int fd)
 {
     struct sync_fence *fence = NULL;
     struct sync_pt *pt = NULL;
@@ -239,7 +238,7 @@ unsigned int hwc_get_sync(int sync_disp, int fd)
     }
     sync_fence_put(fence);
 #endif
-    if(!list_empty(&fence->pt_list_head))
+    if(fence!=NULL&&!list_empty(&fence->pt_list_head))
     {
         pt = list_entry(fence->pt_list_head.next, struct sync_pt, pt_list);
     }else{
@@ -249,18 +248,18 @@ unsigned int hwc_get_sync(int sync_disp, int fd)
 
     return  pt != NULL ? ((struct sw_sync_pt*)pt)->value : 0;
 err:
-    return composer_priv.cur_write_cnt[sync_disp] + 1;
+    return composer_priv.cur_write_cnt[sync_disp]+1;
 }
 
 static bool hwc_fence_get(void *user_fence)
 {
     struct sync_fence *fence = NULL;
 	struct sync_pt *pt = NULL;
-	int fd[CNOUTDISPSYNC] = {-1, -1, -1, -1}, ret = -1;
+	int fd[CNOUTDISPSYNC] = {-1,-1,-1,-1},ret = -1;
     char buf[20];
     int i = 0;
 
-    if(copy_from_user(&fd, (void __user *)user_fence, sizeof(int) * CNOUTDISPSYNC))
+    if(copy_from_user(&fd, (void __user *)user_fence, sizeof(int)*CNOUTDISPSYNC))
     {
         printk(KERN_ERR "copy_from_user hwc_fence_get err.\n");
         goto fecne_ret;
@@ -298,14 +297,14 @@ static bool hwc_fence_get(void *user_fence)
             if(pt == NULL)
             {
                 put_unused_fd(fd[i]);
-                printk(KERN_ERR "creat display pt faild\n");
+                printk(KERN_ERR"creat display pt faild\n");
                 continue;
             }
             fence = sync_fence_create(buf, pt);
             if(fence == NULL)
             {
                 put_unused_fd(fd[i]);
-                printk(KERN_ERR "creat dispay fence faild\n");
+                printk(KERN_ERR"creat dispay fence faild\n");
                 continue;
             }
             sync_fence_install(fence, fd[i]);
@@ -334,25 +333,25 @@ static bool hwc_fence_get(void *user_fence)
 fecne_ret:
     if(copy_to_user((void __user *)user_fence, fd, sizeof(int) * 4))
     {
-	    printk(KERN_ERR "copy_to_user fail\n");
+	    printk(KERN_ERR"copy_to_user fail\n");
 	}
 	return 0;
 }
 
-static int hwc_commit(void *user_display, bool compat)
+static int hwc_commit(void * user_display, bool compat)
 {
     struct hwc_dispc_data disp_data;
 #if defined(CONFIG_COMPAT)
     struct hwc_compat_dispc_data disp_compat_data;
 #endif
     struct disp_capture_info wb_data;
-    bool need_wb = 0;
+    bool   need_wb = 0;
     int ret = 0, i = 0;
     unsigned int sync[CNOUTDISPSYNC];
-    unsigned long  hwc_layer_info[DISP_NUMS_SCREEN];
-    int releasefencefd[CNOUTDISPSYNC];
+    unsigned long   hwc_layer_info[DISP_NUMS_SCREEN];
+    int     releasefencefd[CNOUTDISPSYNC];
     unsigned long wb_ptr_data;
-    bool force_flip[DISP_NUMS_SCREEN];
+    bool     force_flip[DISP_NUMS_SCREEN];
 
     composer_frame_checkin(0);
 #if defined(CONFIG_COMPAT)
@@ -362,15 +361,15 @@ static int hwc_commit(void *user_display, bool compat)
             (void __user *)user_display, sizeof(struct hwc_compat_dispc_data));
         if(ret)
         {
-            printk(KERN_ERR "hwc copy_from_user hwc_compat_dispc_data err.\n");
+            printk(KERN_ERR"hwc copy_from_user hwc_compat_dispc_data err.\n");
             goto commit_ok;
         }
-        for(i = 0; i < DISP_NUMS_SCREEN; i++)
+        for(i = 0; i<DISP_NUMS_SCREEN; i++)
         {
             hwc_layer_info[i] = disp_compat_data.hwc_layer_info[i];
             force_flip[i] = disp_compat_data.force_flip[i];
         }
-        for(i = 0; i < CNOUTDISPSYNC; i++)
+        for(i = 0; i<CNOUTDISPSYNC; i++)
         {
             releasefencefd[i] = disp_compat_data.releasefencefd[i];
         }
@@ -419,8 +418,8 @@ static int hwc_commit(void *user_display, bool compat)
 	    wait_event_interruptible_timeout(composer_priv.commit_wq,
 			    			   hwc_pridisp_sync(),
 					    	   msecs_to_jiffies(16));
-        /* for vsync shadow protected */
-        //usleep_range(100, 200);
+        /*for vsync shadow protected*/
+        //usleep_range(100,200);
     }
     if(NULL != (void *)wb_ptr_data && !force_flip[0])
     {
@@ -550,17 +549,17 @@ static int hwc_ioctl(unsigned int cmd, unsigned long arg)
 
 static void disp_composer_proc(u32 sel)
 {
-    disp_drv_info *psg_disp_drv = composer_priv.psg_disp_drv;
+    disp_drv_info       *psg_disp_drv = composer_priv.psg_disp_drv;
     struct disp_manager *disp_mgr = NULL;
     struct disp_capture *wb_back = NULL;
-    struct write_back *wb_status = NULL;
-    if(sel < 2)
+    struct write_back   *wb_status = NULL;
+    if(sel<2)
     {
         if(sel == 0 && composer_priv.wb_status == 1)
         {
             disp_mgr = psg_disp_drv->mgr[sel];
             wb_back = disp_mgr->cptr;
-            wb_status = &composer_priv.check_wb[composer_priv.cur_disp_cnt[sel] % WB_CHECK_SIZE];
+            wb_status = &composer_priv.check_wb[composer_priv.cur_disp_cnt[sel]%WB_CHECK_SIZE];
             wb_status->sync = composer_priv.cur_disp_cnt[sel];
             wb_status->success = !wb_back->query(wb_back);
         }
@@ -610,7 +609,7 @@ s32 composer_init(disp_drv_info *psg_disp_drv)
 #endif
     disp_register_sync_finish_proc(disp_composer_proc);
 	disp_register_standby_func(hwc_suspend, hwc_resume);
-    composer_priv.tmp_hw_lyr = kzalloc(sizeof(struct disp_layer_config) * 16, GFP_KERNEL);
+    composer_priv.tmp_hw_lyr = kzalloc(sizeof(struct disp_layer_config)*16,GFP_KERNEL);
 
     if(composer_priv.tmp_hw_lyr == NULL)
     {

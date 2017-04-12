@@ -52,23 +52,32 @@ struct vb2_dc_buf {
 	struct dma_buf_attachment	*db_attach;
 	struct ion_client *client;
 	struct ion_handle *handle;
+	struct dma_buf *dmabuf;
 };
 
 static int ion_alloc_coherent(struct vb2_dc_buf *mem)
 {
+	unsigned int flags = ION_FLAG_CACHED | ION_FLAG_CACHED_NEEDS_SYNC;
+
 	mem->client = sunxi_ion_client_create(ion_name);
 	if (IS_ERR_OR_NULL(mem->client))
 	{
 		printk("sunxi_ion_client_create failed!!");
 	}
 	mem->handle = ion_alloc(mem->client, mem->size, PAGE_SIZE,
-							/*ION_HEAP_CARVEOUT_MASK|*/ION_HEAP_TYPE_DMA_MASK, 0);
-	if (IS_ERR_OR_NULL(mem->handle))
-	{
-		printk("ion_alloc failed!!\n");
-		goto err_alloc;
-	}	
-	mem->vaddr = ion_map_kernel( mem->client, mem->handle);
+				ION_HEAP_CARVEOUT_MASK,	flags);
+
+	if (IS_ERR_OR_NULL(mem->handle)) {
+		printk("ion_alloc carveout failed!!\n");
+		mem->handle = ion_alloc(mem->client, mem->size, PAGE_SIZE,
+				ION_HEAP_TYPE_DMA_MASK,	flags);
+		if (IS_ERR_OR_NULL(mem->handle)) {
+			printk("ion_alloc dma failed!!\n");
+			goto err_alloc;
+		}
+	}
+
+	mem->vaddr = ion_map_kernel(mem->client, mem->handle);
 	if (IS_ERR_OR_NULL(mem->vaddr))
 	{
 		printk("ion_map_kernel failed!!\n");
@@ -79,6 +88,13 @@ static int ion_alloc_coherent(struct vb2_dc_buf *mem)
 		printk("ion_phys failed!!\n");
 		goto err_phys;
 	}
+
+	mem->dmabuf = ion_share_dma_buf(mem->client, mem->handle);
+	if (IS_ERR(mem->dmabuf)) {
+		printk("ion_share_dma_buf failed!!\n");
+		goto err_phys;
+	}
+
 	return 0;
 err_phys:	
 	ion_unmap_kernel( mem->client, mem->handle);
@@ -92,11 +108,19 @@ static int ion_free_coherent(struct vb2_dc_buf *mem)
 {
 	if (IS_ERR_OR_NULL(mem->client )||IS_ERR_OR_NULL(mem->handle)||IS_ERR_OR_NULL(mem->vaddr))
 		return -1;	
+	dma_buf_put(mem->dmabuf);
 	ion_unmap_kernel(mem->client , mem->handle);
 	ion_free(mem->client , mem->handle);
 	ion_client_destroy(mem->client );
 	return 0;
 }
+
+static int ion_mmap_coherent(struct vb2_dc_buf *mem,
+				struct vm_area_struct *vma)
+{
+	return dma_buf_mmap(mem->dmabuf, vma, 0);
+}
+
 #else
 struct vb2_dc_buf {
 	struct device			*dev;
@@ -283,8 +307,12 @@ static int vb2_dc_mmap(void *buf_priv, struct vm_area_struct *vma)
 	 */
 	vma->vm_pgoff = 0;
 
+#ifdef SUNXI_MEM
+	ret = ion_mmap_coherent(buf, vma);
+#else
 	ret = dma_mmap_coherent(buf->dev, vma, buf->vaddr,
-		buf->dma_addr, buf->size);
+				buf->dma_addr, buf->size);
+#endif
 
 	if (ret) {
 		pr_err("Remapping memory failed, error: %d\n", ret);

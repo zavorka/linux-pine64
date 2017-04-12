@@ -169,7 +169,6 @@ int sunxi_ion_probe(struct platform_device *pdev)
 #ifdef CONFIG_TEE_SUPPORT
 		else if (ION_HEAP_TYPE_SECURE == heaps_desc.type) {
 			ulong tee_base;
-
 			probe_drm_configure(&heaps_desc.base,
 				&heaps_desc.size, &tee_base);
 			ion_sunxi_drm_phy_addr = heaps_desc.base;

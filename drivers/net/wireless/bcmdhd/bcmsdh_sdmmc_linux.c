@@ -110,9 +110,12 @@ static int sdioh_probe(struct sdio_func *func)
 
 	sd_err(("bus num (host idx)=%d, slot num (rca)=%d\n", host_idx, rca));
 	adapter = dhd_wifi_platform_get_adapter(SDIO_BUS, host_idx, rca);
-	if (adapter  != NULL)
+	if (adapter != NULL) {
 		sd_err(("found adapter info '%s'\n", adapter->name));
-	else
+#ifdef BUS_POWER_RESTORE
+		adapter->sdio_func = func;
+#endif
+	} else
 		sd_err(("can't find adapter info for this chip\n"));
 
 #ifdef WL_CFG80211
@@ -233,14 +236,14 @@ static int bcmsdh_sdmmc_suspend(struct device *pdev)
 	struct sdio_func *func = dev_to_sdio_func(pdev);
 	mmc_pm_flag_t sdio_flags;
 
-	printk("%s Enter func->num=%d\n", __FUNCTION__, func->num);
+	printf("%s Enter func->num=%d\n", __FUNCTION__, func->num);
 	if (func->num != 2)
 		return 0;
 
 	sdioh = sdio_get_drvdata(func);
 	err = bcmsdh_suspend(sdioh->bcmsdh);
 	if (err) {
-		printk("%s bcmsdh_suspend err=%d\n", __FUNCTION__, err);
+		printf("%s bcmsdh_suspend err=%d\n", __FUNCTION__, err);
 		return err;
 	}
 
@@ -256,10 +259,13 @@ static int bcmsdh_sdmmc_suspend(struct device *pdev)
 		sd_err(("%s: error while trying to keep power\n", __FUNCTION__));
 		return err;
 	}
+#if defined(OOB_INTR_ONLY)
+	bcmsdh_oob_intr_set(sdioh->bcmsdh, FALSE);
+#endif
 	dhd_mmc_suspend = TRUE;
 	smp_mb();
 
-	printk("%s Exit\n", __FUNCTION__);
+	printf("%s Exit\n", __FUNCTION__);
 	return 0;
 }
 
@@ -270,10 +276,10 @@ static int bcmsdh_sdmmc_resume(struct device *pdev)
 #endif
 	struct sdio_func *func = dev_to_sdio_func(pdev);
 
-	printk("%s Enter func->num=%d\n", __FUNCTION__, func->num);
+	printf("%s Enter func->num=%d\n", __FUNCTION__, func->num);
 	if (func->num != 2)
 		return 0;
-	
+
 	dhd_mmc_suspend = FALSE;
 #if defined(OOB_INTR_ONLY)
 	sdioh = sdio_get_drvdata(func);
@@ -281,7 +287,7 @@ static int bcmsdh_sdmmc_resume(struct device *pdev)
 #endif
 
 	smp_mb();
-	printk("%s Exit\n", __FUNCTION__);
+	printf("%s Exit\n", __FUNCTION__);
 	return 0;
 }
 

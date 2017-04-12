@@ -12,6 +12,7 @@
 #include <linux/vmalloc.h>
 #include <linux/debugfs.h>
 #include <linux/reboot.h>
+#include <asm/uaccess.h>
 #include "autohotplug.h"
 
 #define CREATE_TRACE_POINTS
@@ -168,7 +169,7 @@ int do_cpu_down(unsigned int cpu)
 	return 1;
 }
 
-int do_cpu_up(unsigned int cpu)
+int __ref do_cpu_up(unsigned int cpu)
 {
 #ifdef CONFIG_CPU_AUTOHOTPLUG_ROOMAGE
 	int i, cur_c0_online = 0, cur_c1_online = 0;
@@ -999,6 +1000,7 @@ static int reboot_notifier_call(struct notifier_block *this,
 						unsigned long code, void *_cmd)
 {
 	/* disable auto hotplug */
+	kthread_stop(autohotplug_task);
 	autohotplug_enable_from_sysfs(0, NULL);
 
 	printk("%s:%s: stop autohotplug done\n", __FILE__, __func__);
@@ -1233,7 +1235,8 @@ static int autohotplug_init(void)
 	up_stable_us_bak   = load_up_stable_us;
 	down_stable_us_bak = load_down_stable_us;
 
-	input_register_handler(&autohotplug_input_handler);
+	if (input_register_handler(&autohotplug_input_handler))
+		return -EINVAL;
 
 	/* init input event timer */
 	init_timer_deferrable(&autohotplug_input_timer);

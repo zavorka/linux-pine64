@@ -194,7 +194,7 @@ static void dispdbg_process(void)
 		}
 	}
 	/*eink debug*/
-#ifdef SUPPORT_EINK
+#if defined(SUPPORT_EINK)
 	else if (!strncmp(dispdbg_priv.name,"eink",4)) {
 
 		struct disp_eink_manager *eink_manager = NULL;
@@ -220,8 +220,6 @@ static void dispdbg_process(void)
 			area.x_bottom= simple_strtoul(next,NULL,0);
 			next = strsep(&tosearch, " ");
 			area.y_bottom = simple_strtoul(next,NULL,0);
-			if (eink_manager->eink_update)
-				eink_manager->eink_update(eink_manager, 0, mode, area);
 
 		} else if (!strncmp(dispdbg_priv.command,"disable",7)) {
 			if (eink_manager->disable)

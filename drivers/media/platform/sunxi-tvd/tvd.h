@@ -20,16 +20,25 @@
 
 static LIST_HEAD(devlist);
 
+enum hpd_status {
+	STATUE_CLOSE = 0,
+	STATUE_OPEN  = 1,
+};
+
 struct tvd_fmt {
 	u8              name[32];
 	u32           	fourcc;          /* v4l2 format id */
 	TVD_FMT_T    	output_fmt;
 	int   	        depth;
-	u32           	width;
-	u32           	height;
 	enum v4l2_field field;
 	enum v4l2_mbus_pixelcode    bus_pix_code;
 	unsigned char   planes_cnt;
+};
+
+enum tvd_interface {
+	CVBS,
+	YPBPRI,
+	YPBPRP,
 };
 
 /* buffer for one video frame */
@@ -37,6 +46,8 @@ struct tvd_buffer {
 	struct vb2_buffer	vb;
 	struct list_head	list;
 	struct tvd_fmt		*fmt;
+	enum vb2_buffer_state	state;
+	void *paddr;
 };
 
 struct tvd_dmaqueue {
@@ -55,6 +66,13 @@ struct tvd_status {
 	int tvd_used;
 	int tvd_if;
 	int tvd_3d_used;
+};
+
+struct tvd_3d_fliter {
+	int used;
+	int size;
+	void *vir_address;
+	void *phy_address;
 };
 
 struct tvd_dev {
@@ -79,7 +97,7 @@ struct tvd_dev {
 	int	                input;
 
 	/* video capture */
-	struct tvd_fmt          fmt;
+	struct tvd_fmt          *fmt;
 	unsigned int            width;
 	unsigned int            height;
 	unsigned int		frame_size;
@@ -94,6 +112,7 @@ struct tvd_dev {
 	unsigned int            format;
 	unsigned int            channel_index[4];
 	int			irq;
+	char			name[10];
 
 	/* working state */
 	unsigned long 	        generating;
@@ -116,15 +135,16 @@ struct tvd_dev {
 
 	unsigned int            uv_swap;
 	struct v4l2_fract       fps;
-
+	struct tvd_3d_fliter fliter;
 	//struct early_suspend early_suspend;
 	unsigned int 		para_from;
-	__u32	addr1;
-	__u32 	addr2;
 	struct v4l2_ctrl_handler  ctrl_handler;
 	struct mutex              buf_lock;
 	struct mutex              stream_lock;
 	struct mutex		  opened_lock;
+	struct tvd_dmaqueue       vidq_special;
+	struct tvd_dmaqueue       done_special;
+	int special_active;
 };
 
 #endif /* __TVD__H__ */

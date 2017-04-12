@@ -47,6 +47,7 @@
 
 #include <video/sunxi_display2.h>
 #include "../disp_sys_intf.h"
+
 //#include "disp_format_convert.h"
 s32 bsp_disp_get_print_level(void);
 
@@ -249,13 +250,23 @@ struct disp_clk_info
 
 struct disp_enhance_info
 {
-	//basic adjust
+	/*
+	 * enhance parameters : 0~10, bigger value, stronger enhance level
+	 * mode : combination of enhance_mode and dev_type
+	 * enhance_mode : bit31~bit16 of mode
+	 *              : 0-disable; 1-enable; 2-demo(enable half window)
+	 * dev_type : bit15~bit0 of mode
+	 *          : 0-lcd; 1-tv(hdmi, cvbs, vga, ypbpr)
+	 */
+
 	u32         bright;
 	u32         contrast;
 	u32         saturation;
 	u32         hue;
+	u32         edge;
+	u32         detail;
+	u32         denoise;
 	u32         mode;
-	//ehnance
 	u32         sharp;	//0-off; 1~3-on.
 	u32         auto_contrast;	//0-off; 1~3-on.
 	u32					auto_color;	//0-off; 1-on.
@@ -270,14 +281,20 @@ struct disp_enhance_info
 
 typedef enum
 {
-	ENHANCE_NONE_DIRTY   = 0x0,
-	ENHANCE_ENABLE_DIRTY = 0x1 << 0,
-	ENHANCE_BRIGHT_DIRTY = 0x1 << 1,
-	ENHANCE_SHARP_DIRTY  = 0x1 << 2,
-	ENHANCE_SIZE_DIRTY   = 0x1 << 3,
-	ENHANCE_MODE_DIRTY   = 0X1 << 4,
-	ENHANCE_DEMO_DIRTY   = 0x1 << 5,
-	ENHANCE_ALL_DIRTY    = 0x3f,
+	ENH_NONE_DIRTY       = 0x0,
+	ENH_ENABLE_DIRTY     = 0x1 << 0,  /* enable dirty */
+	ENH_SIZE_DIRTY       = 0x1 << 1,  /* size dirty */
+	ENH_FORMAT_DIRTY     = 0x1 << 2,  /* overlay format dirty */
+	ENH_INIT_DIRTY       = 0x1 << 3,  /* initial parameters dirty */
+	ENH_MODE_DIRTY       = 0X1 << 4,  /* enhance mode dirty */
+	ENH_BRIGHT_DIRTY     = 0x1 << 5,  /* brightness level dirty */
+	ENH_CONTRAST_DIRTY   = 0x1 << 6,  /* contrast level dirty */
+	ENH_EDGE_DIRTY       = 0x1 << 7,  /* edge level dirty */
+	ENH_DETAIL_DIRTY     = 0x1 << 8,  /* detail level dirty */
+	ENH_SAT_DIRTY        = 0x1 << 9,  /* saturation level dirty */
+	ENH_DNS_DIRTY        = 0x1 << 10, /* de-noise level dirty */
+	ENH_USER_DIRTY       = 0x7f8,     /* dirty by user */
+	ENH_ALL_DIRTY        = 0x7ff      /* all dirty */
 }disp_enhance_dirty_flags;
 
 struct disp_enhance_config
@@ -310,6 +327,7 @@ struct disp_csc_config
 {
 	u32 in_fmt;
 	u32 in_mode;
+	u32 in_color_range;
 	u32 out_fmt;
 	u32 out_mode;
 	u32 out_color_range;
@@ -317,8 +335,8 @@ struct disp_csc_config
 	u32 contrast;
 	u32 saturation;
 	u32 hue;
-	//u32 alpha;
 	u32 enhance_mode;
+	u32 color;
 };
 
 enum
@@ -399,8 +417,12 @@ typedef enum
 	LCD_CPU_IF_RGB565_8PIN  = 14,
 }disp_lcd_cpu_if;
 
-typedef enum
-{
+typedef enum {
+	LCD_CPU_AUTO_MODE    = 0,
+	LCD_CPU_TRIGGER_MODE = 1,
+} disp_lcd_cpu_mode;
+
+typedef enum {
 	LCD_TE_DISABLE	= 0,
 	LCD_TE_RISING		= 1,
 	LCD_TE_FALLING  = 2,
@@ -504,6 +526,7 @@ typedef struct
 
 	disp_lcd_cpu_if          lcd_cpu_if;
 	disp_lcd_te              lcd_cpu_te;
+	disp_lcd_cpu_mode        lcd_cpu_mode;
 
 	disp_lcd_dsi_if          lcd_dsi_if;
 	disp_lcd_dsi_lane        lcd_dsi_lane;
@@ -691,6 +714,7 @@ struct disp_device {
 	s32 (*detect)(struct disp_device *dispdev);
 	s32 (*set_detect)(struct disp_device *dispdev, bool hpd);
 	s32 (*get_status)(struct disp_device *dispdev);
+	s32 (*get_fps)(struct disp_device *dispdev);
 
 	s32 (*get_input_csc)(struct disp_device *dispdev);
 	s32 (*get_input_color_range)(struct disp_device *dispdev);
@@ -777,6 +801,7 @@ struct disp_manager {
 
 	s32 (*get_screen_size)(struct disp_manager *mgr, u32 *width, u32 *height);
 	s32 (*set_screen_size)(struct disp_manager *mgr, u32 width, u32 height);
+	s32 (*get_clk_rate)(struct disp_manager *mgr);
 
 	/* layer mamage */
 	s32 (*check_layer_zorder)(struct disp_manager *mgr, struct disp_layer_config *config, u32 layer_num);
@@ -922,12 +947,18 @@ struct disp_enhance {
 	s32 (*set_saturation)(struct disp_enhance* enhance, u32 val);
 	s32 (*set_contrast)(struct disp_enhance* enhance, u32 val);
 	s32 (*set_hue)(struct disp_enhance* enhance, u32 val);
+	s32 (*set_edge)(struct disp_enhance *enhance, u32 val);
+	s32 (*set_detail)(struct disp_enhance *enhance, u32 val);
+	s32 (*set_denoise)(struct disp_enhance *enhance, u32 val);
 	s32 (*set_mode)(struct disp_enhance* enhance, u32 val);
 	s32 (*set_window)(struct disp_enhance* enhance, struct disp_rect *window);
 	s32 (*get_bright)(struct disp_enhance* enhance);
 	s32 (*get_saturation)(struct disp_enhance* enhance);
 	s32 (*get_contrast)(struct disp_enhance* enhance);
 	s32 (*get_hue)(struct disp_enhance* enhance);
+	s32 (*get_edge)(struct disp_enhance *enhance);
+	s32 (*get_detail)(struct disp_enhance *enhance);
+	s32 (*get_denoise)(struct disp_enhance *enhance);
 	s32 (*get_mode)(struct disp_enhance* enhance);
 	s32 (*get_window)(struct disp_enhance* enhance, struct disp_rect *window);
 	s32 (*set_para)(struct disp_enhance *enhance, disp_enhance_para *para);
@@ -958,12 +989,11 @@ struct disp_capture {
 
 struct ee_img
 {
-	unsigned int addr;
+	unsigned long addr;
 	unsigned int pitch;
 	unsigned int w;     //image width
 	unsigned int h;     //image height
 };
-
 
 struct rect_size {
 	u32 width;
@@ -1001,9 +1031,7 @@ enum buf_use_state {
 	USED
 };
 
-enum eink_update_mode
-
-{
+enum eink_update_mode {
 	//GLOBAL
 	EINK_INIT_MODE = 0x01,
 	EINK_DU_MODE = 0x02,
@@ -1022,21 +1050,20 @@ struct eink_8bpp_image {
 	enum eink_update_mode 	update_mode;
 	enum eink_flash_mode 	flash_mode;
 	enum buf_use_state 		state;
-	void* 					vaddr;
-	u32						paddr;
+	void					*vaddr;
+	void					*paddr;
 	bool 					window_calc_enable;
 	struct rect_size 			size;
 	struct area_info			update_area;
 };
-
 
 struct eink_init_param {
 	bool 					used;
 	u8         				eink_moudule_type;
 	u8					eink_version_type;
 	u8 					eink_ctrl_data_type;
-	u8					eink_bits;   /*1->4bits*/
-	u8					eink_mode;/*0->8data, 1->16data*/
+	u8					eink_bits;   /*0->3bits,1->4bits,2->5bits*/
+	u8					eink_mode;   /*0->8data,1->16data*/
 	struct eink_timing_param 		timing;
 	char				wavefile_path[32];
 };
@@ -1056,7 +1083,7 @@ struct disp_eink_manager {
 	unsigned int test;
 	int 	tcon_flag;
 	int 	eink_panel_temperature;
-	unsigned int flush_continue_flag;
+	volatile unsigned int flush_continue_flag;
 	struct tasklet_struct sync_tasklet;
 	struct tasklet_struct decode_tasklet;
 	wait_queue_head_t decode_taske_queue;
@@ -1068,34 +1095,43 @@ struct disp_eink_manager {
 	struct format_manager * convert_mgr;
 	struct task_struct * 	   detect_fresh_task;
 	struct task_struct * 	   debug_task;
-	int (*eink_update)(struct disp_eink_manager*, void*, enum eink_update_mode, struct area_info);
-	int (*enable)(struct disp_eink_manager*);
-	int (*disable)(struct disp_eink_manager*);
-	void (*clearwd)(struct disp_eink_manager*, int);
+	struct mutex standby_lock;
+	int (*eink_update)(struct disp_eink_manager *manager,
+				struct disp_layer_config *config,
+				unsigned int layer_num,
+				enum eink_update_mode mode,
+				struct area_info update_area);
+	int (*enable)(struct disp_eink_manager *);
+	int (*disable)(struct disp_eink_manager *);
+	int (*op_skip)(struct disp_eink_manager *manager, u32 skip);
+	int (*suspend)(struct disp_eink_manager *);
+	int (*resume)(struct disp_eink_manager *);
+	void (*clearwd)(struct disp_eink_manager *, int);
 	/*for debug*/
-	int(*decode)(struct disp_eink_manager*,int);
-	int (*set_temperature)(struct disp_eink_manager* manager, unsigned int temp);
-	unsigned int (*get_temperature)(struct disp_eink_manager* manager);
+	int(*decode)(struct disp_eink_manager *, int);
+	int (*set_temperature)(struct disp_eink_manager *manager, unsigned int temp);
+	unsigned int (*get_temperature)(struct disp_eink_manager *manager);
 };
 
 struct image_format {
 	enum disp_pixel_format format;
 	unsigned int width;
 	unsigned int height;
-	unsigned int addr1;
-	unsigned int addr2;
-	unsigned int addr3;
+	unsigned long addr1;
+	unsigned long addr2;
+	unsigned long addr3;
 };
 
 struct format_manager {
 	unsigned int disp;
 	unsigned int irq_num;
-	unsigned int write_back_finish;
+	volatile unsigned int write_back_finish;
 	wait_queue_head_t write_back_queue;
 	struct clk* clk;
 	int (*enable)(unsigned int id);
 	int (*disable)(unsigned int id);
-	int (*start_convert)(unsigned int id, struct image_format *src, struct image_format *dest);
+	int (*start_convert)(unsigned int id, struct disp_layer_config *config,
+			unsigned int layer_num, struct image_format *dest);
 };
 
 #endif

@@ -33,16 +33,28 @@ static struct scene_lock  ehci_standby_lock[4];
 #define  SUNXI_EHCI_NAME	"sunxi-ehci"
 static const char ehci_name[] = SUNXI_EHCI_NAME;
 
-#ifdef  CONFIG_USB_SUNXI_EHCI0
+#ifdef CONFIG_USB_SUNXI_EHCI0
 #define  SUNXI_EHCI0_OF_MATCH	"allwinner,sunxi-ehci0"
 #else
 #define  SUNXI_EHCI0_OF_MATCH   "null"
 #endif
 
-#ifdef  CONFIG_USB_SUNXI_EHCI1
+#ifdef CONFIG_USB_SUNXI_EHCI1
 #define  SUNXI_EHCI1_OF_MATCH	"allwinner,sunxi-ehci1"
 #else
 #define  SUNXI_EHCI1_OF_MATCH   "null"
+#endif
+
+#ifdef CONFIG_USB_SUNXI_EHCI2
+#define  SUNXI_EHCI2_OF_MATCH	"allwinner,sunxi-ehci2"
+#else
+#define  SUNXI_EHCI2_OF_MATCH   "null"
+#endif
+
+#ifdef CONFIG_USB_SUNXI_EHCI3
+#define  SUNXI_EHCI3_OF_MATCH	"allwinner,sunxi-ehci3"
+#else
+#define  SUNXI_EHCI3_OF_MATCH   "null"
 #endif
 
 static struct sunxi_hci_hcd *g_sunxi_ehci[4];
@@ -641,7 +653,7 @@ static int sunxi_ehci_hcd_probe(struct platform_device *pdev)
 	ret = init_sunxi_hci(pdev, SUNXI_USB_EHCI);
 	if(ret != 0){
 		dev_err(&pdev->dev, "init_sunxi_hci is fail\n");
-		return 0;
+		return -1;
 	}
 
 	sunxi_insmod_ehci(pdev);
@@ -703,7 +715,7 @@ static void sunxi_ehci_hcd_shutdown(struct platform_device* pdev)
 		return;
 	}
 
-	DMSG_INFO("[%s]: ehci shutdown start\n", sunxi_ehci->hci_name);
+	pr_debug("[%s]: ehci shutdown start\n", sunxi_ehci->hci_name);
 #ifdef CONFIG_PM
 	if(sunxi_ehci->wakeup_suspend){
 		scene_lock_destroy(&ehci_standby_lock[sunxi_ehci->usbc_no]);
@@ -712,13 +724,13 @@ static void sunxi_ehci_hcd_shutdown(struct platform_device* pdev)
 	usb_hcd_platform_shutdown(pdev);
 
 	/* disable usb otg INTUSBE, To solve usb0 device mode catch audio udev on reboot system is fail*/
-	if(sunxi_ehci->otg_vbase){
-		USBC_Writel(0, (sunxi_ehci->otg_vbase + SUNXI_USBC_REG_INTUSBE));
-	}
+	if (sunxi_ehci->usbc_no == 0)
+		if (sunxi_ehci->otg_vbase) {
+			writel(0, (sunxi_ehci->otg_vbase
+						+ SUNXI_USBC_REG_INTUSBE));
+		}
 
-	sunxi_stop_ehci(sunxi_ehci);
-
-	DMSG_INFO("[%s]: ehci shutdown end\n", sunxi_ehci->hci_name);
+	pr_debug("[%s]: ehci shutdown end\n", sunxi_ehci->hci_name);
 
 	return ;
 }
@@ -750,7 +762,8 @@ static int sunxi_ehci_hcd_suspend(struct device *dev)
 	}
 
 	if(sunxi_ehci->probe == 0){
-		DMSG_PANIC("[%s]: is disable, can not suspend\n", sunxi_ehci->hci_name);
+		DMSG_INFO("[%s]: is disable, can not suspend\n",
+			sunxi_ehci->hci_name);
 		return 0;
 	}
 
@@ -801,7 +814,8 @@ static int sunxi_ehci_hcd_resume(struct device *dev)
 	}
 
 	if(sunxi_ehci->probe == 0){
-		DMSG_PANIC("[%s]: is disable, can not resume\n", sunxi_ehci->hci_name);
+		DMSG_INFO("[%s]: is disable, can not resume\n",
+			sunxi_ehci->hci_name);
 		return 0;
 	}
 
@@ -845,6 +859,8 @@ static const struct dev_pm_ops  aw_ehci_pmops = {
 static const struct of_device_id sunxi_ehci_match[] = {
 	{.compatible = SUNXI_EHCI0_OF_MATCH, },
 	{.compatible = SUNXI_EHCI1_OF_MATCH, },
+	{.compatible = SUNXI_EHCI2_OF_MATCH, },
+	{.compatible = SUNXI_EHCI3_OF_MATCH, },
 	{},
 };
 MODULE_DEVICE_TABLE(of, sunxi_ehci_match);

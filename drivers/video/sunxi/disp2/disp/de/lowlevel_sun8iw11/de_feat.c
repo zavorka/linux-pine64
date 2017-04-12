@@ -57,9 +57,9 @@ static const int de_supported_output_types[] = {
 	/* TCON1 */
 	1, /*HDMI*/
 	/* TCON2 */
-	2 | 4,
+	2 | 4 | 8,
 	/* TCON3 */
-	2 | 4,
+	2 | 4 | 8,
 };
 
 static const int de_is_support_wb[] = {

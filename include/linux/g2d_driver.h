@@ -170,6 +170,19 @@ typedef struct {
 	g2d_pixel_seq	 pixel_seq;	/* pixel sequence of image frame buffer */
 }g2d_image;
 
+/*
+ * 0:Top to down, Left to right
+ * 1:Top to down, Right to left
+ * 2:Down to top, Left to right
+ * 3:Down to top, Right to left
+ */
+enum g2d_scan_order{
+	G2D_SM_TDLR = 0x00000000,
+	G2D_SM_TDRL = 0x00000001,
+	G2D_SM_DTLR = 0x00000002,
+	G2D_SM_DTRL = 0x00000003,
+};
+
 typedef struct {
 	g2d_fillrect_flags	 flag;
 	g2d_image			 dst_image;
@@ -204,6 +217,7 @@ typedef struct {
 
 	__u32				 color;		/* colorkey color */
 	__u32				 alpha;		/* plane alpha value */
+
 
 }g2d_stretchblt;
 
@@ -248,6 +262,7 @@ typedef enum
 	G2D_CMD_MEM_GETADR		=	0x5B,
 	G2D_CMD_MEM_SELIDX		=	0x5C,
 	G2D_CMD_MEM_FLUSH_CACHE	=	0x5D,
+	G2D_CMD_INVERTED_ORDER = 0x5E,
 }g2d_cmd;
 
 #endif	/* __G2D_DRIVER_H */
