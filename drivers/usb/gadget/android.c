@@ -35,6 +35,9 @@
 #ifdef CONFIG_SND_SOC
 #include "f_audio_source.c"
 #endif
+#ifdef CONFIG_SND_USB_AUDIO
+#include "f_midi.c"
+#endif
 #include "f_mass_storage.c"
 #ifdef CONFIG_USB_SUNXI_USB_ADB
 #include "f_adb.c"
@@ -46,6 +49,9 @@
 #include "f_rndis.c"
 #include "rndis.c"
 #include "u_ether.c"
+#endif
+#ifdef CONFIG_USB_SUNXI_G_WEBCAM
+#include "webcam.c"
 #endif
 
 MODULE_AUTHOR("Mike Lockwood");
@@ -65,10 +71,6 @@ u32 luns = 1;
 u32 serial_unique = 0;
 char g_usb_serial_number[64];
 u32 rndis_wceis = 1;
-
-#ifdef CONFIG_USB_SUNXI_UDC0
-extern atomic_t thread_suspend_flag;
-#endif
 
 static int get_para_from_cmdline(const char *cmdline, const char *name, char *value, int maxsize)
 {
@@ -189,6 +191,14 @@ static const char longname[] = "Gadget Android";
 /* Default vendor and product IDs, overridden by userspace */
 #define VENDOR_ID		0x18D1
 #define PRODUCT_ID		0x0001
+
+#ifdef CONFIG_SND_USB_AUDIO
+/* f_midi configuration */
+#define MIDI_INPUT_PORTS    1
+#define MIDI_OUTPUT_PORTS   1
+#define MIDI_BUFFER_SIZE    256
+#define MIDI_QUEUE_LENGTH   32
+#endif
 
 struct android_usb_function {
 	char *name;
@@ -1212,6 +1222,89 @@ static struct android_usb_function audio_source_function = {
 };
 #endif
 
+#ifdef CONFIG_SND_USB_AUDIO
+static int midi_function_init(struct android_usb_function *f,
+					struct usb_composite_dev *cdev)
+{
+	struct midi_alsa_config *config;
+
+	config = kzalloc(sizeof(struct midi_alsa_config), GFP_KERNEL);
+	f->config = config;
+	if (!config)
+		return -ENOMEM;
+
+	config->card = -1;
+	config->device = -1;
+	return 0;
+}
+
+static void midi_function_cleanup(struct android_usb_function *f)
+{
+	kfree(f->config);
+}
+
+static int midi_function_bind_config(struct android_usb_function *f,
+						struct usb_configuration *c)
+{
+	struct midi_alsa_config *config = f->config;
+
+	return f_midi_bind_config(c, SNDRV_DEFAULT_IDX1, SNDRV_DEFAULT_STR1,
+			MIDI_INPUT_PORTS, MIDI_OUTPUT_PORTS, MIDI_BUFFER_SIZE,
+			MIDI_QUEUE_LENGTH, config);
+}
+
+static ssize_t midi_alsa_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct midi_alsa_config *config = f->config;
+
+	/* print ALSA card and device numbers */
+	return sprintf(buf, "%d %d\n", config->card, config->device);
+}
+
+static DEVICE_ATTR(alsa, S_IRUGO, midi_alsa_show, NULL);
+
+static struct device_attribute *midi_function_attributes[] = {
+	&dev_attr_alsa,
+	NULL
+};
+
+static struct android_usb_function midi_function = {
+	.name		= "midi",
+	.init		= midi_function_init,
+	.cleanup	= midi_function_cleanup,
+	.bind_config	= midi_function_bind_config,
+	.attributes	= midi_function_attributes,
+
+};
+#endif
+
+#ifdef CONFIG_USB_SUNXI_G_WEBCAM
+static int webcam_function_init(struct android_usb_function *f,
+			struct usb_composite_dev *cdev)
+{
+	return 0;
+}
+
+static void webcam_function_cleanup(struct android_usb_function *f)
+{
+}
+
+static int webcam_function_bind_config(struct android_usb_function *f,
+						struct usb_configuration *c)
+{
+	return webcam_config_bind(c);
+}
+
+static struct android_usb_function webcam_function = {
+	.name		= "webcam",
+	.init		= webcam_function_init,
+	.cleanup	= webcam_function_cleanup,
+	.bind_config	= webcam_function_bind_config,
+};
+#endif
+
 static struct android_usb_function *supported_functions[] = {
 	&ffs_function,
 #ifdef CONFIG_USB_SUNXI_USB_ADB
@@ -1227,6 +1320,12 @@ static struct android_usb_function *supported_functions[] = {
 	&accessory_function,
 #ifdef CONFIG_SND_SOC
 	&audio_source_function,
+#ifdef CONFIG_SND_USB_AUDIO
+	&midi_function,
+#endif
+#endif
+#ifdef CONFIG_USB_SUNXI_G_WEBCAM
+	&webcam_function,
 #endif
 	NULL
 };
@@ -1715,15 +1814,7 @@ static void android_disconnect(struct usb_composite_dev *cdev)
 
 	dev->connected = 0;
 
-#ifdef CONFIG_USB_SUNXI_UDC0
-	if(!atomic_read(&thread_suspend_flag)){
-		schedule_work(&dev->work);
-	}else{
-		printk("warning: %s cannot sent uevent env on suspend\n", __func__);
-	}
-#else
 	schedule_work(&dev->work);
-#endif
 }
 
 static struct usb_composite_driver android_usb_driver = {

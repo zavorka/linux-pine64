@@ -71,20 +71,17 @@ void ss_reset(void)
 	sunxi_periph_reset_deassert(ss_dev->mclk);
 }
 
-void ss_clk_set(u32 rate)
+static int ss_aes_key_is_weak(const u8 *key, unsigned int keylen)
 {
-#ifdef CONFIG_EVB_PLATFORM
-	int ret = 0;
+	s32 i;
+	u8 tmp = key[0];
 
-	ret = clk_get_rate(ss_dev->mclk);
-	if (ret == rate)
-		return;
+	for (i=0; i<keylen; i++)
+		if (tmp != key[i])
+			return 0;
 
-	SS_DBG("Change the SS clk to %d MHz. \n", rate/1000000);
-	ret = clk_set_rate(ss_dev->mclk, rate);
-	if (ret != 0)
-		SS_ERR("clk_set_rate(%d) failed! return %d\n", rate, ret);
-#endif
+	SS_ERR("The key is weak!\n");
+	return 1;
 }
 
 static int ss_aes_setkey(struct crypto_ablkcipher *tfm, const u8 *key, 
@@ -102,6 +99,11 @@ static int ss_aes_setkey(struct crypto_ablkcipher *tfm, const u8 *key,
 	ret = ss_aes_key_valid(tfm, keylen);
 	if (ret != 0)
 		return ret;
+
+	if (ss_aes_key_is_weak(key, keylen)) {
+		crypto_ablkcipher_tfm(tfm)->crt_flags |= CRYPTO_TFM_REQ_WEAK_KEY;
+/*		return -EINVAL; testmgr.c need this, but we don't want to support it. */
+	}
 
 	ctx->key_size = keylen;
 	memcpy(ctx->key, key, keylen);
@@ -153,6 +155,98 @@ static int ss_aes_cts_encrypt(struct ablkcipher_request *req)
 static int ss_aes_cts_decrypt(struct ablkcipher_request *req)
 {
 	return ss_aes_crypt(req, SS_DIR_DECRYPT, SS_METHOD_AES, SS_AES_MODE_CTS);
+}
+#endif
+
+#ifdef SS_XTS_MODE_ENABLE
+static int ss_aes_xts_encrypt(struct ablkcipher_request *req)
+{
+	return ss_aes_crypt(req,
+			SS_DIR_ENCRYPT, SS_METHOD_AES, SS_AES_MODE_XTS);
+}
+
+static int ss_aes_xts_decrypt(struct ablkcipher_request *req)
+{
+	return ss_aes_crypt(req,
+			SS_DIR_DECRYPT, SS_METHOD_AES, SS_AES_MODE_XTS);
+}
+#endif
+
+#ifdef SS_OFB_MODE_ENABLE
+static int ss_aes_ofb_encrypt(struct ablkcipher_request *req)
+{
+	return ss_aes_crypt(req, SS_DIR_ENCRYPT, SS_METHOD_AES, SS_AES_MODE_OFB);
+}
+
+static int ss_aes_ofb_decrypt(struct ablkcipher_request *req)
+{
+	return ss_aes_crypt(req, SS_DIR_DECRYPT, SS_METHOD_AES, SS_AES_MODE_OFB);
+}
+#endif
+
+#ifdef SS_CFB_MODE_ENABLE
+static int ss_aes_cfb1_encrypt(struct ablkcipher_request *req)
+{
+	ss_aes_req_ctx_t *req_ctx = ablkcipher_request_ctx(req);
+
+	req_ctx->bitwidth = 1;
+	return ss_aes_crypt(req, SS_DIR_ENCRYPT, SS_METHOD_AES, SS_AES_MODE_CFB);
+}
+
+static int ss_aes_cfb1_decrypt(struct ablkcipher_request *req)
+{
+	ss_aes_req_ctx_t *req_ctx = ablkcipher_request_ctx(req);
+
+	req_ctx->bitwidth = 1;
+	return ss_aes_crypt(req, SS_DIR_DECRYPT, SS_METHOD_AES, SS_AES_MODE_CFB);
+}
+
+static int ss_aes_cfb8_encrypt(struct ablkcipher_request *req)
+{
+	ss_aes_req_ctx_t *req_ctx = ablkcipher_request_ctx(req);
+
+	req_ctx->bitwidth = 8;
+	return ss_aes_crypt(req, SS_DIR_ENCRYPT, SS_METHOD_AES, SS_AES_MODE_CFB);
+}
+
+static int ss_aes_cfb8_decrypt(struct ablkcipher_request *req)
+{
+	ss_aes_req_ctx_t *req_ctx = ablkcipher_request_ctx(req);
+
+	req_ctx->bitwidth = 8;
+	return ss_aes_crypt(req, SS_DIR_DECRYPT, SS_METHOD_AES, SS_AES_MODE_CFB);
+}
+
+static int ss_aes_cfb64_encrypt(struct ablkcipher_request *req)
+{
+	ss_aes_req_ctx_t *req_ctx = ablkcipher_request_ctx(req);
+
+	req_ctx->bitwidth = 64;
+	return ss_aes_crypt(req, SS_DIR_ENCRYPT, SS_METHOD_AES, SS_AES_MODE_CFB);
+}
+
+static int ss_aes_cfb64_decrypt(struct ablkcipher_request *req)
+{
+	ss_aes_req_ctx_t *req_ctx = ablkcipher_request_ctx(req);
+
+	req_ctx->bitwidth = 64;
+	return ss_aes_crypt(req, SS_DIR_DECRYPT, SS_METHOD_AES, SS_AES_MODE_CFB);
+}
+
+static int ss_aes_cfb128_encrypt(struct ablkcipher_request *req)
+{
+	ss_aes_req_ctx_t *req_ctx = ablkcipher_request_ctx(req);
+
+	req_ctx->bitwidth = 128;
+	return ss_aes_crypt(req, SS_DIR_ENCRYPT, SS_METHOD_AES, SS_AES_MODE_CFB);
+}
+
+static int ss_aes_cfb128_decrypt(struct ablkcipher_request *req)
+{
+	ss_aes_req_ctx_t *req_ctx = ablkcipher_request_ctx(req);
+
+	req_ctx->bitwidth = 128;
+	return ss_aes_crypt(req, SS_DIR_DECRYPT, SS_METHOD_AES, SS_AES_MODE_CFB);
 }
 #endif
 
@@ -220,14 +314,49 @@ static int ss_dh_decrypt(struct ablkcipher_request *req)
 }
 #endif
 
+#ifdef SS_ECC_ENABLE
+static int ss_ecdh_encrypt(struct ablkcipher_request *req)
+{
+	return ss_aes_crypt(req, SS_DIR_ENCRYPT, SS_METHOD_ECC,
+				CE_ECC_OP_POINT_MUL);
+}
+
+static int ss_ecdh_decrypt(struct ablkcipher_request *req)
+{
+	return ss_aes_crypt(req, SS_DIR_DECRYPT, SS_METHOD_ECC,
+				CE_ECC_OP_POINT_MUL);
+}
+
+static int ss_ecc_sign_encrypt(struct ablkcipher_request *req)
+{
+	return ss_aes_crypt(req, SS_DIR_ENCRYPT, SS_METHOD_ECC, CE_ECC_OP_SIGN);
+}
+
+static int ss_ecc_sign_decrypt(struct ablkcipher_request *req)
+{
+	return ss_aes_crypt(req, SS_DIR_DECRYPT, SS_METHOD_ECC, CE_ECC_OP_SIGN);
+}
+
+static int ss_ecc_verify_encrypt(struct ablkcipher_request *req)
+{
+	return ss_aes_crypt(req, SS_DIR_ENCRYPT, SS_METHOD_RSA,
+				CE_RSA_OP_M_MUL);
+}
+
+static int ss_ecc_verify_decrypt(struct ablkcipher_request *req)
+{
+	return ss_aes_crypt(req, SS_DIR_DECRYPT, SS_METHOD_RSA,
+				CE_RSA_OP_M_MUL);
+}
+
+#endif
+
 #ifdef SS_HMAC_SHA1_ENABLE
 static int ss_hmac_sha1_encrypt(struct ablkcipher_request *req)
 {
 	return ss_aes_crypt(req, SS_DIR_ENCRYPT, SS_METHOD_HMAC_SHA1, SS_AES_MODE_ECB);
 }
 #endif
-
-
 
 #ifdef SS_HMAC_SHA256_ENABLE
 static int ss_hmac_sha256_encrypt(struct ablkcipher_request *req)
@@ -308,7 +437,7 @@ static int sunxi_ss_cra_hash_init(struct crypto_tfm *tfm)
 	crypto_ahash_set_reqsize(__crypto_ahash_cast(tfm),
 				 sizeof(ss_aes_req_ctx_t));
 
-	SS_DBG("reqsize = %ld \n", sizeof(ss_aes_req_ctx_t));
+	SS_DBG("reqsize = %zu \n", sizeof(ss_aes_req_ctx_t));
 	return 0;
 }
 
@@ -386,6 +515,49 @@ static int ss_sha256_init(struct ahash_request *req)
 }
 #endif
 
+#define GET_U64_HIGH(data64)	(int)(data64 >> 32)
+#define GET_U64_LOW(data64)		(int)(data64 & 0xFFFFFFFF)
+
+#ifdef SS_SHA384_ENABLE
+static int ss_sha384_init(struct ahash_request *req)
+{
+	int iv[SHA512_DIGEST_SIZE/4] = {GET_U64_HIGH(SHA384_H0), GET_U64_LOW(SHA384_H0),
+									GET_U64_HIGH(SHA384_H1), GET_U64_LOW(SHA384_H1),
+									GET_U64_HIGH(SHA384_H2), GET_U64_LOW(SHA384_H2),
+									GET_U64_HIGH(SHA384_H3), GET_U64_LOW(SHA384_H3),
+									GET_U64_HIGH(SHA384_H4), GET_U64_LOW(SHA384_H4),
+									GET_U64_HIGH(SHA384_H5), GET_U64_LOW(SHA384_H5),
+									GET_U64_HIGH(SHA384_H6), GET_U64_LOW(SHA384_H6),
+									GET_U64_HIGH(SHA384_H7), GET_U64_LOW(SHA384_H7)};
+
+#ifdef SS_SHA_SWAP_PRE_ENABLE
+	ss_hash_swap((char *)iv, SHA512_DIGEST_SIZE);
+#endif
+
+	return ss_hash_init(req, SS_METHOD_SHA384, SHA512_DIGEST_SIZE, (char *)iv);
+}
+#endif
+
+#ifdef SS_SHA512_ENABLE
+static int ss_sha512_init(struct ahash_request *req)
+{
+	int iv[SHA512_DIGEST_SIZE/4] = {GET_U64_HIGH(SHA512_H0), GET_U64_LOW(SHA512_H0),
+									GET_U64_HIGH(SHA512_H1), GET_U64_LOW(SHA512_H1),
+									GET_U64_HIGH(SHA512_H2), GET_U64_LOW(SHA512_H2),
+									GET_U64_HIGH(SHA512_H3), GET_U64_LOW(SHA512_H3),
+									GET_U64_HIGH(SHA512_H4), GET_U64_LOW(SHA512_H4),
+									GET_U64_HIGH(SHA512_H5), GET_U64_LOW(SHA512_H5),
+									GET_U64_HIGH(SHA512_H6), GET_U64_LOW(SHA512_H6),
+									GET_U64_HIGH(SHA512_H7), GET_U64_LOW(SHA512_H7)};
+
+#ifdef SS_SHA_SWAP_PRE_ENABLE
+	ss_hash_swap((char *)iv, SHA512_DIGEST_SIZE);
+#endif
+
+	return ss_hash_init(req, SS_METHOD_SHA512, SHA512_DIGEST_SIZE, (char *)iv);
+}
+#endif
+
 #define DES_MIN_KEY_SIZE	DES_KEY_SIZE
 #define DES_MAX_KEY_SIZE	DES_KEY_SIZE
 #define DES3_MIN_KEY_SIZE	DES3_EDE_KEY_SIZE
@@ -426,7 +598,13 @@ static int ss_sha256_init(struct ahash_request *req)
 		.ivsize 	 = iv_size, \
 	}, \
 }
-#define DECLARE_SS_RSA_ALG(type, bitwidth)	DECLARE_SS_ASYM_ALG(type, bitwidth, (bitwidth/8), (bitwidth/8))
+#ifdef SS_SUPPORT_CE_V3_1
+#define DECLARE_SS_RSA_ALG(type, bitwidth) \
+		DECLARE_SS_ASYM_ALG(type, bitwidth, (bitwidth/8), (bitwidth/8))
+#else
+#define DECLARE_SS_RSA_ALG(type, bitwidth) \
+		DECLARE_SS_ASYM_ALG(type, bitwidth, (bitwidth/8), 0)
+#endif
 #define DECLARE_SS_DH_ALG(type, bitwidth)	DECLARE_SS_RSA_ALG(type, bitwidth)
 
 #define DECLARE_SS_RNG_ALG(ltype) \
@@ -452,6 +630,18 @@ static struct crypto_alg sunxi_ss_algs[] =
 #ifdef SS_CTS_MODE_ENABLE
 	DECLARE_SS_AES_ALG(AES, aes, cts, 1, AES_MIN_KEY_SIZE),
 #endif
+#ifdef SS_XTS_MODE_ENABLE
+	DECLARE_SS_AES_ALG(AES, aes, xts, 1, AES_MIN_KEY_SIZE),
+#endif
+#ifdef SS_OFB_MODE_ENABLE
+	DECLARE_SS_AES_ALG(AES, aes, ofb, AES_BLOCK_SIZE, AES_MIN_KEY_SIZE),
+#endif
+#ifdef SS_CFB_MODE_ENABLE
+	DECLARE_SS_AES_ALG(AES, aes, cfb1, AES_BLOCK_SIZE, AES_MIN_KEY_SIZE),
+	DECLARE_SS_AES_ALG(AES, aes, cfb8, AES_BLOCK_SIZE, AES_MIN_KEY_SIZE),
+	DECLARE_SS_AES_ALG(AES, aes, cfb64, AES_BLOCK_SIZE, AES_MIN_KEY_SIZE),
+	DECLARE_SS_AES_ALG(AES, aes, cfb128, AES_BLOCK_SIZE, AES_MIN_KEY_SIZE),
+#endif
 	DECLARE_SS_AES_ALG(DES, des, ecb, DES_BLOCK_SIZE, 0),
 	DECLARE_SS_AES_ALG(DES, des, cbc, DES_BLOCK_SIZE, DES_KEY_SIZE),
 	DECLARE_SS_AES_ALG(DES3, des3, ecb, DES3_EDE_BLOCK_SIZE, 0),
@@ -465,6 +655,12 @@ static struct crypto_alg sunxi_ss_algs[] =
 #ifdef SS_RSA2048_ENABLE
 	DECLARE_SS_RSA_ALG(rsa, 2048),
 #endif
+#ifdef SS_RSA3072_ENABLE
+	DECLARE_SS_RSA_ALG(rsa, 3072),
+#endif
+#ifdef SS_RSA4096_ENABLE
+	DECLARE_SS_RSA_ALG(rsa, 4096),
+#endif
 #ifdef SS_DH512_ENABLE
 	DECLARE_SS_DH_ALG(dh, 512),
 #endif
@@ -473,6 +669,35 @@ static struct crypto_alg sunxi_ss_algs[] =
 #endif
 #ifdef SS_DH2048_ENABLE
 	DECLARE_SS_DH_ALG(dh, 2048),
+#endif
+#ifdef SS_DH3072_ENABLE
+	DECLARE_SS_DH_ALG(dh, 3072),
+#endif
+#ifdef SS_DH4096_ENABLE
+	DECLARE_SS_DH_ALG(dh, 4096),
+#endif
+#ifdef SS_ECC_ENABLE
+#ifdef SS_SUPPORT_CE_V3_1
+	DECLARE_SS_ASYM_ALG(ecdh, 160, 160/8, 160/8),
+	DECLARE_SS_ASYM_ALG(ecdh, 224, 224/8, 224/8),
+	DECLARE_SS_ASYM_ALG(ecdh, 256, 256/8, 256/8),
+	DECLARE_SS_ASYM_ALG(ecdh, 521, ((521+31)/32)*4, ((521+31)/32)*4),
+	DECLARE_SS_ASYM_ALG(ecc_sign, 160, 160/8, (160/8)*2),
+	DECLARE_SS_ASYM_ALG(ecc_sign, 224, 224/8, (224/8)*2),
+	DECLARE_SS_ASYM_ALG(ecc_sign, 256, 256/8, (256/8)*2),
+	DECLARE_SS_ASYM_ALG(ecc_sign, 521, ((521+31)/32)*4, ((521+31)/32)*4*2),
+#else
+	DECLARE_SS_ASYM_ALG(ecdh, 160, 160/8, 0),
+	DECLARE_SS_ASYM_ALG(ecdh, 224, 224/8, 0),
+	DECLARE_SS_ASYM_ALG(ecdh, 256, 256/8, 0),
+	DECLARE_SS_ASYM_ALG(ecdh, 521, ((521+31)/32)*4, 0),
+	DECLARE_SS_ASYM_ALG(ecc_sign, 160, 160/8, 0),
+	DECLARE_SS_ASYM_ALG(ecc_sign, 224, 224/8, 0),
+	DECLARE_SS_ASYM_ALG(ecc_sign, 256, 256/8, 0),
+	DECLARE_SS_ASYM_ALG(ecc_sign, 521, ((521+31)/32)*4, 0),
+#endif
+	DECLARE_SS_RSA_ALG(ecc_verify, 512),
+	DECLARE_SS_RSA_ALG(ecc_verify, 1024),
 #endif
 #ifdef SS_TRNG_ENABLE
 	DECLARE_SS_RNG_ALG(trng),
@@ -525,6 +750,7 @@ static struct crypto_alg sunxi_ss_algs[] =
 		.update		= ss_hash_update, \
 		.final		= ss_hash_final, \
 		.finup		= ss_hash_finup, \
+		.digest		= ss_hash_digest, \
 		.halg.digestsize	= utype##_DIGEST_SIZE, \
 		.halg.statesize     = sizeof(struct ltype##_state), \
 		.halg.base	= { \
@@ -550,6 +776,12 @@ static struct ahash_alg sunxi_ss_algs_hash[] = {
 #endif
 #ifdef SS_SHA256_ENABLE
 	DECLARE_SS_AHASH_ALG(sha256, SHA256),
+#endif
+#ifdef SS_SHA384_ENABLE
+	DECLARE_SS_AHASH_ALG(sha384, SHA384),
+#endif
+#ifdef SS_SHA512_ENABLE
+	DECLARE_SS_AHASH_ALG(sha512, SHA512),
 #endif
 };
 
@@ -612,11 +844,11 @@ static int sunxi_ss_hw_init(sunxi_ss_t *sss)
 		return PTR_RET(sss->mclk);
 	}
 
-	if (of_property_read_u32_array(pnode, "clock-frequency", &sss->gen_clkrate, 2))	{
+	if (of_property_read_u32(pnode, "clock-frequency", &sss->gen_clkrate)) {
 		SS_ERR("Unable to get clock-frequency.\n");
 		return -EINVAL;
 	}
-	SS_DBG("The clock frequency: %d, %d\n", sss->gen_clkrate, sss->rsa_clkrate);
+	SS_DBG("The clock frequency: %d\n", sss->gen_clkrate);
 
 #ifdef CONFIG_EVB_PLATFORM
 	ret = clk_set_parent(sss->mclk, pclk);
@@ -791,6 +1023,7 @@ static int sunxi_ss_probe(struct platform_device *pdev)
 		goto err1;
 	}
 
+	ss_dev = sss;
 	ret = sunxi_ss_alg_register();
 	if (ret != 0) {
 		SS_ERR("sunxi_ss_alg_register() failed! return %d \n", ret);
@@ -799,7 +1032,6 @@ static int sunxi_ss_probe(struct platform_device *pdev)
 
 	sunxi_ss_sysfs_create(pdev);
 
-	ss_dev = sss;
 	SS_DBG("SS driver probe succeed, base 0x%p, irq %d!\n", sss->base_addr, sss->irq);
 	return 0;
 

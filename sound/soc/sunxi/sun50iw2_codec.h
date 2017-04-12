@@ -355,6 +355,7 @@
 #define MIC1G_MICBIAS_CTR		 	  (0x0B + ANALOG_FLAG)
 #define LADCMIXSC		  		  (0x0C + ANALOG_FLAG)
 #define RADCMIXSC				  (0x0D + ANALOG_FLAG)
+#define RES_REG 				  (0x0E + ANALOG_FLAG)
 #define ADC_AP_EN				  (0x0F + ANALOG_FLAG)
 #define ADDA_APT0				  (0x10 + ANALOG_FLAG)
 #define ADDA_APT1				  (0x11 + ANALOG_FLAG)
@@ -468,6 +469,9 @@
 #define RADCMIXMUTEROUTPUT		  (1)
 #define RADCMIXMUTELOUTPUT		  (0)
 
+/* RES_REG 0x0e */
+#define MBIASSEL 		  (4)
+#define PA_ANTI_POP 		  (0)
 /*
 *	apb0 base
 *	0x0F ADC_AP_EN

@@ -1427,6 +1427,19 @@ unknown:
 			ctrl->bRequestType, ctrl->bRequest,
 			w_value, w_index, w_length);
 
+#ifdef CONFIG_USB_SUNXI_G_WEBCAM
+		/* getcur request about request error code of webcam. */
+		if (ctrl->bRequest == 0x81 && ctrl->bRequestType == 0xa1
+		    && ctrl->wLength == 0x1 && ctrl->wValue == 0x200
+		    && ctrl->wIndex == 0x0) {
+			u8 ret_data = 0x06;
+
+			value = min_t(w_length, (u16) 1);
+			memcpy(req->buf, &ret_data, value);
+			break;
+		}
+#endif
+
 		/* functions always handle their interfaces and endpoints...
 		 * punt other recipients (other, WUSB, ...) to the current
 		 * configuration code.

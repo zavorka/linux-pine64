@@ -268,6 +268,12 @@
 #define	SND_SOC_DAIFMT_SIG_SHIFT		8
 #define	SND_SOC_DAIFMT_MASTER_SHIFT		12
 
+#define SUNXI_DAUDIO_BCLK			0
+#define SUNXI_DAUDIO_LRCK			1
+#define SUNXI_DAUDIO_MCLK			2
+#define SUNXI_DAUDIO_GEN 			3
+extern int daudio_set_clk_onoff(struct snd_soc_dai *dai, u32 mask, u32 onoff);
+
 #ifndef	CONFIG_SND_SUNXI_SOC_HDMIAUDIO
 static inline int sndhdmi_hw_params(struct snd_pcm_substream *substream,
 	struct snd_pcm_hw_params *params, struct snd_soc_dai *dai)

@@ -32,14 +32,15 @@
 #include <sound/tlv.h>
 #include <linux/regulator/consumer.h>
 #include <linux/io.h>
-
+#include "../sunxi/sunxi_daudio.h"
 
 #define I2C_CHANNEL_NUM 1
 #define REGULATOR_NAME  "voltage_enable"
 
 struct i2c_client *i2c0;
 struct i2c_client *i2c1;
-int  regulator_en ;
+static int  regulator_en ;
+static int init_flag ;
 
 struct voltage_supply {
 	struct regulator *vcc3v3;
@@ -70,6 +71,7 @@ static int cx2081x_suspend(struct snd_soc_codec *codec)
 	if ((regulator_en) && !(IS_ERR(cx2081->vol_supply.vcc3v3))) {
 		regulator_disable(cx2081->vol_supply.vcc3v3);
 		regulator_en = 0;
+		init_flag = 0;
 	}
 	return 0;
 }
@@ -82,8 +84,6 @@ static int cx2081x_resume(struct snd_soc_codec *codec)
 		regulator_enable(cx2081->vol_supply.vcc3v3);
 		regulator_en = 1;
 	}
-	hw_config(i2c0);
-	hw_config(i2c1);
 	return 0;
 }
 #else
@@ -117,135 +117,115 @@ static int cx2081x_write_i2c(u8 reg, unsigned char value,
 static void hw_config(struct i2c_client *client)
 {
 	struct i2c_client *i2c = client ;
-	/*0x10=0x00 ; Disable ADC for Setup*/
-	cx2081x_write_i2c(0x10, 0x00, i2c);
-	/*0x11=0x00 ; Disable ADC for Setup*/
-	cx2081x_write_i2c(0x11, 0x00, i2c);
-	/*0x0E=0x00 ; Gate DAC/PWM clocks*/
-	cx2081x_write_i2c(0x0E, 0x00, i2c);
-	/*0x16=0x00 ; Use DC Filters for ADCs*/
-	cx2081x_write_i2c(0x16, 0x00, i2c);
-	/*0x80=0x03 ; MCLK is an input,enable pad*/
+	cx2081x_write_i2c(0x0f, 0x02, i2c);
+	cx2081x_write_i2c(0x0f, 0x02, i2c);
+	cx2081x_write_i2c(0x0f, 0x00, i2c);
 	cx2081x_write_i2c(0x80, 0x03, i2c);
-	/*0x08=0x20 ; MCLK !gated*/
 	cx2081x_write_i2c(0x08, 0x20, i2c);
-	/*0x09=0x03 ; Use MLCK directly*/
+	cx2081x_write_i2c(0x60, 0x04, i2c);
 	cx2081x_write_i2c(0x09, 0x03, i2c);
-	/*0x0A=0x00 for TX_clk divisor  ;*/
-	cx2081x_write_i2c(0x0A, 0x02, i2c);
-	cx2081x_write_i2c(0x0A, 0x82, i2c);
-	/*0x0C=0x0A ; Slave Mode, ADC3/4 FIFO and I2S TX Clocks !gated*/
-	cx2081x_write_i2c(0x0C, 0x0A, i2c);
-
-	/*
-	0x78=0x2D ; Enable VREF @ 2.8V (5V) or 2.6V (3.3V)
-	*/
 	cx2081x_write_i2c(0x78, 0x2d, i2c);
-	/*
-	0x78=0x6D ; Enable Analog LDO
-	*/
+	cx2081x_write_i2c(0x78, 0x2d, i2c);
+	cx2081x_write_i2c(0x78, 0x2d, i2c);
 	cx2081x_write_i2c(0x78, 0x6d, i2c);
-	/*
-	0x7A=0x01 ; Enable VREFP
-	*/
+	cx2081x_write_i2c(0x78, 0x6d, i2c);
+	cx2081x_write_i2c(0x78, 0x6d, i2c);
 	cx2081x_write_i2c(0x7A, 0x01, i2c);
-
-	/*0x30=0x0B ; 7-Wire Mode, 16-bit, DSP/TDM Mode*/
+	cx2081x_write_i2c(0x16, 0x00, i2c);
+	cx2081x_write_i2c(0x0c, 0x0a, i2c);
+	cx2081x_write_i2c(0x83, 0x0f, i2c);
 	cx2081x_write_i2c(0x30, 0x0B, i2c);
-	/*0x31=0x1F : TX 256 clocks per frame */
 	cx2081x_write_i2c(0x31, 0x1F, i2c);
-	/*0x32=0x07 : RX 64 clocks per frame*/
-	cx2081x_write_i2c(0x32, 0x07, i2c);
-	/*0x39=0x0A ; DSP_DSTART_DLY, MSB First, DSP_TX_OUT_LINE_SEL (all data on TX_DATA_1)*/
-	cx2081x_write_i2c(0x39, 0x0A, i2c);
+	cx2081x_write_i2c(0x39, 0x02, i2c);
 	if (i2c0 == i2c) {
-		/*0x3A=0x00 ; ADC1 starts at 0*/
 		cx2081x_write_i2c(0x3A, 0x00, i2c);
-
-		/*0x3B=0x03 ; ADC2 starts at 2*/
 		cx2081x_write_i2c(0x3B, 0x02, i2c);
-
-		/*0x3C=0x06 ; ADC3 starts at 4*/
 		cx2081x_write_i2c(0x3C, 0x04, i2c);
-
-		/*0x3D=0x09 ; ADC4 starts at 6*/
 		cx2081x_write_i2c(0x3D, 0x06, i2c);
-
-		/*0xBF=0x0f ; ADC4 PGA gain set */
-		cx2081x_write_i2c(0xBF, 0x0f, i2c);
+		cx2081x_write_i2c(0xBC, 0x3d, i2c);
+		cx2081x_write_i2c(0xBD, 0x3d, i2c);
+		cx2081x_write_i2c(0xBE, 0xb, i2c);
+		cx2081x_write_i2c(0xBF, 0xb, i2c);
 
 	} else if (i2c1 == i2c) {
-		/*0x3A=0x00 ; ADC1 starts at 0*/
 		cx2081x_write_i2c(0x3A, 0x08, i2c);
-
-		/*0x3B=0x03 ; ADC2 starts at 3*/
 		cx2081x_write_i2c(0x3B, 0x0a, i2c);
-
-		/*0x3C=0x06 ; ADC3 starts at 6*/
 		cx2081x_write_i2c(0x3C, 0x0c, i2c);
-
-		/*0x3D=0x09 ; ADC4 starts at 9*/
 		cx2081x_write_i2c(0x3D, 0x0e, i2c);
-
-		/*0xBF = 0x3f ; ADC4 PGA gain set*/
-		cx2081x_write_i2c(0xBF, 0x3f, i2c);
+		cx2081x_write_i2c(0xBC, 0x3d, i2c);
+		cx2081x_write_i2c(0xBD, 0x3d, i2c);
+		cx2081x_write_i2c(0xBE, 0x3d, i2c);
+		cx2081x_write_i2c(0xBF, 0x3d, i2c);
 	}
 
-	/*0x3E=0x6F ; Enable TX1-4 and Ch4 is Last of Frame*/
-	cx2081x_write_i2c(0x3E, 0x6F, i2c);
-
-	/*0x3F=0x00 ;*/
-	cx2081x_write_i2c(0x3F, 0x00, i2c);
-	/*0x83=0x0F ; TX_CLK, TX_LRCK are Inputs; TX_DATA_1 is Output*/
-	cx2081x_write_i2c(0x83, 0x0F, i2c);
-	/*0xBC=0x0C ; ADC1 6dB Gain*/
-	cx2081x_write_i2c(0xBC, 0x2b, i2c);
-	/*0xBD=0x0C ; ADC2 6dB Gain*/
-	cx2081x_write_i2c(0xBD, 0x2b, i2c);
-	/*0xBE=0x0C ; ADC3 6dB Gain*/
-	cx2081x_write_i2c(0xBE, 0x2b, i2c);
-	/*0xBF=0x0C ; ADC4 6dB Gain*/
-	cx2081x_write_i2c(0xBF, 0x2b, i2c);
-	/*0xA2=0x18 ; Invert Ch1 DSM Clock, Output on Rising Edge*/
-	cx2081x_write_i2c(0xA2, 0x18, i2c);
-	/*0xA9=0x18 ; Ch2*/
-	cx2081x_write_i2c(0xA9, 0x18, i2c);
-	/*0xB0=0x18 ; Ch3*/
-	cx2081x_write_i2c(0xB0, 0x18, i2c);
-	/*0xB7=0x18 ; Ch4*/
-	cx2081x_write_i2c(0xB7, 0x18, i2c);
-
-	/*0x11=0x1F ; Enable all ADCs and set 16kHz sample rate*/
-	cx2081x_write_i2c(0x11, 0x1F, i2c);
-	/*0x10=0x5F ; Enable all ADC clocks, ADC digital and ADC Mic Clock Gate*/
-	cx2081x_write_i2c(0x10, 0x5F, i2c);
-	/*0xA0=0x0E ; ADC1, Mute PGA, enable AAF/ADC/PGA*/
-	cx2081x_write_i2c(0xA0, 0x0E, i2c);
-	/*0xA7=0x0E ; ADC2, Mute PGA, enable AAF/ADC/PGA*/
-	cx2081x_write_i2c(0xA7, 0x0E, i2c);
-	/*0xAE=0x0E ; ADC3, Mute PGA, enable AAF/ADC/PGA*/
-	cx2081x_write_i2c(0xAE, 0x0E, i2c);
-	/*0xB5=0x0E ; ADC4, Mute PGA, enable AAF/ADC/PGA*/
-	cx2081x_write_i2c(0xB5, 0x0E, i2c);
-	/*0xA0=0x06 ; ADC1 !Mute*/
+	cx2081x_write_i2c(0x3e, 0x0f, i2c);
+	cx2081x_write_i2c(0x10, 0x00, i2c);
+	cx2081x_write_i2c(0x11, 0x00, i2c);
+	cx2081x_write_i2c(0x10, 0x1f, i2c);
+	cx2081x_write_i2c(0x11, 0x1f, i2c);
 	cx2081x_write_i2c(0xA0, 0x07, i2c);
-	/*0xA7=0x06 ; ADC2 !Mute*/
-	cx2081x_write_i2c(0xA7, 0x07, i2c);
-	/*0xAE=0x06 ; ADC3 !Mute*/
-	cx2081x_write_i2c(0xAE, 0x07, i2c);
-	/*0xB5=0x06 ; ADC4 !Mute*/
-	cx2081x_write_i2c(0xB5, 0x07, i2c);
+	cx2081x_write_i2c(0xa7, 0x07, i2c);
+	cx2081x_write_i2c(0xae, 0x07, i2c);
+	cx2081x_write_i2c(0xb5, 0x07, i2c);
 
 }
+static void cx2081x_reset(struct i2c_client *client)
+{
+	struct i2c_client *i2c = client ;
+	cx2081x_write_i2c(0x08, 0x20, i2c);
+	cx2081x_write_i2c(0x09, 0x03, i2c);
+	cx2081x_write_i2c(0x80, 0x03, i2c);
+	cx2081x_write_i2c(0x60, 0x04, i2c);
+	cx2081x_write_i2c(0x0f, 0x01, i2c);
+	cx2081x_write_i2c(0x0f, 0x01, i2c);
+	cx2081x_write_i2c(0x80, 0x03, i2c);
+	cx2081x_write_i2c(0x40, 0x1f, i2c);
+}
+
+static void hw_config_start(struct i2c_client *client)
+{
+	struct i2c_client *i2c = client ;
+
+	cx2081x_write_i2c(0x10, 0x5f, i2c);
+}
+
 static int cx2081x_hw_params(struct snd_pcm_substream *substream,
 			    struct snd_pcm_hw_params *params,
 			    struct snd_soc_dai *dai)
 {
 	u16 blen;
-
-	hw_config(i2c0);
-	hw_config(i2c1);
-
+	u32 reg_value = 0;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	if (init_flag == 0) {
+		/*
+		mask :0 -- bclk
+		      1 -- lrck
+		      2 -- mclk
+		      3 -- global_enable
+		*/
+		daudio_set_clk_onoff(cpu_dai, SUNXI_DAUDIO_BCLK, 0);
+		daudio_set_clk_onoff(cpu_dai, SUNXI_DAUDIO_LRCK, 0);
+		daudio_set_clk_onoff(cpu_dai, SUNXI_DAUDIO_GEN, 0);
+		usleep_range(1000, 2000);
+		cx2081x_reset(i2c0);
+		msleep(30);
+		cx2081x_reset(i2c1);
+		msleep(30);
+		daudio_set_clk_onoff(cpu_dai, SUNXI_DAUDIO_MCLK, 0);
+		usleep_range(1000, 2000);
+		hw_config(i2c0);
+		msleep(30);
+		hw_config(i2c1);
+		hw_config_start(i2c0);
+		hw_config_start(i2c1);
+		daudio_set_clk_onoff(cpu_dai, SUNXI_DAUDIO_MCLK, 1);
+		daudio_set_clk_onoff(cpu_dai, SUNXI_DAUDIO_GEN, 1);
+		daudio_set_clk_onoff(cpu_dai, SUNXI_DAUDIO_BCLK, 1);
+		msleep(10);
+		daudio_set_clk_onoff(cpu_dai, SUNXI_DAUDIO_LRCK, 1);
+		init_flag = 1;
+	}
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
 		blen = 0x0;

@@ -281,12 +281,16 @@ static inline u32 sunxi_irq_status_offset(u16 irq)
 	return irq_num * IRQ_STATUS_IRQ_BITS;
 }
 
-static inline u32 sunxi_irq_debounce_reg(u16 pin)
+static inline u32 sunxi_irq_debounce_reg_from_bank(u8 bank)
 {
-	u8	bank = pin / PINS_PER_BANK;
-	u32	offset = bank * IRQ_MEM_SIZE;
-	offset += IRQ_DEBOUNCE_REG;
-	return round_down(offset, 4);
+	return IRQ_DEBOUNCE_REG + bank * IRQ_MEM_SIZE;
+}
+
+static inline u32 sunxi_irq_debounce_reg(u16 irq)
+{
+	u8 bank = irq / IRQ_PER_BANK;
+
+	return sunxi_irq_debounce_reg_from_bank(bank);
 }
 
 int sunxi_pinctrl_init(struct platform_device *pdev,

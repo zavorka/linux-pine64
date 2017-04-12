@@ -175,7 +175,8 @@ static int codec_init(struct sunxi_codec *sunxi_internal_codec)
 {
 	struct snd_soc_codec *codec = sunxi_internal_codec->codec;
 
-	snd_soc_update_bits(codec, LINEOUT_VOLC, (0x1f<<LINEOUTVOL), (sunxi_internal_codec->gain_config.spkervol<<LINEOUTVOL));
+	snd_soc_update_bits(codec, LINEOUT_VOLC, (0x1f<<LINEOUTVOL),
+				(sunxi_internal_codec->gain_config.spkervol<<LINEOUTVOL));
 	/*when TX FIFO available room less than or equal N,
 	 * DRQ Requeest will be de-asserted.
 	 */
@@ -189,9 +190,15 @@ static int codec_init(struct sunxi_codec *sunxi_internal_codec)
 	 */
 	snd_soc_update_bits(codec, SUNXI_DAC_FIFOC, (0x1 << FIR_VER),
 			    (0x0 << FIR_VER));
+	snd_soc_update_bits(codec, SUNXI_ADC_FIFOC, (0x1 << ADC_FIFO_FLUSH),
+			    (0x1 << ADC_FIFO_FLUSH));
 
 	snd_soc_update_bits(codec, SUNXI_ADC_FIFOC, (0x1 << ADC_FIFO_FLUSH),
 			    (0x1 << ADC_FIFO_FLUSH));
+	snd_soc_update_bits(codec, PAEN_CTR, (0x3 << PA_ANTI_POP_CTRL),
+			    (0x0 << PA_ANTI_POP_CTRL));
+	snd_soc_update_bits(codec, RES_REG, (0x7 << PA_ANTI_POP),
+			    (0x1 << PA_ANTI_POP));
 
 	if (sunxi_internal_codec->hwconfig.adcagc_cfg)
 		adcagc_config(sunxi_internal_codec->codec);
@@ -282,33 +289,80 @@ static int ac_speaker_event(struct snd_soc_dapm_widget *w,
 	pr_debug("..speaker power state change.\n");
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
-		sunxi_internal_codec->spkenable = true;
-		msleep(50);
-		snd_soc_update_bits(codec, PAEN_CTR, (0x1 << LINEOUTEN),
+		snd_soc_update_bits(codec, ROMIXSC,
+			    (0x1 << RMIXMUTEDACR), (0x1 << RMIXMUTEDACR));
+		snd_soc_update_bits(codec, LOMIXSC,
+			    (0x1 << LMIXMUTEDACL), (0x1 << LMIXMUTEDACL));
+
+		if (sunxi_internal_codec->spkenable != true) {
+			snd_soc_update_bits(codec, PAEN_CTR, (0x1 << LINEOUTEN),
 				    (0x1 << LINEOUTEN));
-		snd_soc_update_bits(codec, MIC2G_LINEOUT_CTR,
+			snd_soc_update_bits(codec, MIC2G_LINEOUT_CTR,
 				    (0x1 << LINEOUTL_EN), (0x1 << LINEOUTL_EN));
-		snd_soc_update_bits(codec, MIC2G_LINEOUT_CTR,
+			snd_soc_update_bits(codec, MIC2G_LINEOUT_CTR,
 				    (0x1 << LINEOUTR_EN), (0x1 << LINEOUTR_EN));
+			msleep(270);
+			sunxi_internal_codec->spkenable = true;
+		}
+		msleep(50);
 		if (spk_gpio.cfg)
 			gpio_set_value(spk_gpio.gpio, 1);
-
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
-		sunxi_internal_codec->spkenable = false;
 		if (spk_gpio.cfg)
 			gpio_set_value(spk_gpio.gpio, 0);
-		snd_soc_update_bits(codec, PAEN_CTR, (0x1 << LINEOUTEN),
-				    (0x0 << LINEOUTEN));
-		snd_soc_update_bits(codec, MIC2G_LINEOUT_CTR,
-				    (0x1 << LINEOUTL_EN), (0x0 << LINEOUTL_EN));
-		snd_soc_update_bits(codec, MIC2G_LINEOUT_CTR,
-				    (0x1 << LINEOUTR_EN), (0x0 << LINEOUTR_EN));
+		snd_soc_update_bits(codec, ROMIXSC,
+				    (0x1 << RMIXMUTEDACR), (0x0 << RMIXMUTEDACR));
+		snd_soc_update_bits(codec, LOMIXSC,
+				    (0x1 << LMIXMUTEDACL), (0x0 << LMIXMUTEDACL));
 	default:
 		break;
 	}
 	return 0;
 }
+
+static int codec_get_hub_mode(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	unsigned int reg_val;
+
+	reg_val = snd_soc_read(codec, SUNXI_DAC_DPC);
+
+	ucontrol->value.integer.value[0] = ((reg_val & (1<<HUB_EN)) ? 2 : 1);
+	return 0;
+}
+
+static int codec_set_hub_mode(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+
+	switch (ucontrol->value.integer.value[0]) {
+	case	0:
+	case	1:
+		snd_soc_update_bits(codec, SUNXI_DAC_DPC, (0x1<<HUB_EN), (0x0<<HUB_EN));
+		snd_soc_update_bits(codec, SUNXI_DAC_FIFOC, (0x1<<DAC_DRQ_EN), (0x0<<DAC_DRQ_EN));
+		break;
+	case	2:
+		snd_soc_update_bits(codec, SUNXI_DAC_DPC, (0x1<<HUB_EN), (0x1<<HUB_EN));
+		snd_soc_update_bits(codec, SUNXI_DAC_FIFOC, (0x1<<DAC_DRQ_EN), (0x1<<DAC_DRQ_EN));
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
+}
+
+
+/* sunxi codec hub mdoe select */
+static const char *codec_hub_function[] = {"null" , "hub_disable", "hub_enable"};
+
+static const struct soc_enum codec_hub_mode_enum[] = {
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(codec_hub_function),
+			codec_hub_function),
+};
+
 
 static ssize_t show_audio_reg(struct device *dev, struct device_attribute *attr,
 			      char *buf)
@@ -446,8 +500,10 @@ static const struct snd_kcontrol_new sunxi_codec_controls[] = {
 
 	SOC_SINGLE_TLV("LINEINL/R to L_R output mixer gain", LINEIN_GCTR,
 		       LINEING, 0x7, 0, linein_to_l_r_mix_vol_tlv),
-	 /*ADC*/ SOC_SINGLE_TLV("ADC input gain control", ADC_AP_EN, ADCG, 0x7,
+	 /*ADC*/
+	SOC_SINGLE_TLV("ADC input gain control", ADC_AP_EN, ADCG, 0x7,
 				0, adc_input_gain_tlv),
+	SOC_ENUM_EXT("codec hub mode" , codec_hub_mode_enum[0], codec_get_hub_mode, codec_set_hub_mode),
 };
 
 /*output mixer source select*/
@@ -973,10 +1029,10 @@ static int codec_suspend(struct snd_soc_codec *codec)
 		clk_disable(sunxi_internal_codec->pllclk);
 	}
 
-	if (!IS_ERR(sunxi_internal_codec->vol_supply.vcc3v3)) {
+	if (!IS_ERR_OR_NULL(sunxi_internal_codec->vol_supply.vcc3v3)) {
 		regulator_disable(sunxi_internal_codec->vol_supply.vcc3v3);
 	}
-
+	sunxi_internal_codec->spkenable = false;
 
 	pr_debug("[audio codec]:suspend end..\n");
 
@@ -990,7 +1046,7 @@ static int codec_resume(struct snd_soc_codec *codec)
 	    snd_soc_codec_get_drvdata(codec);
 	pr_debug("[audio codec]:resume start\n");
 
-	if (!IS_ERR(sunxi_internal_codec->vol_supply.vcc3v3)) {
+	if (!IS_ERR_OR_NULL(sunxi_internal_codec->vol_supply.vcc3v3)) {
 		ret = regulator_enable(sunxi_internal_codec->vol_supply.vcc3v3);
 		if (ret) {
 			pr_err("[%s]: cpvdd:regulator_enable() failed!\n",
@@ -1014,13 +1070,11 @@ static int codec_resume(struct snd_soc_codec *codec)
 		}
 	}
 
-	codec_init(sunxi_internal_codec);
-
 	if (spk_gpio.cfg) {
-		gpio_direction_output(spk_gpio.gpio, 1);
-		gpio_set_value(spk_gpio.gpio, 0);
+		gpio_direction_output(spk_gpio.gpio, 0);
 	}
 
+	codec_init(sunxi_internal_codec);
 	pr_debug("[audio codec]:resume end..\n");
 	return 0;
 }
@@ -1119,10 +1173,10 @@ static int  sunxi_internal_codec_probe(struct platform_device *pdev)
 
 	sunxi_internal_codec->pllclk = of_clk_get(node, 0);
 	sunxi_internal_codec->moduleclk = of_clk_get(node, 1);
-	if (IS_ERR(sunxi_internal_codec->pllclk)
-	    || IS_ERR(sunxi_internal_codec->moduleclk)) {
+	if (IS_ERR_OR_NULL(sunxi_internal_codec->pllclk)
+	    || IS_ERR_OR_NULL(sunxi_internal_codec->moduleclk)) {
 		dev_err(&pdev->dev, "[audio-cpudai]Can't get cpudai clocks\n");
-		if (IS_ERR(sunxi_internal_codec->pllclk))
+		if (IS_ERR_OR_NULL(sunxi_internal_codec->pllclk))
 			ret = PTR_ERR(sunxi_internal_codec->pllclk);
 		else
 			ret = PTR_ERR(sunxi_internal_codec->moduleclk);
@@ -1146,7 +1200,7 @@ static int  sunxi_internal_codec_probe(struct platform_device *pdev)
 	} else {
 		sunxi_internal_codec->vol_supply.vcc3v3 =
 		    regulator_get(NULL, regulator_name);
-		if (IS_ERR(sunxi_internal_codec->vol_supply.vcc3v3)) {
+		if (IS_ERR_OR_NULL(sunxi_internal_codec->vol_supply.vcc3v3)) {
 		pr_err("get audio vcc-audio-33 failed\n");
 		} else {
 			ret = regulator_set_voltage(sunxi_internal_codec->vol_supply.vcc3v3, 3300000, 3300000);
@@ -1196,6 +1250,7 @@ static int  sunxi_internal_codec_probe(struct platform_device *pdev)
 			spk_gpio.cfg = 1;
 			gpio_direction_output(spk_gpio.gpio, 1);
 			gpio_set_value(spk_gpio.gpio, 0);
+			gpio_set_value(spk_gpio.gpio, 1);
 		}
 	}
 

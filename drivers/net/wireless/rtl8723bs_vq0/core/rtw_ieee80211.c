@@ -1392,6 +1392,7 @@ int rtw_get_mac_addr_intel(unsigned char *buf)
  *
  * Input:
  * adapter: mac_address pointer.
+ * check_local_bit: check locally bit or not.
  *
  * Output:
  * _TRUE: The mac address is invalid.
@@ -1399,7 +1400,7 @@ int rtw_get_mac_addr_intel(unsigned char *buf)
  *
  * Auther: Isaac.Li
  */
-u8 rtw_check_invalid_mac_address(u8 *mac_addr)
+u8 rtw_check_invalid_mac_address(u8 *mac_addr, u8 check_local_bit)
 {
 	u8 null_mac_addr[ETH_ALEN] = {0, 0, 0, 0, 0, 0};
 	u8 multi_mac_addr[ETH_ALEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
@@ -1420,9 +1421,11 @@ u8 rtw_check_invalid_mac_address(u8 *mac_addr)
 		goto func_exit;
 	}
 
+	if (check_local_bit == _TRUE) {
 	if (mac_addr[0] & BIT1) {
 		res = _TRUE;
 		goto func_exit;
+	}
 	}
 
 func_exit:
@@ -1437,6 +1440,7 @@ extern char* rtw_initmac;
  */
 void rtw_macaddr_cfg(u8 *out, const u8 *hw_mac_addr)
 {
+#define DEFAULT_RANDOM_MACADDR 1
 	u8 mac[ETH_ALEN];
 
 	if (out == NULL) {
@@ -1454,6 +1458,7 @@ void rtw_macaddr_cfg(u8 *out, const u8 *hw_mac_addr)
 		goto err_chk;
 	}
 
+	/* platform specified */
 #ifdef CONFIG_PLATFORM_INTEL_BYT
 	if (rtw_get_mac_addr_intel(mac) == 0)
 		goto err_chk;
@@ -1466,16 +1471,22 @@ void rtw_macaddr_cfg(u8 *out, const u8 *hw_mac_addr)
 	}
 
 err_chk:
-	if (rtw_check_invalid_mac_address(mac) == _TRUE) {
-		DBG_871X_LEVEL(_drv_err_, "invalid mac addr:"MAC_FMT", assign default one!!!\n", MAC_ARG(mac));
-
-		/* use default mac address */
+	if (rtw_check_invalid_mac_address(mac, _TRUE) == _TRUE) {
+#if DEFAULT_RANDOM_MACADDR
+		DBG_871X_LEVEL(_drv_err_, "invalid mac addr:"MAC_FMT", assign random MAC\n", MAC_ARG(mac));
+		*((u32 *)(&mac[2])) = rtw_random32();
+		mac[0] = 0x00;
+		mac[1] = 0xe0;
+		mac[2] = 0x4c;
+#else
+		DBG_871X_LEVEL(_drv_err_, "invalid mac addr:"MAC_FMT", assign default one\n", MAC_ARG(mac));
 		mac[0] = 0x00;
 		mac[1] = 0xe0;
 		mac[2] = 0x4c;
 		mac[3] = 0x87;
 		mac[4] = 0x00;
 		mac[5] = 0x00;
+#endif
 	}
 
 	_rtw_memcpy(out, mac, ETH_ALEN);

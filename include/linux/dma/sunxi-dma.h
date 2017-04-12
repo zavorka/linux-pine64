@@ -22,8 +22,16 @@
 
 #include <linux/dmaengine.h>
 
-#ifdef CONFIG_ARCH_SUN8IW10
+#if defined(CONFIG_ARCH_SUN8IW10)
 #include "sunxi/dma-sun8iw10.h"
+#elif defined(CONFIG_ARCH_SUN8IW11)
+#include "sunxi/dma-sun8iw11.h"
+#elif defined(CONFIG_ARCH_SUN50IW2P1)
+#include "sunxi/dma-sun50iw2.h"
+#elif defined(CONFIG_ARCH_SUN50IW3P1)
+#include "sunxi/dma-sun50iw3.h"
+#elif defined(CONFIG_ARCH_SUN50IW6P1)
+#include "sunxi/dma-sun50iw6.h"
 #else
 
 #define DRQSRC_SRAM		0
@@ -267,4 +275,3 @@ struct sunxi_dma_info {
 };
 
 #endif /* __SUNXI_DMA_H__ */
-

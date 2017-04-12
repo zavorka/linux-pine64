@@ -42,32 +42,16 @@
 #define LRADC_ADC0_DOWNPEND     (1<<1)
 #define LRADC_ADC0_DATAPEND     (1<<0)
 
-#define EVB
-//#define CUSTUM
 #define ONE_CHANNEL
 #define MODE_0V2
-//#define MODE_0V15
-//#define TWO_CHANNEL
+
 #ifdef MODE_0V2
 /* standard of key maping
  * 0.2V mode
  */
-#define REPORT_START_NUM            (2)
 #define REPORT_KEY_LOW_LIMIT_COUNT  (1)
-#define MAX_CYCLE_COUNTER           (100)
-//#define REPORT_REPEAT_KEY_BY_INPUT_CORE
-//#define REPORT_REPEAT_KEY_FROM_HW
-#define INITIAL_VALUE               (0Xff)
-#endif
 
-struct sunxi_key_data{
-	struct platform_device	*pdev;
-	struct clk *mclk;
-	struct clk *pclk;
-	struct input_dev *input_dev;
-	void __iomem 	*reg_base;
-	int	irq_num;
-};
+#endif
 
 struct sunxi_adc_disc{
 	u32 measure;

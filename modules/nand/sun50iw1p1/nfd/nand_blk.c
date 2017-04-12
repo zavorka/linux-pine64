@@ -189,51 +189,46 @@ static int do_blktrans_request(struct nand_blk_ops *tr,struct nand_blk_dev *dev,
         return -EIO;
     }
 
-    if (req->cmd_flags & REQ_DISCARD)
-    {
-        nand_dbg_err("REQ_DISCARD block: %d nsect: %d\n", block,nsect);
+//  if (req->cmd_flags & REQ_DISCARD)
+//      return tr->discard(dev, block, nsect);
+
+    switch(rq_data_dir(req)) {
+    case READ:
+
+        if(debug_data == 10){
+            nand_dbg_err("read_addr: %d nsect: %d buf: %p\n", block,nsect,buf);
+        }
+
+        //start_time(1);
+
+        nand_dev->read_data(nand_dev,block,nsect,buf);
+
+        //end_time(1,100000,nsect);
+
         rq_flush_dcache_pages(req);
-        nand_dev->discard(nand_dev,block,nsect);
+        ret = 0;
         goto request_exit;
-    }
 
-    switch(rq_data_dir(req)) 
-    {
-        case READ:
-            if(debug_data == 10)
-            {
-                nand_dbg_err("read_addr: %d nsect: %d buf: %p\n", block,nsect,buf);
-            }
+    case WRITE:
 
-            //start_time(1);
+        rq_flush_dcache_pages(req);
 
-            nand_dev->read_data(nand_dev,block,nsect,buf);
+        if(debug_data == 10){
+            nand_dbg_err("write_addr: %d nsect: %d buf: %p\n", block,nsect,buf);
+        }
 
-            //end_time(1,100000,nsect);
+        //start_time(2);
 
-            rq_flush_dcache_pages(req);
-            ret = 0;
-            goto request_exit;
+        nand_dev->write_data(nand_dev,block,nsect,buf);
 
-        case WRITE:
-            rq_flush_dcache_pages(req);
+        //end_time(2,100000,nsect);
 
-            if(debug_data == 10)
-            {
-                nand_dbg_err("write_addr: %d nsect: %d buf: %p\n", block,nsect,buf);
-            }
-
-            //start_time(2);
-            nand_dev->write_data(nand_dev,block,nsect,buf);
-            //end_time(2,100000,nsect);
-
-            ret = 0;
-
-            goto request_exit;
-        default:
-            nand_dbg_err(KERN_NOTICE "Unknown request %u\n", rq_data_dir(req));
-            ret = -EIO;
-            goto request_exit;
+        ret = 0;
+        goto request_exit;
+    default:
+        nand_dbg_err(KERN_NOTICE "Unknown request %u\n", rq_data_dir(req));
+        ret = -EIO;
+        goto request_exit;
     }
 
 request_exit:
@@ -807,9 +802,8 @@ added:
     dev->rq->queuedata = dev;
     blk_queue_logical_block_size(dev->rq, tr->blksize);
 
-
-    queue_flag_set_unlocked(QUEUE_FLAG_DISCARD, dev->rq);
-    dev->rq->limits.max_discard_sectors = UINT_MAX;
+    //queue_flag_set_unlocked(QUEUE_FLAG_DISCARD, dev->rq);
+    //dev->rq->limits.max_discard_sectors = UINT_MAX;
 
     gd->queue = dev->rq;
 

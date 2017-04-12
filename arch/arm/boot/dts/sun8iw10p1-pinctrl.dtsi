@@ -22,13 +22,14 @@
 			vdevice_pins_a: vdevice@0 {
 				allwinner,pins = "PB0", "PB1";
 				allwinner,function = "vdevice";
-				allwinner,muxsel = <3>;
+				allwinner,muxsel = <5>;
 				allwinner,drive = <1>;
 				allwinner,pull = <1>;
+				allwinner,data = <1>;
 			};
 
 			uart0_pins_a: uart0@0 {
-				allwinner,pins = "PB8", "PB9";
+				allwinner,pins = "PB4", "PB5";
 				allwinner,pname = "uart0_tx", "uart0_rx";
 				allwinner,function = "uart0";
 				allwinner,muxsel = <4>;
@@ -37,7 +38,7 @@
 			};
 
 			uart0_pins_b: uart0@1 {
-				allwinner,pins = "PB8", "PB9";
+				allwinner,pins = "PB4", "PB5";
 				allwinner,function = "io_disabled";
 				allwinner,muxsel = <7>;
 				allwinner,drive = <1>;
@@ -274,22 +275,6 @@
 				allwinner,pull = <1>;
 			};
 
-			sdc1_pins_a: sdc1@0 {
-				allwinner,pins = "PG0", "PG1", "PG2", "PG3","PG4","PG5";
-				allwinner,function = "sdc1";
-				allwinner,muxsel = <2>;
-				allwinner,drive = <3>;
-				allwinner,pull = <1>;
-			};
-
-			sdc1_pins_b: sdc1@1 {
-				allwinner,pins = "PG0", "PG1", "PG2", "PG3","PG4","PG5";
-				allwinner,function = "io_disabled";
-				allwinner,muxsel = <7>;
-				allwinner,drive = <1>;
-				allwinner,pull = <1>;
-			};
-
 			sdc2_pins_a: sdc2@0 {
 				allwinner,pins = "PC1","PC4", "PC5", "PC6", "PC7","PC8","PC9","PC10","PC11","PC12","PC13","PC14";
 				allwinner,function = "sdc2";
@@ -386,15 +371,8 @@
 				allwinner,drive = <1>;
 				allwinner,pull = <0>;
 			};
-			spdif_pins_b: spdif@1 {
-				allwinner,pins = "PB1";
-				allwinner,function = "spdif0";
-				allwinner,muxsel = <4>;
-				allwinner,drive = <1>;
-				allwinner,pull = <0>;
-			};
-			spdif_pins_c: spdif_sleep@0 {
-				allwinner,pins = "PG11", "PB1";/*ph8-spec*/
+			spdif_pins_b: spdif_sleep@0 {
+				allwinner,pins = "PG11";/*ph8-spec*/
 				allwinner,function = "io_disabled";
 				allwinner,muxsel = <7>;
 				allwinner,drive = <1>;
@@ -466,14 +444,6 @@
 				allwinner,drive = <3>;
 				allwinner,pull = <0>;
 			};
-		};
-
-		axp_pio: pinctrl@0 {
-			compatible = "allwinner,axp-pinctrl";
-			gpio-controller;
-			#size-cells = <0>;
-			#gpio-cells = <6>;
-			device_type = "axp_pio";
 		};
 	};
 };
