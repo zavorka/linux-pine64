@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2011-2015 ARM Limited. All rights reserved.
+ * Copyright (C) 2011-2016 ARM Limited. All rights reserved.
  * 
  * This program is free software and is provided to you under the terms of the GNU General Public License version 2
  * as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
@@ -18,6 +18,7 @@
 #include <linux/fs.h>
 #include <linux/device.h>
 #include <linux/module.h>
+#include <linux/aw/platform.h>
 #include "mali_kernel_license.h"
 #include "mali_kernel_common.h"
 #include "mali_ukk.h"
@@ -59,6 +60,12 @@
 #define PRIVATE_DATA_COUNTER_GET_SUB_JOB(a) (((a) >> 8) & 0xFF)
 
 #define POWER_BUFFER_SIZE 3
+
+extern aw_private_data aw_private;
+extern void set_freq_wrap(int freq);
+extern void set_voltage(int vol);
+extern void dvfs_change(u8 level);
+extern void revise_current_level(void);
 
 static struct dentry *mali_debugfs_dir = NULL;
 
@@ -880,10 +887,17 @@ static const struct file_operations profiling_events_human_readable_fops = {
 
 static int memory_debugfs_show(struct seq_file *s, void *private_data)
 {
-	seq_printf(s, "  %-25s  %-10s  %-10s  %-15s  %-15s  %-10s  %-10s\n"\
-		   "==============================================================================================================\n",
+#ifdef MALI_MEM_SWAP_TRACKING
+	seq_printf(s, "  %-25s  %-10s  %-10s  %-15s  %-15s  %-10s  %-10s %-10s \n"\
+		   "=================================================================================================================================\n",
+		   "Name (:bytes)", "pid", "mali_mem", "max_mali_mem",
+		   "external_mem", "ump_mem", "dma_mem", "swap_mem");
+#else
+	seq_printf(s, "  %-25s  %-10s  %-10s  %-15s  %-15s  %-10s  %-10s \n"\
+		   "========================================================================================================================\n",
 		   "Name (:bytes)", "pid", "mali_mem", "max_mali_mem",
 		   "external_mem", "ump_mem", "dma_mem");
+#endif
 	mali_session_memory_tracking(s);
 	return 0;
 }
@@ -907,7 +921,7 @@ static ssize_t utilization_gp_pp_read(struct file *filp, char __user *ubuf, size
 	size_t r;
 	u32 uval = _mali_ukk_utilization_gp_pp();
 
-	r = snprintf(buf, 64, "%u\n", uval);
+	r = snprintf(buf, 64, "%u%%\n", uval*100/256);
 	return simple_read_from_buffer(ubuf, cnt, ppos, buf, r);
 }
 
@@ -917,7 +931,7 @@ static ssize_t utilization_gp_read(struct file *filp, char __user *ubuf, size_t 
 	size_t r;
 	u32 uval = _mali_ukk_utilization_gp();
 
-	r = snprintf(buf, 64, "%u\n", uval);
+	r = snprintf(buf, 64, "%u%%\n", uval*100/256);
 	return simple_read_from_buffer(ubuf, cnt, ppos, buf, r);
 }
 
@@ -927,7 +941,7 @@ static ssize_t utilization_pp_read(struct file *filp, char __user *ubuf, size_t 
 	size_t r;
 	u32 uval = _mali_ukk_utilization_pp();
 
-	r = snprintf(buf, 64, "%u\n", uval);
+	r = snprintf(buf, 64, "%u%%\n", uval*100/256);
 	return simple_read_from_buffer(ubuf, cnt, ppos, buf, r);
 }
 
@@ -1136,6 +1150,9 @@ static ssize_t version_read(struct file *filp, char __user *buf, size_t count, l
 	case _MALI_PRODUCT_ID_MALI450:
 		r = snprintf(buffer, 64, "Mali-450 MP\n");
 		break;
+	case _MALI_PRODUCT_ID_MALI470:
+		r = snprintf(buffer, 64, "Mali-470 MP\n");
+		break;
 	case _MALI_PRODUCT_ID_UNKNOWN:
 		return -EINVAL;
 		break;
@@ -1181,6 +1198,170 @@ static const struct file_operations timeline_dump_fops = {
 	.release = single_release
 };
 #endif
+
+static int get_value(char *cmd, char *buf, int cmd_size, int total_size)
+{
+	char data[5];
+	unsigned long val;
+	int i, j;
+
+	if (!strncmp(buf, cmd, cmd_size)) {
+		for (i = 0; i < total_size; i++) {
+			if (*(buf+i) == ':') {
+				for (j = 0; j < total_size - i - 1; j++)
+					data[j] = *(buf + i + 1 + j);
+				data[j] = '\0';
+				break;
+			}
+		}
+
+		if (strict_strtoul(data, 10, &val)) {
+			MALI_PRINT_ERROR(("Invalid parameter!\n"));
+			return -1;
+		} else {
+			return val;
+		}
+	}
+
+	return -1;
+}
+
+static ssize_t write_write(struct file *filp, const char __user *buf, size_t count, loff_t *offp)
+{
+	int val, i, token = 0;
+	char buffer[100];
+
+	if (count >= sizeof(buffer))
+		return -ENOMEM;
+
+	if (copy_from_user(buffer, buf, count))
+		return -EFAULT;
+
+	buffer[count] = '\0';
+
+	for (i = 0; i < count; i++) {
+		if (*(buffer+i) == ';') {
+			val = get_value("enable", buffer + token, 6, i - token);
+			if (val == 0 || val == 1) {
+				aw_private.debug.enable = val;
+				break;
+			}
+
+			val = get_value("frequency", buffer + token, 9, i - token);
+			if (val >= 0) {
+				if (val == 0 || val == 1) {
+					aw_private.debug.frequency = val;
+				} else {
+					set_freq_wrap(val);
+
+					revise_current_level();
+				}
+				break;
+			}
+
+			val = get_value("voltage", buffer + token, 7, i - token);
+			if (val >= 0) {
+				if (val == 0 || val == 1)
+					aw_private.debug.voltage = val;
+				else
+					set_voltage(val);
+				break;
+			}
+
+			val = get_value("tempctrl", buffer + token, 8, i - token);
+			if (val >= 0 && val <= 3) {
+				if (val == 0 || val == 1)
+					aw_private.debug.tempctrl = val;
+				else
+					aw_private.tempctrl.temp_ctrl_status = val - 2;
+				break;
+			}
+
+			val = get_value("scenectrl", buffer + token, 9, i - token);
+			if (val >= 0 && val <= 5) {
+				if (val == 0 || val == 1) {
+					aw_private.debug.scenectrl = val;
+				} else if (val == 2 || val == 3) {
+					aw_private.pm.scene_ctrl_status = val - 2;
+				} else {
+					aw_private.pm.scene_ctrl_cmd = val - 4;
+					if (aw_private.pm.scene_ctrl_cmd)
+						dvfs_change(aw_private.pm.max_available_level);
+				}
+				break;
+			}
+
+			val = get_value("dvfs", buffer + token, 4, i - token);
+			if (val >= 0 && val <= 3) {
+				if (val == 0 || val == 1)
+					aw_private.debug.dvfs = val;
+				else
+					aw_private.pm.dvfs_status = val - 2;
+				break;
+			}
+
+			val = get_value("level", buffer + token, 5, i - token);
+			if (val == 0 || val == 1) {
+				aw_private.debug.level = val;
+				break;
+			}
+
+			token = i + 1;
+		}
+	}
+
+	return count;
+}
+
+static const struct file_operations write_fops = {
+	.owner = THIS_MODULE,
+	.write = write_write,
+};
+
+static int dump_debugfs_show(struct seq_file *s, void *private_data)
+{
+	int i;
+
+	if (aw_private.debug.enable) {
+		if (aw_private.debug.frequency)
+			seq_printf(s, "frequency: %3dMHz; ", aw_private.pm.clk[0].freq);
+		if (aw_private.debug.voltage)
+			seq_printf(s, "voltage: %4dmV; ", aw_private.pm.current_vol);
+		if (aw_private.debug.tempctrl)
+			seq_printf(s, "tempctrl: %s; ", aw_private.tempctrl.temp_ctrl_status ? "on" : "off");
+		if (aw_private.debug.scenectrl)
+			seq_printf(s, "scenectrl: %s; ", aw_private.pm.scene_ctrl_status ? "on" : "off");
+		if (aw_private.debug.dvfs)
+			seq_printf(s, "dvfs: %s; ", aw_private.pm.dvfs_status ? "on" : "off");
+		if (aw_private.debug.level) {
+			seq_printf(s, "\nmax_available_level: %d\n", aw_private.pm.max_available_level);
+			seq_printf(s, "current_level: %d\n", aw_private.pm.current_level);
+			seq_printf(s, "cool_freq: %dMHz\n", aw_private.pm.cool_freq);
+			seq_printf(s, "scene_ctrl_cmd: %d\n", aw_private.pm.scene_ctrl_cmd);
+			seq_printf(s, "   level  voltage  frequency\n");
+			for (i = 0; i <= aw_private.pm.max_level; i++)
+				seq_printf(s, "%s%3d   %4dmV      %3dMHz\n", i == aw_private.pm.current_level ? "-> " : "   ",
+							i, aw_private.pm.vf_table[i].vol, aw_private.pm.vf_table[i].freq);
+			seq_printf(s, "=========================================");
+		}
+		seq_printf(s, "\n");
+	}
+
+	return 0;
+}
+
+static int dump_debugfs_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, dump_debugfs_show, inode->i_private);
+}
+
+static const struct file_operations dump_fops = {
+	.owner = THIS_MODULE,
+	.open = dump_debugfs_open,
+	.read  = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
 
 int mali_sysfs_register(const char *mali_dev_name)
 {
@@ -1368,6 +1549,9 @@ int mali_sysfs_register(const char *mali_dev_name)
 				/* Failed to create the debugfs entries for the user settings DB. */
 				MALI_DEBUG_PRINT(2, ("Failed to create user setting debugfs files. Ignoring...\n"));
 			}
+
+			debugfs_create_file("dump", 0440, mali_debugfs_dir, NULL, &dump_fops);
+			debugfs_create_file("write", 0220, mali_debugfs_dir, NULL, &write_fops);
 		}
 	}
 
