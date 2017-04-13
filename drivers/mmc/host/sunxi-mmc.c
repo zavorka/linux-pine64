@@ -536,13 +536,8 @@ static int sunxi_check_r1_ready_may_sleep(struct sunxi_mmc_host *smc_host)
 			break;
 	} while (time_before(jiffies, expire));
 
-	if ((mmc_readl(smc_host, REG_STAS) & SDXC_CARD_DATA_BUSY)) {
-		dev_err(mmc_dev(smc_host->mmc), \
-				"Wait r1 rdy %d ms timeout\n", cnt);
-		return -1;
-	} else {
-		dev_dbg(mmc_dev(smc_host->mmc), \
-			"*All wait r1 rdy %d ms*\n", cnt);
+	if (!(mmc_readl(smc_host, REG_STAS) & SDXC_CARD_DATA_BUSY)) {
+		dev_dbg(mmc_dev(smc_host->mmc), "dead Wait r1 rdy ok\n");
 		return 0;
 	}
 
@@ -574,7 +569,7 @@ static int sunxi_check_r1_ready_may_sleep(struct sunxi_mmc_host *smc_host)
 		} while ((cnt++) < delay_max_cnt[i]);
 	}
 
-	dev_err(mmc_dev(smc_host->mmc), "cmd%d Wait r1 rdy timeout\n", mmc_readl(smc_host, REG_CMDR)&0x3F);
+	dev_dbg(mmc_dev(smc_host->mmc), "cmd%d Wait r1 rdy timeout\n", mmc_readl(smc_host, REG_CMDR)&0x3F);
 	return -1;
 }
 
