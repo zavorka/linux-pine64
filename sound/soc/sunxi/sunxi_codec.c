@@ -2056,6 +2056,8 @@ static int codec_suspend(struct snd_soc_codec *codec)
 		audio_gpio_iodisable(spk_gpio.gpio);
 	}
 
+  return 0;
+
 	if (sunxi_internal_codec->vol_supply.cpvdd){
 		regulator_disable(sunxi_internal_codec->vol_supply.cpvdd);
 	}
@@ -2569,4 +2571,3 @@ MODULE_DESCRIPTION("codec ALSA soc codec driver");
 MODULE_AUTHOR("huanxin<huanxin@allwinnertech.com>");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:sunxi-pcm-codec");
-
