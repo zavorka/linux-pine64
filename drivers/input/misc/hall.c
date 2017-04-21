@@ -53,8 +53,8 @@ static int debug_level = DEBUG_DEBUG;
 #define HALL_OPEN 0
 #define HALL_CLOSE 1
 #define HALL_UNKNOW 2
-#define HALL_REPORT_KEY //report key
-//#define HALL_REPORT_SW //report switch
+//#define HALL_REPORT_KEY //report key
+#define HALL_REPORT_SW //report switch
 //#define HALL_STATE_LOCK
 
 struct hall_data {
