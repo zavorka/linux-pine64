@@ -523,7 +523,7 @@ int disp_sys_pwm_free(uintptr_t p_handler)
 		ret = -1;
 	} else {
 		pwm_free(pwm_dev);
-		__inf("disp_sys_pwm_free pwm %d \n", pwm_dev->pwm);
+		printk(KERN_WARNING "[DISP] disp_sys_pwm_free pwm %d \n", pwm_dev->pwm);
 	}
 #endif
 	return ret;
@@ -541,7 +541,7 @@ int disp_sys_pwm_enable(uintptr_t p_handler)
 		ret = -1;
 	} else {
 		ret = pwm_enable(pwm_dev);
-		__inf("disp_sys_pwm_Enable pwm %d \n", pwm_dev->pwm);
+		printk(KERN_WARNING "[DISP] disp_sys_pwm_enable %d \n", pwm_dev->pwm);
 	}
 #endif
 	return ret;
@@ -559,7 +559,7 @@ int disp_sys_pwm_disable(uintptr_t p_handler)
 		ret = -1;
 	} else {
 		pwm_disable(pwm_dev);
-		__inf("disp_sys_pwm_Disable pwm %d \n", pwm_dev->pwm);
+		printk(KERN_WARNING "[DISP] disp_sys_pwm_disable %d \n", pwm_dev->pwm);
 	}
 #endif
 	return ret;
@@ -577,7 +577,7 @@ int disp_sys_pwm_config(uintptr_t p_handler, int duty_ns, int period_ns)
 		ret = -1;
 	} else {
 		ret = pwm_config(pwm_dev, duty_ns, period_ns);
-		__debug("disp_sys_pwm_Config pwm %d, <%d / %d> \n", pwm_dev->pwm, duty_ns, period_ns);
+		printk(KERN_WARNING "[DISP] disp_sys_pwm_Config pwm %d, <%d / %d> \n", pwm_dev->pwm, duty_ns, period_ns);
 	}
 #endif
 	return ret;
@@ -595,7 +595,7 @@ int disp_sys_pwm_set_polarity(uintptr_t p_handler, int polarity)
 		ret = -1;
 	} else {
 		ret = pwm_set_polarity(pwm_dev, polarity);
-		__inf("disp_sys_pwm_Set_Polarity pwm %d, active %s\n", pwm_dev->pwm, (polarity==0)? "high":"low");
+		printk(KERN_WARNING "[DISP] disp_sys_pwm_set_polarity pwm %d, active %s\n", pwm_dev->pwm, (polarity==0)? "high":"low");
 	}
 #endif
 	return ret;
