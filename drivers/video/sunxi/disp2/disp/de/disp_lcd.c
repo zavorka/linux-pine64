@@ -951,7 +951,8 @@ static s32 disp_lcd_pwm_enable(struct disp_device *lcd)
 	}
 
 	if (disp_lcd_is_used(lcd) && lcdp->pwm_info.dev) {
-		return disp_sys_pwm_enable(lcdp->pwm_info.dev);
+	    disp_sys_pwm_set_polarity(lcdp->pwm_info.dev, lcdp->pwm_info.polarity);
+	    return disp_sys_pwm_enable(lcdp->pwm_info.dev);
 	}
 	DE_WRN("pwm device hdl is NULL\n");
 
@@ -1178,7 +1179,6 @@ s32 disp_lcd_set_bright(struct disp_device *lcd, u32 bright)
 		duty_ns = (backlight_bright * backlight_dimming *  period_ns/256 + 128) / 256;
 		lcdp->pwm_info.duty_ns = duty_ns;
 
-		disp_sys_pwm_set_polarity(lcdp->pwm_info.dev, lcdp->pwm_info.polarity);
 		disp_sys_pwm_config(lcdp->pwm_info.dev, duty_ns, period_ns);
 	}
 
