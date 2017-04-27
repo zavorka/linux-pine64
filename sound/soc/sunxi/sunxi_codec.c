@@ -2087,6 +2087,7 @@ static int codec_suspend(struct snd_soc_codec *codec)
 		audio_gpio_iodisable(spk_gpio.gpio);
 	}
 
+#ifdef SUSPEND_REGULATORS
 	if (sunxi_internal_codec->vol_supply.cpvdd){
 		regulator_disable(sunxi_internal_codec->vol_supply.cpvdd);
 	}
@@ -2094,6 +2095,7 @@ static int codec_suspend(struct snd_soc_codec *codec)
 	if (sunxi_internal_codec->vol_supply.avcc) {
 		regulator_disable(sunxi_internal_codec->vol_supply.avcc);
 	}
+#endif
 
 	pr_debug("[audio codec]:suspend end..\n");
 
@@ -2106,6 +2108,8 @@ static int codec_resume(struct snd_soc_codec *codec)
 	struct sunxi_codec *sunxi_internal_codec = snd_soc_codec_get_drvdata(codec);
 
 	pr_debug("[audio codec]:resume start\n");
+
+#ifdef SUSPEND_REGULATORS
 	if (sunxi_internal_codec->vol_supply.cpvdd){
 		ret = regulator_enable(sunxi_internal_codec->vol_supply.cpvdd);
 		if (ret) {
@@ -2119,6 +2123,7 @@ static int codec_resume(struct snd_soc_codec *codec)
 			pr_err("[%s]: avcc:regulator_enable() failed!\n",__func__);
 		}
 	}
+#endif
 
 	codec_init(sunxi_internal_codec);
 	if (spk_gpio.cfg) {
@@ -2600,4 +2605,3 @@ MODULE_DESCRIPTION("codec ALSA soc codec driver");
 MODULE_AUTHOR("huanxin<huanxin@allwinnertech.com>");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:sunxi-pcm-codec");
-
