@@ -1,53 +1,72 @@
-/*
+/**
+ * Copyright (C) 2015-2016 Allwinner Technology Limited. All rights reserved.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
- * Copyright (C) 2015 Allwinner Technology Co., Ltd.
- *
- * Author: Xiangyun Yu <yuxyun@allwinnertech.com>
+ * Author: Albert Yu <yuxyun@allwinnertech.com>
  */
 
 #ifndef _MALI_SUN50I_W1P1_H_
 #define _MALI_SUN50I_W1P1_H_
 
-static struct aw_freq_data freq_data =
-{
-	.normal_freq  = 432,
-	.extreme_freq = 432,
-};
-
-static struct aw_private_data private_data =
-{
-	.clk_status        = 0,
-	.scene_ctrl_status = 0,
-	.sensor_num        = 2,
+aw_private_data aw_private = {
 #ifdef CONFIG_MALI_DT
-	.np_gpu            = NULL,
-#endif
-	.regulator         = NULL,
-	.regulator_id      = "vdd-sys",
-	.tempctrl_data     =
-	{
+	.np_gpu        = NULL,
+#endif /* CONFIG_MALI_DT */
+	.tempctrl      = {
 		.temp_ctrl_status = 1,
 	},
+	.pm            = {
+		.regulator      = NULL,
+		.regulator_id   = "vdd-gpu",
+		.clk[0]         = {
+			.clk_name   = "pll",
+			.clk_handle = NULL,
+		},
+		.clk[1]         = {
+			.clk_name   = "mali",
+			.clk_handle = NULL,
+		},
+		.vf_table[0]   = {
+			.vol  = 1100,
+			.freq = 144,
+		},
+		.vf_table[1]   = {
+			.vol  = 1100,
+			.freq = 264,
+		},
+		.vf_table[2]   = {
+			.vol  = 1100,
+			.freq = 384,
+		},
+		.vf_table[3]   = {
+			.vol  = 1100,
+			.freq = 456,
+		},
+		.dvfs_status       = 0,
+		.begin_level       = 3,
+		.max_level         = 3,
+		.scene_ctrl_cmd    = 0,
+		.scene_ctrl_status = 0,
+		.independent_pow   = 0,
+		.dvm               = 0,
+	},
+	.debug           = {
+		.enable      = 0,
+		.frequency   = 0,
+		.voltage     = 0,
+		.tempctrl    = 0,
+		.scenectrl   = 0,
+		.dvfs        = 0,
+		.level       = 0,
+	}
 };
 
-static struct aw_clk_data clk_data[] =
-{
-	{
-		.clk_name   = "pll",
-		.clk_handle = NULL,
-	},
-	{
-		.clk_name   = "mali",
-		.clk_handle = NULL,
-	},
-};
-
-#endif
+#endif /* _MALI_SUN50I_W1P1_H_ */
