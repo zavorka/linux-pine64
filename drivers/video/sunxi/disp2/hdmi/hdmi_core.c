@@ -1,4 +1,5 @@
 #include "hdmi_core.h"
+#include "drv_hdmi_i.h"
 
 static s32		hdmi_state = HDMI_State_Idle;
 static u32		video_on = 0;
@@ -21,9 +22,13 @@ static u32 hdmi_detect_time = 200;//ms
 
 static s32 video_config(u32 vic);
 
+uintptr_t hdmi_base_addr;
+EXPORT_SYMBOL(hdmi_base_addr);
+EXPORT_SYMBOL(hdmi_delay_ms);
+
 struct disp_video_timings video_timing[] =
 {
-	//VIC				   PCLK    AVI_PR  X      Y      HT      HBP   HFP   HST    VT     VBP  VFP  VST h_pol v_pol int vac   trd
+	//VIC				   PCLK    AVI_PR  X      Y     HT     HBP   HFP   HST  VT    VBP  VFP  VST h_pl v_pl int vac   trd
 	{HDMI1440_480I,      0,13500000,  1,  720,   480,   858,   57,   19,   62,  525,   15,  4,  3,  0,   0,   1,   0,   0},
 	{HDMI1440_576I,      0,13500000,  1,  720,   576,   864,   69,   12,   63,  625,   19,  2,  3,  0,   0,   1,   0,   0},
 	{HDMI480P,           0,27000000,  0,  720,   480,   858,   60,   16,   62,  525,   30,  9,  6,  0,   0,   0,   0,   0},
@@ -42,7 +47,101 @@ struct disp_video_timings video_timing[] =
 	{HDMI720P_60_3D_FP,  0,148500000, 0,  1280,  1440,  1650,  220,  110,  40,  750,   20,  5,  5,  1,   1,   0,   30,  1},
 	{HDMI3840_2160P_30,  0,297000000, 0,  3840,  2160,  4400,  296,  176,  88,  2250,  72,  8, 10,  1,   1,   0,    0,  0},
 	{HDMI3840_2160P_25,  0,297000000, 0,  3840,  2160,  5280,  296, 1056,  88,  2250,  72,  8, 10,  1,   1,   0,    0,  0},
+	{HDMI800_480P,       0,74250000,  0,   800,  480,   928,   40,    40,  48,  525,   29, 13,  3,  0,   0,   0,    0,  0},
+	{HDMI1024_600P,      0,74250000,  0,  1024,  600,   1152,  40,    40,  48,  645,   29, 13,  3,  0,   0,   0,    0,  0},
 };
+
+ssize_t hdmi_modeline_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return -ENODEV;
+}
+
+ssize_t hdmi_modeline_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	int index = -1;
+	int pixel_clk, ver = 0, inter = 0;
+	int hdisp, hstart, hend, htotal;
+	int vdisp, vstart, vend, vtotal;
+
+	int ret = sscanf(buf, "%d %d %d %d %d %d %d %d %d %d %d %d",
+		&index,
+		&pixel_clk, &hdisp, &hstart, &hend, &htotal,
+		&vdisp, &vstart, &vend, &vtotal,
+		&ver, &inter);
+	if (ret < 10) {
+		return -EINVAL;
+	}
+
+	int modeline = hdmi_core_get_video_info(index);
+	if (modeline < 0) {
+		return -ENODEV;
+	}
+
+	struct disp_video_timings *timing = &video_timing[modeline];
+
+	timing->pixel_clk = pixel_clk * 1000000;
+	timing->x_res = hdisp;
+	timing->y_res = vdisp;
+	timing->hor_total_time = htotal;
+	timing->hor_back_porch = htotal - hend;
+	timing->hor_front_porch = hstart - hdisp;
+	timing->hor_sync_time = hend - hstart;
+	timing->ver_total_time = vtotal;
+	timing->ver_back_porch = vtotal - vend;
+	timing->ver_front_porch = vstart - vdisp;
+	timing->ver_sync_time = vend - vstart;
+	timing->hor_sync_polarity = timing->ver_sync_polarity = ver;
+	timing->b_interlace = inter;
+	return count;
+}
+
+static int hdmi_core_set_para_param(int vic, unsigned int *para)
+{
+	int i;
+	int index = hdmi_core_get_video_info(vic);
+	if (index < 0) {
+		printk(KERN_ERR "HDMI failed to find video_timing for VIC:%d\n", vic);
+		return -ENODEV;
+	}
+
+	struct disp_video_timings *timing = &video_timing[index];
+
+	para[0] = timing->vic;
+	if (timing->pixel_clk <= 27000000)
+		para[1] = 11;
+	else if (timing->pixel_clk <= 74250000)
+		para[1] = 4;
+	else if (timing->pixel_clk <= 148500000)
+		para[1] = 2;
+	else
+		para[1] = 1;
+	para[2] = timing->tv_mode;
+	para[3] = (timing->hor_sync_polarity ? 96 : 0) | (timing->b_interlace ? 1 : 0);
+	para[4] = timing->x_res >> 8;
+	para[5] = timing->ver_sync_time;
+	para[6] = timing->y_res >> 8;
+	para[7] = (timing->hor_total_time - timing->x_res) >> 8;
+	para[8] = timing->ver_front_porch;
+	para[9] = timing->hor_front_porch >> 8;
+	para[10] = timing->hor_sync_time >> 8;
+	para[11] = timing->x_res & 0xFF;
+	para[12] = (timing->hor_total_time - timing->x_res) & 0xFF;
+	para[13] = timing->hor_front_porch & 0xFF;
+	para[14] = timing->hor_sync_time & 0xFF;
+	para[15] = timing->y_res & 0xFF;
+	para[16] = (timing->ver_total_time - timing->y_res) & 0xFF;
+	para[17] = 1;
+	para[18] = 1;
+
+	printk(KERN_INFO "HDMI set ptbl: ");
+	for(i = 0; i < 19; ++i) {
+		printk("%d ", para[i]);
+	}
+	printk("\n");
+	return 0;
+}
 
 static void hdmi_para_reset(void)
 {
@@ -102,7 +201,9 @@ void hdmi_core_exit(void)
 
 void hdmi_core_set_base_addr(uintptr_t base_addr)
 {
+    printk(KERN_INFO "HDMI base address: %p\n", base_addr);
 	bsp_hdmi_set_addr(base_addr);
+	hdmi_base_addr = base_addr;
 }
 
 static s32 main_Hpd_Check(void)
@@ -149,6 +250,7 @@ s32 hdmi_core_loop(void)
 			audio_on = 0;
 			if (0 == (hdmi_hpd_mask & 0x100))
 				hdmi_hpd_event();
+			sunxi_hdmi_notifier_call_chain(hdmi_state);
 		}
 
 		if ((times++) >= 10) {
@@ -170,6 +272,8 @@ s32 hdmi_core_loop(void)
 			if (HPD) {
 				hdmi_state = HDMI_State_EDID_Parse;
 				__inf("plugin\n");
+				sunxi_hdmi_notifier_call_chain(hdmi_state);
+
 			} else {
 				return 0;
 			}
@@ -187,7 +291,7 @@ s32 hdmi_core_loop(void)
 
 			if (video_enable)
 				hdmi_core_set_video_enable(true);
-
+			sunxi_hdmi_notifier_call_chain(hdmi_state);
 		case HDMI_State_HPD_Done:
 			if (video_on && hdcp_enable)
 				bsp_hdmi_hdl();
@@ -380,6 +484,7 @@ static s32 audio_config_internal(void)
 			return 0;
 		}
 
+		hdmi_core_set_para_param(glb_audio_para.vic, glb_audio_para.para);
 		if (bsp_hdmi_audio(&glb_audio_para))
 		{
 			__wrn("set hdmi audio error!\n");
@@ -448,6 +553,7 @@ s32 hdmi_core_set_video_enable(bool enable)
 		video_config(glb_video_para.vic);
 		__inf("hdmi_core_set_video_enable, vic:%d,is_hdmi:%d,is_yuv:%d,is_hcts:%d\n",
 			glb_video_para.vic, glb_video_para.is_hdmi,glb_video_para.is_yuv, glb_video_para.is_hcts);
+		hdmi_core_set_para_param(glb_video_para.vic, glb_video_para.para);
 		if (bsp_hdmi_video(&glb_video_para))
 		{
 			__wrn("set hdmi video error!\n");
@@ -550,7 +656,6 @@ s32 hdmi_core_enter_lp(void)
 s32 hdmi_core_exit_lp(void)
 {
 	bsp_hdmi_init();
-
 	return 0;
 }
 
@@ -587,4 +692,3 @@ int hdmi_core_cec_get_simple_msg(unsigned char *msg)
 
 	return ret;
 }
-

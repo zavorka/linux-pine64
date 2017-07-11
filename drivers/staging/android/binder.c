@@ -3555,6 +3555,12 @@ static struct miscdevice binder_miscdev = {
 	.fops = &binder_fops
 };
 
+static struct miscdevice hwbinder_miscdev = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "hwbinder",
+	.fops = &binder_fops
+};
+
 BINDER_DEBUG_ENTRY(state);
 BINDER_DEBUG_ENTRY(stats);
 BINDER_DEBUG_ENTRY(transactions);
@@ -3573,6 +3579,9 @@ static int __init binder_init(void)
 		binder_debugfs_dir_entry_proc = debugfs_create_dir("proc",
 						 binder_debugfs_dir_entry_root);
 	ret = misc_register(&binder_miscdev);
+	if (ret == 0) {
+		ret = misc_register(&hwbinder_miscdev);
+	}
 	if (binder_debugfs_dir_entry_root) {
 		debugfs_create_file("state",
 				    S_IRUGO,

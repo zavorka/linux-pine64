@@ -18,6 +18,8 @@
 #define HDMI1080P_24 		32
 #define HDMI1080P_25 		33
 #define HDMI1080P_30 		34
+#define HDMI800_480P        35
+#define HDMI1024_600P       36
 #define HDMI1080P_24_3D_FP  (HDMI1080P_24 +0x80)
 #define HDMI720P_50_3D_FP   (HDMI720P_50  +0x80)
 #define HDMI720P_60_3D_FP   (HDMI720P_60  +0x80)
@@ -97,6 +99,8 @@ extern void hdmi_delay_us(unsigned long us);
 extern int hdmi_clk_enable_prepare(void);
 extern int hdmi_clk_disable_prepare(void);
 extern unsigned int hdmi_get_soc_version(void);
+
+extern uintptr_t hdmi_base_addr;
 
 #endif
 
