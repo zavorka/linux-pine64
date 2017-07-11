@@ -1086,15 +1086,3 @@ u16 dsi_crc_pro_pd_repeat(u8 pd,u32 pd_bytes)
 	}
 	return crc;
 }
-
-#ifdef __LINUX_PLAT__
-EXPORT_SYMBOL(dsi_dcs_wr);
-EXPORT_SYMBOL(dsi_dcs_wr_0para);
-EXPORT_SYMBOL(dsi_dcs_wr_1para);
-EXPORT_SYMBOL(dsi_dcs_wr_2para);
-EXPORT_SYMBOL(dsi_dcs_wr_3para);
-EXPORT_SYMBOL(dsi_dcs_wr_4para);
-EXPORT_SYMBOL(dsi_dcs_wr_5para);
-EXPORT_SYMBOL(dsi_dcs_rd);
-
-#endif

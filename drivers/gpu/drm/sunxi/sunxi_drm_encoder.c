@@ -325,6 +325,39 @@ int sunxi_tcon_common_check_line(void *data)
     return start_delay - cur_line - ENCODER_UPDATA_DELAYED;
 }
 
+bool sunxi_tcon_hv_enable(void *data)
+{
+    struct sunxi_drm_encoder *sunxi_encoder =
+		to_sunxi_encoder(data);
+    struct sunxi_hardware_res *hw_res;
+    struct sunxi_lcd_private *lcd_private;
+    
+    hw_res = sunxi_encoder->hw_res;
+    lcd_private = (struct sunxi_lcd_private *)hw_res->private;
+
+    tcon0_open(sunxi_encoder->enc_id, lcd_private->panel);
+
+	DRM_DEBUG_KMS("[%d]\n",__LINE__);
+
+    return true;
+}
+
+bool sunxi_tcon_hv_disable(void *data)
+{
+    struct sunxi_drm_encoder *sunxi_encoder =
+		to_sunxi_encoder(data);
+    struct sunxi_hardware_res *hw_res;
+    hw_res = sunxi_encoder->hw_res;
+
+	tcon0_close(sunxi_encoder->enc_id);
+	tcon_exit(sunxi_encoder->enc_id);
+
+    sunxi_irq_free(hw_res);
+    sunxi_clk_disable(hw_res);
+
+    return true;
+}
+
 bool sunxi_tcon_dsi_enable(void *data)
 {
     struct sunxi_drm_encoder *sunxi_encoder =
@@ -548,6 +581,19 @@ bool sunxi_tcon_common_query_irq(void *irq_data, int need_irq)
     return false;
 }
 
+struct sunxi_hardware_ops tcon_hv_ops = {
+    .init = sunxi_tcon_common_init,
+    .reset = sunxi_tcon_common_reset,
+    .enable = sunxi_tcon_hv_enable,
+    .disable = sunxi_tcon_hv_disable,
+    .updata_reg = sunxi_tcon_updata_reg,
+    .vsync_proc = sunxi_tcon_vsync_proc,
+    .irq_query = sunxi_tcon_common_query_irq,
+    .vsync_delayed_do = NULL,
+    .set_timming = sunxi_tcon_common_set_timing,
+    .user_def = sunxi_tcon_common_check_line,
+};
+
 struct sunxi_hardware_ops tcon_dsi_ops = {
     .init = sunxi_tcon_common_init,
     .reset = sunxi_tcon_common_reset,
@@ -654,6 +700,10 @@ int sunxi_encoder_assign_ops(struct drm_device *dev, int nr,
     sunxi_encoder->hw_res->private = private;
     hw_res = sunxi_encoder->hw_res;
     switch(type) {
+    case ENCODER_OPS_HV:
+        lcd_p = (struct sunxi_lcd_private *)private;
+        hw_res->ops = &tcon_hv_ops;
+        break;
     case ENCODER_OPS_DSI:
         lcd_p = (struct sunxi_lcd_private *)private;
         hw_res->ops = &tcon_dsi_ops;
@@ -689,6 +739,7 @@ int sunxi_encoder_assign_ops(struct drm_device *dev, int nr,
             return -EINVAL;
         }
     }
+    /* Currently the tcon just support 1 ops for connector */
     /* must assign 1 times, avoid mutex with vsync handle. becareful */
 	DRM_DEBUG_KMS("[%d]:type:%d parent_rate:%lu  rate:%lu. encoder[%d][%d] \n",__LINE__, type,
             hw_res->parent_clk_rate, hw_res->clk_rate, sunxi_encoder->enc_id, sunxi_encoder->drm_encoder.base.id);

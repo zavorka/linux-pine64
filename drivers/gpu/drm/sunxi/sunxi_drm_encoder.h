@@ -18,6 +18,7 @@
 enum encoder_ops_type {
     ENCODER_OPS_DSI = 0,
     ENCODER_OPS_LVDS,
+    ENCODER_OPS_HV,
     ENCODER_OPS_TV,
     ENCODER_OPS_HDMI,
     ENCODER_OPS_VGA,

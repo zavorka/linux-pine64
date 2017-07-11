@@ -139,7 +139,7 @@ static int hdmi_io_request(struct sunxi_hdmi_private *sunxi_hdmi_p)
 
 static int hdmi_io_release(struct sunxi_hdmi_private *sunxi_hdmi_p)
 {
-   int i;
+    int i;
 
 	for (i = 0; i < HDMI_IO_NUM; i++) {
 		if (sunxi_hdmi_p->hdmi_io_used[i] && sunxi_hdmi_p->gpio_handle[i] != 0) {
@@ -681,6 +681,9 @@ static struct sunxi_hardware_ops hdmi_con_ops = {
     .updata_reg = NULL,
     .vsync_proc = NULL,
     .irq_query = NULL,
+    /* whether check the cec ctl info in vysnc delayed work?
+     * or other place better?. 
+     */
     .vsync_delayed_do = sunxi_hdmi_delayed_work,
     .set_timming = sunxi_hdmi_set_timing,
 

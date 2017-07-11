@@ -148,22 +148,27 @@ void sunxi_drm_connector_disable(struct drm_connector *connector)
 
 void sunxi_drm_connector_set_timming(struct drm_connector *connector)
 {
-	struct sunxi_drm_connector *sunxi_connector;
+    struct sunxi_drm_connector *sunxi_connector;
     struct drm_display_mode *mode = NULL;
     struct sunxi_hardware_res *hw_res;
 
+    sunxi_connector = to_sunxi_connector(connector);
 
-	sunxi_connector = to_sunxi_connector(connector);
+    DRM_DEBUG_KMS("id:%d\n", connector->base.id);
+
     hw_res = sunxi_connector->hw_res;
     if (connector->encoder != NULL &&
         connector->encoder->crtc != NULL) {
         mode =  &connector->encoder->crtc->mode;
     }
-    DRM_DEBUG_KMS("[%d] id:%d mode_id:%d\n", __LINE__,
-            connector->base.id, mode->base.id);
 
-    if (hw_res->ops->set_timming) {
-        hw_res->ops->set_timming(connector, mode);
+    if (mode) {
+        DRM_DEBUG_KMS("[%d] id:%d mode_id:%d\n", __LINE__,
+                connector->base.id, mode->base.id);
+
+        if (hw_res->ops->set_timming) {
+            hw_res->ops->set_timming(connector, mode);
+        }
     }
 }
 
@@ -243,17 +248,40 @@ void sunxi_chain_enable(struct drm_connector *connector,
     struct drm_encoder *encoder;
     struct sunxi_drm_encoder *sunxi_enc;
     struct sunxi_hardware_res *hw_res;
+    struct sunxi_drm_crtc *sunxi_crtc;
+    struct sunxi_drm_connector *sunxi_con;
     encoder = connector->encoder;
     /* if there the order, will add future */
-    sunxi_enc = to_sunxi_encoder(encoder);
-    hw_res = sunxi_enc->hw_res;
 
-    if (id & CHAIN_BIT_ENCODER) {
-        if(hw_res && hw_res->ops &&
+    if (id & CHAIN_BIT_CONNECTER) {
+        sunxi_con = to_sunxi_connector(connector);
+        hw_res = sunxi_con->hw_res;
+        if (hw_res && hw_res->ops &&
             hw_res->ops->enable && hw_res->en_ctl_by) {
 
           hw_res->ops->enable(encoder);
         } 
+    }
+
+    if (id & CHAIN_BIT_ENCODER) {
+        sunxi_enc = to_sunxi_encoder(encoder);
+        hw_res = sunxi_enc->hw_res;
+        if (hw_res && hw_res->ops &&
+            hw_res->ops->enable && hw_res->en_ctl_by) {
+
+          hw_res->ops->enable(encoder);
+        } 
+    }
+
+    if (id & CHAIN_BIT_CRTC) {
+        if (encoder && encoder->crtc) {
+            sunxi_crtc = to_sunxi_crtc(encoder->crtc);
+            hw_res = sunxi_crtc->hw_res;
+            if (hw_res && hw_res->ops &&
+                hw_res->ops->enable && hw_res->en_ctl_by)
+ 
+            hw_res->ops->enable(encoder);
+        }
     }
 }
 
@@ -262,11 +290,41 @@ void sunxi_chain_disable(struct drm_connector *connector,
 {
 
     struct drm_encoder *encoder;
-
+    struct sunxi_drm_encoder *sunxi_enc;
+    struct sunxi_drm_crtc *sunxi_crtc;
+    struct sunxi_drm_connector *sunxi_con;
+    struct sunxi_hardware_res *hw_res;
     encoder = connector->encoder;
     /* if there the order, will add future */
+    if (id & CHAIN_BIT_CONNECTER) {
+        sunxi_con = to_sunxi_connector(connector);
+        hw_res = sunxi_con->hw_res;
+        if (hw_res && hw_res->ops &&
+            hw_res->ops->disable && hw_res->en_ctl_by) {
+
+          hw_res->ops->disable(encoder);
+        } 
+    }
+
     if (id & CHAIN_BIT_ENCODER) {
-        sunxi_drm_encoder_disable(encoder);
+        sunxi_enc = to_sunxi_encoder(encoder);
+        hw_res = sunxi_enc->hw_res;
+        if (hw_res && hw_res->ops &&
+            hw_res->ops->disable && hw_res->en_ctl_by) {
+
+          hw_res->ops->disable(encoder);
+        } 
+    }
+
+    if (id & CHAIN_BIT_CRTC) {
+        if (encoder && encoder->crtc) {
+            sunxi_crtc = to_sunxi_crtc(encoder->crtc);
+            hw_res = sunxi_crtc->hw_res;
+            if (hw_res && hw_res->ops &&
+                hw_res->ops->disable && hw_res->en_ctl_by)
+ 
+            hw_res->ops->disable(encoder);
+        }
     }
 }
 
@@ -277,14 +335,20 @@ void sunxi_drm_connector_reset(struct drm_connector *connector)
 		to_sunxi_connector(connector);
 
     DRM_DEBUG_KMS("id:%d\n", connector->base.id);
+
     /*modify the irq chain, and register it*/
     if (!connector->encoder ||
         !connector->encoder->crtc) {
         sunxi_irq_free(sunxi_connector->hw_res);
-        sunxi_connector->hw_res->ops->disable(connector);
+        if (sunxi_connector->hw_res->ops->disable) {
+            sunxi_connector->hw_res->ops->disable(connector);
+        }
         return;
     }
-    sunxi_connector->hw_res->ops->reset(connector);
+    DRM_DEBUG_KMS("id:%d, reset:%p\n", connector->base.id, sunxi_connector->hw_res->ops->reset);
+    if (sunxi_connector->hw_res->ops->reset) {
+        sunxi_connector->hw_res->ops->reset(connector);
+    }
 }
 
 static void sunxi_drm_connector_destroy(struct drm_connector *connector)
@@ -398,6 +462,8 @@ int sunxi_drm_connector_create(struct drm_device *dev, int possible_enc, int fix
         switch (sunxi_lcd_p->panel->lcd_if) {
     	case LCD_IF_HV:
     		type = DRM_MODE_CONNECTOR_Unknown;
+            if (sunxi_encoder_assign_ops(dev, fix_enc, ENCODER_OPS_HV, panel->private))
+                goto out;
     		break;
     	case LCD_IF_CPU:
     		type = DRM_MODE_CONNECTOR_Unknown;

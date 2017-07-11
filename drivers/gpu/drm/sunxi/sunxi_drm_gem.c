@@ -59,13 +59,13 @@ static int lowlevel_buffer_allocate(struct drm_device *dev,
 		attr = DMA_ATTR_WRITE_COMBINE;
 	else
 		attr = DMA_ATTR_NON_CONSISTENT;
-    /* if not contig  use the ion_system_heap method, and need the sg*/
+    /* if not contig  use the ion_system_heap method, and need the sg */
 	dma_set_attr(attr, &buf->dma_attrs);
 	dma_set_attr(DMA_ATTR_NO_KERNEL_MAPPING, &buf->dma_attrs);
 
 	nr_pages = buf->size >> PAGE_SHIFT;
 
-	pages = kzalloc(sizeof(struct page*) * nr_pages,
+	pages = kzalloc(sizeof(struct page) * nr_pages,
 				GFP_KERNEL);
 	if (!pages) {
 		DRM_ERROR("failed to allocate pages.\n");
@@ -94,6 +94,7 @@ static int lowlevel_buffer_allocate(struct drm_device *dev,
 		ret = -ENOMEM;
 		goto err_free_attrs;
 	}
+
 	for_each_sg(buf->sgt->sgl, sg, buf->sgt->nents, i) {
 		sg_dma_address(sg) = sg_phys(sg);
 		sg_dma_len(sg) = sg->length;

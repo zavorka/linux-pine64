@@ -31,7 +31,7 @@ struct __fb_addr_para
 	int fb_size;
 };
 
-static struct __fb_addr_para g_fb_addr;
+extern struct __fb_addr_para g_fb_addr;
 
 #define FBIOGET_DMABUF       _IOR('F', 0x21, struct fb_dmabuf_export)
 
@@ -134,15 +134,6 @@ int sunxi_fb_fpan_display(struct fb_var_screeninfo *var,
     
 }
 */
-void sunxi_get_fb_addr_para(struct __fb_addr_para *fb_addr_para)
-{
-	if (fb_addr_para){
-		fb_addr_para->fb_paddr = g_fb_addr.fb_paddr;
-		fb_addr_para->fb_size  = g_fb_addr.fb_size;
-	}
-}
-EXPORT_SYMBOL(g_fb_addr);
-EXPORT_SYMBOL(sunxi_get_fb_addr_para);
 
 static struct fb_ops sunxi_drm_fb_ops = {
 	.owner		= THIS_MODULE,

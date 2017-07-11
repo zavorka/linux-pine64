@@ -390,7 +390,7 @@ int sunxi_rotate_commit(struct drm_device *dev, struct sunxi_rotate_private *rot
         goto out;
     }
     sunxi_add_process_head(rotate_private, task_work);
-    if(task_work->sleep_mode) {
+    if (task_work->sleep_mode) {
         wait_event_interruptible_timeout(rotate_private->task_wq,
             task_work->status == ROTATE_OK, msecs_to_jiffies(task_work->timeout));
 

@@ -44,21 +44,7 @@ extern disp_drv_info g_disp_drv;
 #define FBHANDTOID(handle)  ((handle) - 100)
 #define FBIDTOHAND(ID)  ((ID) + 100)
 
-static struct __fb_addr_para g_fb_addr;
-
-
-s32 sunxi_get_fb_addr_para(struct __fb_addr_para *fb_addr_para)
-{
-	if (fb_addr_para){
-		fb_addr_para->fb_paddr = g_fb_addr.fb_paddr;
-		fb_addr_para->fb_size  = g_fb_addr.fb_size;
-		return 0;
-	}
-
-	return -1;
-}
-EXPORT_SYMBOL(sunxi_get_fb_addr_para);
-
+extern struct __fb_addr_para g_fb_addr;
 
 #define sys_put_wvalue(addr, data) writel(data, (void __iomem *)addr)
 s32 fb_draw_colorbar(char * base, u32 width, u32 height, struct fb_var_screeninfo *var)
