@@ -755,6 +755,7 @@ static int inline sunxi_hdmi_panel_ops_init(struct sunxi_panel *sunxi_panel)
 struct sunxi_panel *sunxi_hdmi_pan_init(struct sunxi_hardware_res *hw_res, int pan_id, int hdmi_id)
 {
     char primary_key[20];
+    char string_value[100];
     int value,ret;
     struct sunxi_panel *sunxi_panel = NULL;
     struct device_node *node;
@@ -763,6 +764,17 @@ struct sunxi_panel *sunxi_hdmi_pan_init(struct sunxi_hardware_res *hw_res, int p
     node = sunxi_drm_get_name_node(primary_key);
     if (!node) {
         DRM_ERROR("get device [%s] node fail.\n", primary_key);
+		return NULL;
+    }
+
+    ret = sunxi_drm_get_sys_item_char(node, "status", string_value);
+    if (ret) {
+        DRM_ERROR("failure getting [%s] status: %d.\n", primary_key, ret);
+		return NULL;
+    }
+
+    if (strcmp(string_value, "okay")) {
+        DRM_ERROR("status for [%s] is not 'okay': %s\n", primary_key, string_value);
 		return NULL;
     }
 
