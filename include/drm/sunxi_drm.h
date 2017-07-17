@@ -76,6 +76,13 @@ struct sunxi_rotate_cmd {
     void  *private;
 };
 
+struct sunxi_fb_info_cmd {
+	int set_get;
+    unsigned int crtc_id;
+    unsigned int plane_id;
+    int zorder;
+};
+
 struct sunxi_sync_gem_cmd {
     uint32_t gem_handle;
 };
@@ -84,7 +91,7 @@ struct sunxi_sync_gem_cmd {
 #define DRM_SUNXI_FENCE_SYNC	0x01
 #define DRM_SUNXI_ROTATE	0x02
 #define DRM_SUNXI_SYNC_GEM	0x03
-
+#define DRM_SUNXI_INFO_FB_PLANE	0x04
 
 #define DRM_IOCTL_SUNXI_FLIP_SYNC		DRM_IOW(DRM_COMMAND_BASE + \
 		DRM_SUNXI_FLIP_SYNC, struct sunxi_flip_user_date)
@@ -97,6 +104,9 @@ struct sunxi_sync_gem_cmd {
 
 #define DRM_IOCTL_SUNXI_SYNC_GEM		DRM_IOW(DRM_COMMAND_BASE + \
 		DRM_SUNXI_SYNC_GEM, struct sunxi_sync_gem_cmd)	
+
+#define DRM_IOCTL_SUNXI_INFO_FB_PLANE		DRM_IOW(DRM_COMMAND_BASE + \
+		DRM_SUNXI_INFO_FB_PLANE, struct sunxi_fb_info_cmd)
 
 #endif
 
