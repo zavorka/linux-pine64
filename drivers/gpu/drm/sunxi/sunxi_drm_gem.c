@@ -155,7 +155,7 @@ static struct sunxi_drm_gem_buf *sunxi_buf_create(struct drm_mode_create_dumb *a
         return NULL;
     }
 
-    args->pitch = (args->width * (args->bpp + 7) / 8 + 7) / 8 * 8;
+    args->pitch = (args->width * ((args->bpp + 7) / 8) + 7) / 8 * 8;
 	size = args->pitch * args->height;
     args->size = ALLIGEND(size, PAGE_SHIFT);
     sunxi_buf->flags = args->flags;
