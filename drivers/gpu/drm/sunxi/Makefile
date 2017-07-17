@@ -23,7 +23,7 @@ sunxidrm-y := sunxi_drm_core.o sunxi_drm_crtc.o  sunxi_drm_connector.o sunxi_drm
 
 sunxidrm-y += drm_de/drm_al.o
 sunxidrm-y += subdev/sunxi_lcd.o subdev/sunxi_common.o subdev/sunxi_hdmi.o subdev/sun50iw1_transform.o subdev/sunxi_rotate.o
-sunxidrm-y += subdev/libhdmi_sunxi.a
+sunxidrm-y += ../../../../$(hdmi_dir)/hdmi_bsp_sun50iw1p1.o
 sunxidrm-y += ../../../../$(low_level_dir)/lcd/lcd_edp_anx9804_init.o
 
 filter_obj = $(filter-out $(mydir)/disp_al.o,$(obj_low))

@@ -590,7 +590,9 @@ int sunxi_hdmi_set_timing(void *data, struct drm_display_mode *mode)
 	sunxi_hdmi_p->video_para.is_yuv = 0;//sunxi_hdmi_yuv_output(sunxi_hdmi_p);
 	sunxi_hdmi_p->video_para.is_hdmi = 1;
 	sunxi_hdmi_p->video_para.csc = BT601;
+	sunxi_hdmi_p->video_para.timings = sunxi_hdmi_p->timing;
 	sunxi_hdmi_p->audio_para.vic = sunxi_hdmi_p->timing->vic;
+	sunxi_hdmi_p->audio_para.timings = sunxi_hdmi_p->timing;
 	hw_res->clk_rate = sunxi_hdmi_p->timing->pixel_clk;
 	return 0;
 }
