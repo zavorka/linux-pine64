@@ -28,10 +28,10 @@
 #define FBDEV_BUF_NUM 2
 
 struct sunxi_drm_framebuffer {
-    struct drm_framebuffer drm_fb;
+	struct drm_framebuffer drm_fb;
 	struct drm_gem_object *gem_obj[MAX_FB_BUFFER];
-    int nr_gem;
-    unsigned int fb_flag;
+	int nr_gem;
+	unsigned int fb_flag;
 };
 
 #define to_sunxi_fb(x)	container_of(x, struct sunxi_drm_framebuffer, drm_fb)
@@ -41,6 +41,6 @@ void sunxi_drm_mode_config_init(struct drm_device *dev);
 struct sunxi_drm_gem_buf *sunxi_drm_framebuffer_buffer(struct drm_framebuffer *fb, int index);
 
 struct drm_framebuffer *sunxi_drm_framebuffer_creat(struct drm_device *dev,
-    struct drm_mode_fb_cmd2 *mode_cmd, struct drm_gem_object *obj[MAX_FB_BUFFER], int nr_gem, int f);
+	struct drm_mode_fb_cmd2 *mode_cmd, struct drm_gem_object *obj[MAX_FB_BUFFER], int nr_gem, int f);
 
 #endif

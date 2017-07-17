@@ -16,15 +16,15 @@
 #include "sunxi_drm_core.h"
 
 struct sunxi_lcd_private {
-    int   lcd_id;
-    struct sunxi_panel *sunxi_panel;
-    disp_panel_para  *panel;
-    panel_extend_para  *extend_panel;
-    struct lcd_clk_info  *clk_info;
-    struct pwm_info_t *pwm_info;
-    disp_lcd_cfg  *lcd_cfg;
-    bool      bl_enalbe;
-    bool      ex_power_on;
+	int   lcd_id;
+	struct sunxi_panel *sunxi_panel;
+	disp_panel_para  *panel;
+	panel_extend_para  *extend_panel;
+	struct lcd_clk_info  *clk_info;
+	struct pwm_info_t *pwm_info;
+	disp_lcd_cfg  *lcd_cfg;
+	bool      bl_enalbe;
+	bool      ex_power_on;
 };
 
 int sunxi_get_lcd_sys_info(struct sunxi_lcd_private *sunxi_lcd);
@@ -32,7 +32,7 @@ int sunxi_get_lcd_sys_info(struct sunxi_lcd_private *sunxi_lcd);
 int sunxi_pwm_dev_init(struct sunxi_lcd_private *sunxi_lcd);
 
 void sunxi_lcd_destroy(struct sunxi_panel *sunxi_panel,
-    struct sunxi_hardware_res *hw_res);
+	struct sunxi_hardware_res *hw_res);
 
 int sunxi_common_pwm_set_bl(struct sunxi_lcd_private *sunxi_lcd, unsigned int bright);
 

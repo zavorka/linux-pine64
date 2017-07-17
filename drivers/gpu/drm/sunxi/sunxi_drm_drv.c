@@ -40,6 +40,7 @@ static int sunxi_drm_load(struct drm_device *dev, unsigned long flags)
 	int ret;
 
 	DRM_DEBUG_DRIVER("[%d]\n", __LINE__);
+	DRM_ERROR("[dengbo] debug from here\n");
 
 	private = kzalloc(sizeof(struct sunxi_drm_private), GFP_KERNEL);
 	if (!private) {
@@ -56,19 +57,19 @@ static int sunxi_drm_load(struct drm_device *dev, unsigned long flags)
 
 	sunxi_drm_mode_config_init(dev);
 
-    if(sunxi_drm_init(dev)) {
-        DRM_ERROR("failed to initialize sunxi drm dev.\n");
+	if (sunxi_drm_init(dev)) {
+		DRM_ERROR("failed to initialize sunxi drm dev.\n");
 		goto err_init_sunxi;
-    }
+	}
 	ret = drm_vblank_init(dev, dev->mode_config.num_crtc);
 	if (ret) {
-        DRM_ERROR("failed to init vblank.\n");   
+		DRM_ERROR("failed to init vblank.\n");   
 		goto err_init_sunxi;
 	}
 	/*
-	 * create and configure fb helper and also sunxi specific
-	 * fbdev object.
-	 */
+	* create and configure fb helper and also sunxi specific
+	* fbdev object.
+	*/
 	ret = sunxi_drm_fbdev_creat(dev);
 	if (ret) {
 		DRM_ERROR("failed to initialize drm fbdev\n");
@@ -82,7 +83,7 @@ static int sunxi_drm_load(struct drm_device *dev, unsigned long flags)
 err_vblank:
 	drm_vblank_cleanup(dev);
 err_init_sunxi:
-    sunxi_drm_destroy(dev);
+	sunxi_drm_destroy(dev);
 	kfree(private);
 
 	return ret;
@@ -90,16 +91,16 @@ err_init_sunxi:
 
 static int sunxi_drm_unload(struct drm_device *dev)
 {
-    struct sunxi_drm_private *private;
+	struct sunxi_drm_private *private;
 
 	DRM_DEBUG_DRIVER("[%d]\n", __LINE__);
-    private = (struct sunxi_drm_private *)dev->dev_private;
+	private = (struct sunxi_drm_private *)dev->dev_private;
 	sunxi_drm_fbdev_destroy(dev);
 	drm_vblank_cleanup(dev);
 	drm_kms_helper_poll_fini(dev);
 	drm_mode_config_cleanup(dev);
     
-    sunxi_drm_rotate_destroy(private->rotate_private);
+	sunxi_drm_rotate_destroy(private->rotate_private);
 	kfree(dev->dev_private);
 
 	dev->dev_private = NULL;
@@ -109,33 +110,32 @@ static int sunxi_drm_unload(struct drm_device *dev)
 
 static int sunxi_drm_open(struct drm_device *dev, struct drm_file *file)
 {
-
 	DRM_DEBUG_DRIVER("[%d]\n", __LINE__);
-    return 0; 
+	return 0; 
 }
 
 static void sunxi_drm_preclose(struct drm_device *dev,
-					struct drm_file *file)
+				struct drm_file *file)
 {
 	struct drm_pending_vblank_event *e, *t;
 	unsigned long flags;
-    struct drm_crtc *crtc;
-    struct sunxi_drm_crtc *sunxi_crtc;
+	struct drm_crtc *crtc;
+	struct sunxi_drm_crtc *sunxi_crtc;
 
 	DRM_DEBUG_DRIVER("[%d]\n", __LINE__);
 
-    spin_lock_irqsave(&dev->event_lock, flags);
+	spin_lock_irqsave(&dev->event_lock, flags);
 
-    list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
+	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
 		sunxi_crtc = to_sunxi_crtc(crtc);	
-    	list_for_each_entry_safe(e, t, &sunxi_crtc->pageflip_event_list,
-    			base.link) {
-    		if (e->base.file_priv == file) {
-    			list_del(&e->base.link);
-    			e->base.destroy(&e->base);
-    		}
-    	}
-    }
+		list_for_each_entry_safe(e, t, &sunxi_crtc->pageflip_event_list,
+			base.link) {
+			if (e->base.file_priv == file) {
+				list_del(&e->base.link);
+				e->base.destroy(&e->base);
+			}
+		}
+	}
 	spin_unlock_irqrestore(&dev->event_lock, flags);
 
 }
@@ -165,12 +165,14 @@ static const struct vm_operations_struct sunxi_drm_gem_vm_ops = {
 };
 
 static struct drm_ioctl_desc sunxi_ioctls[] = {
-    	DRM_IOCTL_DEF_DRV(SUNXI_FLIP_SYNC, sunxi_drm_flip_ioctl,
-			DRM_UNLOCKED | DRM_AUTH),
-	    DRM_IOCTL_DEF_DRV(SUNXI_ROTATE, sunxi_drm_rotate_ioctl,
-			DRM_UNLOCKED | DRM_AUTH),
-	    DRM_IOCTL_DEF_DRV(SUNXI_SYNC_GEM, sunxi_drm_gem_sync_ioctl,
-			DRM_UNLOCKED | DRM_AUTH),
+	DRM_IOCTL_DEF_DRV(SUNXI_FLIP_SYNC, sunxi_drm_flip_ioctl,
+		DRM_UNLOCKED | DRM_AUTH),
+	DRM_IOCTL_DEF_DRV(SUNXI_ROTATE, sunxi_drm_rotate_ioctl,
+		DRM_UNLOCKED | DRM_AUTH),
+	DRM_IOCTL_DEF_DRV(SUNXI_SYNC_GEM, sunxi_drm_gem_sync_ioctl,
+		DRM_UNLOCKED | DRM_AUTH),
+	DRM_IOCTL_DEF_DRV(SUNXI_INFO_FB_PLANE, sunxi_drm_info_fb_ioctl,
+		DRM_UNLOCKED | DRM_AUTH),
 };
 
 static const struct file_operations sunxi_drm_driver_fops = {
@@ -188,7 +190,7 @@ static const struct file_operations sunxi_drm_driver_fops = {
 
 static struct drm_driver sunxi_drm_driver = {
 	.driver_features = DRIVER_HAVE_IRQ | DRIVER_MODESET |
-					DRIVER_GEM | DRIVER_PRIME,
+				DRIVER_GEM | DRIVER_PRIME,
 	.load = sunxi_drm_load,
 	.unload = sunxi_drm_unload,
 	.open = sunxi_drm_open,
@@ -256,7 +258,7 @@ static int __init sunxi_drm_dev_init(void)
 		goto out_0;
 
 	sunxi_drm_pdev = platform_device_register_simple("sunxi-drm", -1,
-				NULL, 0);
+			NULL, 0);
 	if (IS_ERR(sunxi_drm_pdev)) {
 		ret = PTR_ERR(sunxi_drm_pdev);
 		goto out;

@@ -40,101 +40,101 @@ static char drm_irq[][10] = {
 
 int sunxi_clk_set(struct sunxi_hardware_res *hw_res)
 {
-    unsigned long clk_set;
-    if(hw_res && hw_res->parent_clk) {
-        clk_set_rate(hw_res->parent_clk, hw_res->parent_clk_rate);
-        clk_set = clk_get_rate(hw_res->parent_clk);
-        if (clk_set != hw_res->parent_clk_rate) {
-            DRM_INFO("set parent clk:%lu, but get:%lu.\n",hw_res->parent_clk_rate, clk_set); 
-        }
-    }
-    if (hw_res && hw_res->clk) {
-        clk_set_rate(hw_res->clk, hw_res->clk_rate);
-        clk_set = clk_get_rate(hw_res->clk);
-        if (clk_set != hw_res->clk_rate){
-            DRM_INFO("set clk:%lu, but get:%lu.\n",hw_res->clk_rate, clk_set);
-        }
-    }
+	unsigned long clk_set;
+	if(hw_res && hw_res->parent_clk) {
+		clk_set_rate(hw_res->parent_clk, hw_res->parent_clk_rate);
+		clk_set = clk_get_rate(hw_res->parent_clk);
+		if (clk_set != hw_res->parent_clk_rate) {
+			DRM_INFO("set parent clk:%lu, but get:%lu.\n",hw_res->parent_clk_rate, clk_set); 
+			}
+	}
+	if (hw_res && hw_res->clk) {
+		clk_set_rate(hw_res->clk, hw_res->clk_rate);
+		clk_set = clk_get_rate(hw_res->clk);
+		if (clk_set != hw_res->clk_rate){
+			DRM_INFO("set clk:%lu, but get:%lu.\n",hw_res->clk_rate, clk_set);
+		}
+	}
 
-    return 0;
+	return 0;
 }
 
 void sunxi_clk_enable(struct sunxi_hardware_res *hw_res)
 {
-    if (hw_res && !hw_res->clk_enable && hw_res->clk) {
-        clk_prepare_enable(hw_res->clk);
-        hw_res->clk_enable = 1;
-    }
+	if (hw_res && !hw_res->clk_enable && hw_res->clk) {
+		clk_prepare_enable(hw_res->clk);
+		hw_res->clk_enable = 1;
+	}
 }
 
 void sunxi_clk_disable(struct sunxi_hardware_res *hw_res)
 {
-    if (hw_res && hw_res->clk_enable && hw_res->clk) {
-        clk_disable_unprepare(hw_res->clk);
-        hw_res->clk_enable = 0;
-    }
+	if (hw_res && hw_res->clk_enable && hw_res->clk) {
+		clk_disable_unprepare(hw_res->clk);
+		hw_res->clk_enable = 0;
+	}
 }
 
 void sunxi_irq_enable(struct sunxi_hardware_res *hw_res)
 {
-    if (hw_res && hw_res->irq_uesd && !hw_res->irq_enable) {
-        enable_irq(hw_res->irq_no);
-        hw_res->irq_enable = 1;
-    }
+	if (hw_res && hw_res->irq_uesd && !hw_res->irq_enable) {
+		enable_irq(hw_res->irq_no);
+		hw_res->irq_enable = 1;
+	}
 }
 
 void sunxi_irq_disable(struct sunxi_hardware_res *hw_res)
 {
-    if (hw_res && hw_res->irq_enable) {
-        disable_irq(hw_res->irq_no);
-        hw_res->irq_enable = 0;
-    }
+	if (hw_res && hw_res->irq_enable) {
+		disable_irq(hw_res->irq_no);
+		hw_res->irq_enable = 0;
+	}
 }
 
 int sunxi_irq_request(struct sunxi_hardware_res  *hw_res)
 {
-    unsigned int irq_no;
-    void *irq_arg;
-    irq_handler_t irq_handle;
+	unsigned int irq_no;
+	void *irq_arg;
+	irq_handler_t irq_handle;
 
-    irq_no = hw_res->irq_no;
-    irq_arg = hw_res->irq_arg;
-    irq_handle = hw_res->irq_handle;
-    if (hw_res && !hw_res->irq_uesd) {
-        request_irq(irq_no, (irq_handler_t)irq_handle,
-                IRQF_DISABLED, drm_irq[hw_res->res_id], irq_arg);
-        /* make sure that after request,the irq enbaled? */
-        hw_res->irq_enable = 1;
-        hw_res->irq_uesd = 1;
-    }
+	irq_no = hw_res->irq_no;
+	irq_arg = hw_res->irq_arg;
+	irq_handle = hw_res->irq_handle;
+	if (hw_res && !hw_res->irq_uesd) {
+		request_irq(irq_no, (irq_handler_t)irq_handle,
+			IRQF_DISABLED, drm_irq[hw_res->res_id], irq_arg);
+		/* make sure that after request,the irq enbaled ? */
+		hw_res->irq_enable = 1;
+		hw_res->irq_uesd = 1;
+	}
 
-    return 0;
+	return 0;
 }
 
 bool sunxi_irq_query(struct sunxi_hardware_res *hw_res,
         void *irq_data, int need_irq)
 {
-    bool status = true;
-    if (hw_res && hw_res->ops && hw_res->ops->irq_query)
-        status = hw_res->ops->irq_query(irq_data,need_irq);
-    return status;
+	bool status = true;
+	if (hw_res && hw_res->ops && hw_res->ops->irq_query)
+		status = hw_res->ops->irq_query(irq_data,need_irq);
+	return status;
 }
 
 int sunxi_irq_free(struct sunxi_hardware_res *hw_res)
 {
     
-    if (hw_res && hw_res->irq_uesd) {
-        free_irq(hw_res->irq_no, hw_res->irq_arg);
-        hw_res->irq_enable = 0;
-        hw_res->irq_uesd = 0;
-    }
+	if (hw_res && hw_res->irq_uesd) {
+		free_irq(hw_res->irq_no, hw_res->irq_arg);
+		hw_res->irq_enable = 0;
+		hw_res->irq_uesd = 0;
+	}
 
-    return 0;
+	return 0;
 }
 
 void sunxi_drm_delayed_ms(unsigned int ms)
 {
-    unsigned int timeout = msecs_to_jiffies(ms);
+	unsigned int timeout = msecs_to_jiffies(ms);
 
 	set_current_state(TASK_UNINTERRUPTIBLE);
 	schedule_timeout(timeout);
@@ -211,12 +211,12 @@ int sunxi_drm_sys_gpio_request(disp_gpio_set_t *gpio_list)
 	ret = gpio_request(pin_cfg.gpio, NULL);
 	if (0 != ret) {
 		DRM_ERROR("failed, gpio_name=%s, gpio=%d, ret=%d\n",
-            gpio_list->gpio_name, gpio_list->gpio, ret);
+		gpio_list->gpio_name, gpio_list->gpio, ret);
 		return 0;
 	} else {
 		DRM_INFO("%s, gpio_name=%s, gpio=%d, <%d,%d,%d,%d>ret=%d\n", __func__,
-            gpio_list->gpio_name, gpio_list->gpio,
-			gpio_list->mul_sel, gpio_list->pull, gpio_list->drv_level, gpio_list->data, ret);
+		gpio_list->gpio_name, gpio_list->gpio,
+		gpio_list->mul_sel, gpio_list->pull, gpio_list->drv_level, gpio_list->data, ret);
 	}
 	ret = pin_cfg.gpio;
 
@@ -318,51 +318,50 @@ exit:
 
 int sunxi_drm_get_sys_item_int(struct device_node *node, char *sub_name, int *value)
 {
-
-    return of_property_read_u32_array(node, sub_name, value, 1);
+	return of_property_read_u32_array(node, sub_name, value, 1);
 }
 
 int sunxi_drm_get_sys_item_char(struct device_node *node, char *sub_name, char *value)
 {
-    const char *str;
-    if (of_property_read_string(node, sub_name, &str)) {
-        DRM_INFO("failed to get [%s] string.\n", sub_name); 
-        return  -EINVAL;
-    }
+	const char *str;
+	if (of_property_read_string(node, sub_name, &str)) {
+		DRM_INFO("failed to get [%s] string.\n", sub_name); 
+		return  -EINVAL;
+	}
 
-    memcpy((void*)value, str, strlen(str)+1);
+	memcpy((void*)value, str, strlen(str)+1);
 
-    return 0;
+	return 0;
 }
 
 int sunxi_drm_get_sys_item_gpio(struct device_node *node, char *sub_name, disp_gpio_set_t *gpio_info)
 {
 	int gpio;
-    struct gpio_config config;
+	struct gpio_config config;
 
-    gpio = of_get_named_gpio_flags(node, sub_name, 0, (enum of_gpio_flags *)&config);
+	gpio = of_get_named_gpio_flags(node, sub_name, 0, (enum of_gpio_flags *)&config);
 	if (!gpio_is_valid(gpio)) {
 		DRM_INFO("failed to get gpio[%s].\n",sub_name); 
-        return -EINVAL;
+		return -EINVAL;
 	}
 
-    gpio_info->gpio = config.gpio;
+	gpio_info->gpio = config.gpio;
 	gpio_info->mul_sel = config.mul_sel;
 	gpio_info->pull = config.pull;
 	gpio_info->drv_level = config.drv_level;
 	gpio_info->data = config.data;
 	memcpy(gpio_info->gpio_name, sub_name, strlen(sub_name)+1);
 
-    return 0;
+	return 0;
 }
 
 struct device_node *sunxi_drm_get_name_node(char *device_name)
 {
-    struct device_node *node = NULL;
-    char compat[32];
+	struct device_node *node = NULL;
+	char compat[32];
 	u32 len = 0;
 
-    len = sprintf(compat, "allwinner,%s", device_name);
+	len = sprintf(compat, "allwinner,%s", device_name);
 	if (len > 32)
 		DRM_INFO("size of mian_name is out of range\n");
 
@@ -372,32 +371,32 @@ struct device_node *sunxi_drm_get_name_node(char *device_name)
 		return NULL;
 	}
 
-    return node;
+	return node;
 }
 
 int sunxi_drm_sys_pwm_enable(struct pwm_info_t *pwm_info)
 {
-    if (pwm_info->pwm_dev && !pwm_info->enabled) {
-        pwm_info->enabled = 1;
-        return pwm_enable(pwm_info->pwm_dev);
-    }
-    return 0;
+	if (pwm_info->pwm_dev && !pwm_info->enabled) {
+		pwm_info->enabled = 1;
+		return pwm_enable(pwm_info->pwm_dev);
+	}
+	return 0;
 }
 
 int sunxi_drm_sys_pwm_disable(struct pwm_info_t *pwm_info)
 {
-    if (pwm_info->pwm_dev && pwm_info->enabled) {
-        pwm_info->enabled = 0;
-        pwm_disable(pwm_info->pwm_dev);
-    }
-    return 0;
+	if (pwm_info->pwm_dev && pwm_info->enabled) {
+		pwm_info->enabled = 0;
+		pwm_disable(pwm_info->pwm_dev);
+	}
+	return 0;
 }
 
 int sunxi_drm_sys_pwm_config(struct pwm_device *pwm_dev, int duty_ns, int period_ns)
 {
 	if (NULL == pwm_dev || IS_ERR(pwm_dev)) {
-        DRM_ERROR("set pwm err.\n");
-        return -EINVAL;
+		DRM_ERROR("set pwm err.\n");
+		return -EINVAL;
 	}
 	return pwm_config(pwm_dev, duty_ns, period_ns);
 

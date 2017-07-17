@@ -27,11 +27,10 @@ enum encoder_ops_type {
 };
 
 struct sunxi_drm_encoder {
-	struct drm_encoder	    drm_encoder;
-    int                     enc_id;
-	int				        dpms;
-
-    struct sunxi_hardware_res *hw_res; 
+	struct drm_encoder	drm_encoder;
+	int	enc_id;
+	int	dpms;
+	struct sunxi_hardware_res *hw_res; 
 };
 
 #define to_sunxi_encoder(x)	(container_of(x, struct sunxi_drm_encoder, drm_encoder))
@@ -39,7 +38,7 @@ struct sunxi_drm_encoder {
 irqreturn_t sunxi_encoder_vsync_handle(int irq, void *data);
 
 int sunxi_drm_encoder_create(struct drm_device *dev, unsigned int possible_crtcs,
-        int fix_crtc, int id, struct sunxi_hardware_res *hw_res);
+			int fix_crtc, int id, struct sunxi_hardware_res *hw_res);
 int  sunxi_encoder_updata_delayed(struct drm_encoder *encoder);
 
 void sunxi_drm_encoder_enable(struct drm_encoder *encoder);
@@ -49,6 +48,6 @@ void sunxi_drm_encoder_disable(struct drm_encoder *encoder);
 struct drm_connector *sunxi_get_conct(struct drm_encoder *encoder);
 
 int sunxi_encoder_assign_ops(struct drm_device *dev, int nr,
-    enum encoder_ops_type type, void *private);
+		enum encoder_ops_type type, void *private);
 
 #endif

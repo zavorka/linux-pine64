@@ -21,8 +21,6 @@
 #define Explicit_Offset_Address_E_DDC_Read  6
 #define Implicit_Offset_Address_E_DDC_Read  7
 
-
-
 #define HDMI1440_480I		6
 #define HDMI1440_576I		21
 #define HDMI480P			2
@@ -50,36 +48,33 @@
 #define HDMI_State_EDID_Parse		 0x04
 #define HDMI_State_HPD_Done			 0x05
 
-
-
-
 #define HDMI_IO_NUM 5
 
 struct sunxi_hdmi_private {
-    int hdmi_id;
-    struct sunxi_panel *sunxi_panel;
-    struct disp_video_timings *timing;
-    bool    hdmi_io_used[HDMI_IO_NUM];
-    bool    power_on;
-    bool    can_YCbCr444;
-    bool    can_YCbCr422;
-    bool    cts_compat;
-    bool    hdcp_enable;
-    bool    cec_support;
-    bool    exp;
-    disp_gpio_set_t hdmi_io[HDMI_IO_NUM];
-    int             gpio_handle[HDMI_IO_NUM];
-    char    hdmi_power[25];
-    struct cea_sad    *hdmi_sads;
-    int   nr_sad;
-    struct video_para video_para;
-    struct audio_para audio_para;
+	int hdmi_id;
+	struct sunxi_panel *sunxi_panel;
+	struct disp_video_timings *timing;
+	bool    hdmi_io_used[HDMI_IO_NUM];
+	bool    power_on;
+	bool    can_YCbCr444;
+	bool    can_YCbCr422;
+	bool    cts_compat;
+	bool    hdcp_enable;
+	bool    cec_support;
+	bool    exp;
+	disp_gpio_set_t hdmi_io[HDMI_IO_NUM];
+	int             gpio_handle[HDMI_IO_NUM];
+	char    hdmi_power[25];
+	struct cea_sad    *hdmi_sads;
+	int   nr_sad;
+	struct video_para video_para;
+	struct audio_para audio_para;
 };
 
 struct sunxi_panel *sunxi_hdmi_pan_init(struct sunxi_hardware_res *hw_res, int pan_id, int hdmi_id);
 
 void sunxi_hdmi_pan_destroy(struct sunxi_panel *sunxi_panel,
-            struct sunxi_hardware_res *hw_res);
+	struct sunxi_hardware_res *hw_res);
 enum drm_mode_status
-    sunxi_hdmi_mode_timmings(void *timing, struct drm_display_mode *mode);
+	sunxi_hdmi_mode_timmings(void *timing, struct drm_display_mode *mode);
 #endif

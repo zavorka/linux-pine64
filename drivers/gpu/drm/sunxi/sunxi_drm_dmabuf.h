@@ -20,9 +20,9 @@ struct sunxi_gem_dmabuf_attachment {
 };
 
 struct dma_buf *sunxi_dmabuf_prime_export(struct drm_device *drm_dev,
-				struct drm_gem_object *obj, int flags);
+			struct drm_gem_object *obj, int flags);
 
 struct drm_gem_object *sunxi_dmabuf_prime_import(struct drm_device *drm_dev,
-				struct dma_buf *dma_buf);
+	struct dma_buf *dma_buf);
 
 #endif
