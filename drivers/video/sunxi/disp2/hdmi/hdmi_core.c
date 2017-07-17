@@ -97,52 +97,6 @@ ssize_t hdmi_modeline_store(struct device *dev,
 	return count;
 }
 
-static int hdmi_core_set_para_param(int vic, unsigned int *para)
-{
-	int i;
-	int index = hdmi_core_get_video_info(vic);
-	if (index < 0) {
-		printk(KERN_ERR "HDMI failed to find video_timing for VIC:%d\n", vic);
-		return -ENODEV;
-	}
-
-	struct disp_video_timings *timing = &video_timing[index];
-
-	para[0] = timing->vic;
-	if (timing->pixel_clk <= 27000000)
-		para[1] = 11;
-	else if (timing->pixel_clk <= 74250000)
-		para[1] = 4;
-	else if (timing->pixel_clk <= 148500000)
-		para[1] = 2;
-	else
-		para[1] = 1;
-	para[2] = timing->tv_mode;
-	para[3] = (timing->hor_sync_polarity ? 96 : 0) | (timing->b_interlace ? 1 : 0);
-	para[4] = timing->x_res >> 8;
-	para[5] = timing->ver_sync_time;
-	para[6] = timing->y_res >> 8;
-	para[7] = (timing->hor_total_time - timing->x_res) >> 8;
-	para[8] = timing->ver_front_porch;
-	para[9] = timing->hor_front_porch >> 8;
-	para[10] = timing->hor_sync_time >> 8;
-	para[11] = timing->x_res & 0xFF;
-	para[12] = (timing->hor_total_time - timing->x_res) & 0xFF;
-	para[13] = timing->hor_front_porch & 0xFF;
-	para[14] = timing->hor_sync_time & 0xFF;
-	para[15] = timing->y_res & 0xFF;
-	para[16] = (timing->ver_total_time - timing->y_res) & 0xFF;
-	para[17] = 1;
-	para[18] = 1;
-
-	printk(KERN_INFO "HDMI set ptbl: ");
-	for(i = 0; i < 19; ++i) {
-		printk("%d ", para[i]);
-	}
-	printk("\n");
-	return 0;
-}
-
 static void hdmi_para_reset(void)
 {
 	hdmi_state	  = HDMI_State_Idle;
@@ -324,6 +278,19 @@ s32 hdmi_core_get_video_info(s32 vic)
 	return -1;
 }
 
+struct disp_video_timings *hdmi_core_get_video_timing(s32 vic)
+{
+	s32 i,count;
+
+	count = sizeof(video_timing)/sizeof(struct disp_video_timings);
+	for (i=0;i<count;i++) {
+		if (vic == video_timing[i].vic)
+			return &video_timing[i];
+	}
+	__wrn("can't find the video timing parameters\n");
+	return NULL;
+}
+
 s32 hdmi_core_get_audio_info(s32 sample_rate)
 {
 	//ACR_N 32000 44100 48000 88200 96000 176400 192000
@@ -484,7 +451,8 @@ static s32 audio_config_internal(void)
 			return 0;
 		}
 
-		hdmi_core_set_para_param(glb_audio_para.vic, glb_audio_para.para);
+		glb_audio_para.timings = hdmi_core_get_video_timing(glb_audio_para.vic);
+
 		if (bsp_hdmi_audio(&glb_audio_para))
 		{
 			__wrn("set hdmi audio error!\n");
@@ -553,7 +521,9 @@ s32 hdmi_core_set_video_enable(bool enable)
 		video_config(glb_video_para.vic);
 		__inf("hdmi_core_set_video_enable, vic:%d,is_hdmi:%d,is_yuv:%d,is_hcts:%d\n",
 			glb_video_para.vic, glb_video_para.is_hdmi,glb_video_para.is_yuv, glb_video_para.is_hcts);
-		hdmi_core_set_para_param(glb_video_para.vic, glb_video_para.para);
+
+		glb_video_para.timings = hdmi_core_get_video_timing(glb_audio_para.vic);
+
 		if (bsp_hdmi_video(&glb_video_para))
 		{
 			__wrn("set hdmi video error!\n");

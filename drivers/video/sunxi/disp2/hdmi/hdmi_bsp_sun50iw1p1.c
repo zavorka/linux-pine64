@@ -6,12 +6,9 @@ static unsigned long long hdmi_base_addr_v2;
 static struct video_para glb_video;
 static unsigned int hdmi_version;
 
-static int hdmi_phy_set(struct video_para *video);
+typedef unsigned int para_tab[19];
 
-struct para_tab
-{
-	unsigned int para[19];
-};
+static int hdmi_phy_set(struct video_para *video, para_tab para);
 
 struct pcm_sf
 {
@@ -149,12 +146,12 @@ void hdmi_phy_init(struct video_para *video)
 	hdmi_writel(0x10028,0x0F81C405);
 }
 
-int hdmi_phy_set(struct video_para *video)
+int hdmi_phy_set(struct video_para *video, para_tab para)
 {
 	unsigned int tmp;
 
 	hdmi_writel(0x10020,hdmi_readl(0x10020)&(~0xf000));
-	switch(video->para[1])
+	switch(para[1])
 	{
 		case 1:
 			if(hdmi_version == 0)
@@ -289,8 +286,55 @@ void bsp_hdmi_set_video_en(unsigned char enable)
 		hdmi_writel(0x10020,hdmi_readl(0x10020)&(~(0xf<<12)));
 }
 
+void bsp_hdmi_get_para(para_tab para, struct disp_video_timings *timing)
+{
+	int i;
+
+	if (timing == NULL) {
+		printk(KERN_ERR "BSP_HDMI: missing timing\n");
+		memset(para, 0, sizeof(para_tab));
+		return;
+	}
+
+	para[0] = timing->vic;
+	if (timing->pixel_clk <= 27000000)
+		para[1] = 11;
+	else if (timing->pixel_clk <= 74250000)
+		para[1] = 4;
+	else if (timing->pixel_clk <= 148500000)
+		para[1] = 2;
+	else
+		para[1] = 1;
+	para[2] = timing->tv_mode;
+	para[3] = (timing->hor_sync_polarity ? 96 : 0) | (timing->b_interlace ? 1 : 0);
+	para[4] = timing->x_res >> 8;
+	para[5] = timing->ver_sync_time;
+	para[6] = timing->y_res >> 8;
+	para[7] = (timing->hor_total_time - timing->x_res) >> 8;
+	para[8] = timing->ver_front_porch;
+	para[9] = timing->hor_front_porch >> 8;
+	para[10] = timing->hor_sync_time >> 8;
+	para[11] = timing->x_res & 0xFF;
+	para[12] = (timing->hor_total_time - timing->x_res) & 0xFF;
+	para[13] = timing->hor_front_porch & 0xFF;
+	para[14] = timing->hor_sync_time & 0xFF;
+	para[15] = timing->y_res & 0xFF;
+	para[16] = (timing->ver_total_time - timing->y_res) & 0xFF;
+	para[17] = 1;
+	para[18] = 1;
+
+	printk(KERN_INFO "HDMI set ptbl: ");
+	for(i = 0; i < 19; ++i) {
+		printk("%d ", para[i]);
+	}
+	printk("\n");
+}
+
 int bsp_hdmi_video(struct video_para *video)
 {
+	para_tab para;
+	bsp_hdmi_get_para(para, video->timings);
+
 	glb_video.vic = video->vic;
 
 	switch(glb_video.vic)
@@ -307,36 +351,36 @@ int bsp_hdmi_video(struct video_para *video)
 			video->csc = BT709;
 			break;
 	}
-	if(hdmi_phy_set(video)!=0)
+	if(hdmi_phy_set(video, para)!=0)
 		return -1;
 
 	bsp_hdmi_inner_init();
 
 	hdmi_write(0x0840, 0x01);
 	hdmi_write(0x4845, 0x00);
-	hdmi_write(0x0040, video->para[3] |	0x10);
-	hdmi_write(0x10001, ( (video->para[3] < 96) ? 0x03 : 0x00 ) );
-	hdmi_write(0x8040, video->para[4]);
-	hdmi_write(0x4043, video->para[5]);
-	hdmi_write(0x8042, video->para[6]);
-	hdmi_write(0x0042, video->para[7]);
-	hdmi_write(0x4042, video->para[8]);
-	hdmi_write(0x4041, video->para[9]);
-	hdmi_write(0xC041, video->para[10]);
-	hdmi_write(0x0041, video->para[11]);
-	hdmi_write(0x8041, video->para[12]);
-	hdmi_write(0x4040, video->para[13]);
-	hdmi_write(0xC040, video->para[14]);
-	hdmi_write(0x0043, video->para[15]);
-	hdmi_write(0x8043, video->para[16]);
+	hdmi_write(0x0040, para[3] |	0x10);
+	hdmi_write(0x10001, ( (para[3] < 96) ? 0x03 : 0x00 ) );
+	hdmi_write(0x8040, para[4]);
+	hdmi_write(0x4043, para[5]);
+	hdmi_write(0x8042, para[6]);
+	hdmi_write(0x0042, para[7]);
+	hdmi_write(0x4042, para[8]);
+	hdmi_write(0x4041, para[9]);
+	hdmi_write(0xC041, para[10]);
+	hdmi_write(0x0041, para[11]);
+	hdmi_write(0x8041, para[12]);
+	hdmi_write(0x4040, para[13]);
+	hdmi_write(0xC040, para[14]);
+	hdmi_write(0x0043, para[15]);
+	hdmi_write(0x8043, para[16]);
 	hdmi_write(0x0045, 0x0c);
 	hdmi_write(0x8044, 0x20);
 	hdmi_write(0x8045, 0x01);
 	hdmi_write(0x0046, 0x0b);
 	hdmi_write(0x0047, 0x16);
 	hdmi_write(0x8046, 0x21);
-	hdmi_write(0x3048, video->para[2] ? 0x21 : 0x10);
-	hdmi_write(0x0401, video->para[2] ? 0x41 : 0x40);
+	hdmi_write(0x3048, para[2] ? 0x21 : 0x10);
+	hdmi_write(0x0401, para[2] ? 0x41 : 0x40);
 	hdmi_write(0x8400, 0x07);
 	hdmi_write(0x8401, 0x00);
 	hdmi_write(0x0402, 0x47);
@@ -355,8 +399,8 @@ int bsp_hdmi_video(struct video_para *video)
 		hdmi_write(0x2045, 0x00);
 		hdmi_write(0x2044, 0x0c);
 		hdmi_write(0x6041, 0x03);
-		hdmi_write(0xA044, ((video->para[0]&0x100) == 0x100) ? 0x20 : ( ((video->para[0]&0x80) == 0x80) ? 0x40 : 0x00) );
-		hdmi_write(0xA045, ((video->para[0]&0x100) == 0x100) ? (video->para[0]&0x7f) : 0x00);
+		hdmi_write(0xA044, ((para[0]&0x100) == 0x100) ? 0x20 : ( ((para[0]&0x80) == 0x80) ? 0x40 : 0x00) );
+		hdmi_write(0xA045, ((para[0]&0x100) == 0x100) ? (para[0]&0x7f) : 0x00);
 		hdmi_write(0x2046, 0x00);
 		hdmi_write(0x3046, 0x01);
 		hdmi_write(0x3047, 0x11);
@@ -373,22 +417,22 @@ int bsp_hdmi_video(struct video_para *video)
 		hdmi_write(0x10012,0x41);
 		hdmi_write(0x10013,0x57);
 		hdmi_write(0x4045, video->is_yuv ? 0x02 : 0x00);
-		if(video->para[17] == 0)
+		if(para[17] == 0)
 			hdmi_write(0xC044, (video->csc << 6) | 0x18);
-		else if(video->para[17] == 1)
+		else if(para[17] == 1)
 			hdmi_write(0xC044, (video->csc << 6) | 0x28);
 		else
 			hdmi_write(0xC044, (video->csc << 6) | 0x08);
 
 		hdmi_write(0xC045, video->is_yuv ? 0x00 : 0x08);
-		hdmi_write(0x4046, video->para[0]&0x7f);
+		hdmi_write(0x4046, para[0]&0x7f);
 	}
 
 	if(video->is_hcts)
 	{
 		hdmi_write(0x00C0, video->is_hdmi ? 0x91 : 0x90 );
 		hdmi_write(0x00C1, 0x05);
-		hdmi_write(0x40C1, (video->para[3] < 96) ? 0x10 : 0x1a);
+		hdmi_write(0x40C1, (para[3] < 96) ? 0x10 : 0x1a);
 		hdmi_write(0x80C2, 0xff);
 		hdmi_write(0x40C0, 0xfd);
 		hdmi_write(0xC0C0, 0x40);
@@ -422,6 +466,9 @@ int bsp_hdmi_audio(struct audio_para *audio)
 {
 	unsigned int i;
 	unsigned int n;
+
+	para_tab para;
+	bsp_hdmi_get_para(para, audio->timings);
 
 	hdmi_write(0xA049, (audio->ch_num > 2) ? 0xf1 : 0xf0);
 
@@ -464,7 +511,7 @@ int bsp_hdmi_audio(struct audio_para *audio)
 	{
 		if(audio->sample_rate == n_table[i])
 		{
-			if(audio->para[1] == 1)
+			if(para[1] == 1)
 				n = n_table[i+1];
 			else
 				n = n_table[i+2];
