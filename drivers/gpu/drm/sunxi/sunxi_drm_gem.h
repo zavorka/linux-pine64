@@ -17,18 +17,18 @@
 
 
 struct sunxi_drm_gem_buf {
-    struct drm_gem_object *obj;
+	struct drm_gem_object *obj;
 	void __iomem *kvaddr;
 	dma_addr_t dma_addr;
 	struct dma_attrs dma_attrs;
 	struct sg_table *sgt;
 	unsigned long size;
-    unsigned int flags;
+	unsigned int flags;
 };
 
 int sunxi_drm_gem_dumb_map_offset(struct drm_file *file_priv,
-				   struct drm_device *dev, uint32_t handle,
-				   uint64_t *offset);
+				struct drm_device *dev, uint32_t handle,
+				uint64_t *offset);
 
 int sunxi_drm_gem_mmap(struct file *filp, struct vm_area_struct *vma);
 
@@ -38,18 +38,18 @@ int sunxi_drm_gem_dumb_destroy(struct drm_file *file_priv,
 				struct drm_device *dev, unsigned int handle);
 
 int sunxi_drm_gem_dumb_create(struct drm_file *file_priv,
-			       struct drm_device *dev, struct drm_mode_create_dumb *args);
+				struct drm_device *dev, struct drm_mode_create_dumb *args);
 
 struct drm_gem_object *sunxi_drm_gem_creat(struct drm_device *dev,
-			       struct drm_mode_create_dumb *args);
+				struct drm_mode_create_dumb *args);
 
 void sunxi_drm_gem_destroy(struct drm_gem_object *gem_obj);
 
 static inline int sunxi_check_gem_memory_type(struct drm_gem_object *sunxi_gem_obj,
-    enum sunxi_drm_gem_buf_type need)
+	enum sunxi_drm_gem_buf_type need)
 {
-    struct sunxi_drm_gem_buf *buf = (struct sunxi_drm_gem_buf *)sunxi_gem_obj->driver_private;
-    return buf->flags & need;
+	struct sunxi_drm_gem_buf *buf = (struct sunxi_drm_gem_buf *)sunxi_gem_obj->driver_private;
+	return buf->flags & need;
 }
 void sunxi_sync_buf(struct sunxi_drm_gem_buf *buf);
 

@@ -17,7 +17,7 @@
 struct sunxi_drm_private {
 	struct drm_fb_helper *fb_helper;
 	struct drm_property *crtc_mode_property;
-    struct sunxi_rotate_private *rotate_private;
+	struct sunxi_rotate_private *rotate_private;
 };
 
 #endif

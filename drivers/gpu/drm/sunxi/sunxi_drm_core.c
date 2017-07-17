@@ -22,8 +22,8 @@
 #include "subdev/sunxi_rotate.h"
 
 static bool has_res[DISP_MOD_NUM+3][3] = {
-/* A64:{reg_base,irq,clk} */
-    {1,1,1}, /*DISP_MOD_DE*/
+	/* A64:{reg_base,irq,clk} */
+	{1,1,1}, /*DISP_MOD_DE*/
 #if defined(HAVE_DEVICE_COMMON_MODULE)
 	{1,0,0},  /*DISP_MOD_DEVICE*/
 	{0,1,1},  /*DISP_MOD_LCD0*/
@@ -43,7 +43,7 @@ static bool has_res[DISP_MOD_NUM+3][3] = {
 	{0,0,0},  /*DISP_MOD_DSI0*/
 #endif
 	{0,0,0},  /*DISP_MOD_DSI1*/
-    {0,0,0},  /*DISP_MOD_DSI2*/
+	{0,0,0},  /*DISP_MOD_DSI2*/
 	{1,1,1},  /*DISP_MOD_HDMI, but not in display device*/
 	{0,0,1},  /*DISP_MOD_LVDS*/
 	{1,1,1},  /*DISP_MOD_EINK*/
@@ -53,55 +53,55 @@ static bool has_res[DISP_MOD_NUM+3][3] = {
 bool sunxi_find_irq_res(struct drm_connector *connector, unsigned int *irq,
     void **irq_arg, irqreturn_t(**irq_handle)(int, void *), bool *enalbed)
 {
-    struct sunxi_drm_connector    *sunxi_connector;
-    struct sunxi_drm_encoder	  *sunxi_encoder;
-    struct sunxi_drm_crtc         *sunxi_crtc;
-    struct sunxi_hardware_res     *hw_res;
+	struct sunxi_drm_connector    *sunxi_connector;
+	struct sunxi_drm_encoder	  *sunxi_encoder;
+	struct sunxi_drm_crtc         *sunxi_crtc;
+	struct sunxi_hardware_res     *hw_res;
 
-    sunxi_connector = to_sunxi_connector(connector);
-    hw_res = sunxi_connector->hw_res;
+	sunxi_connector = to_sunxi_connector(connector);
+	hw_res = sunxi_connector->hw_res;
 
-    if (hw_res && hw_res->irq_uesd) {
+	if (hw_res && hw_res->irq_uesd) {
 
-        *irq = hw_res->irq_no;
-        *irq_arg = hw_res->irq_arg;
-        *irq_handle = sunxi_crtc_vsync_handle;
-        *enalbed = hw_res->irq_enable;
-        return true;
-    }
+		*irq = hw_res->irq_no;
+		*irq_arg = hw_res->irq_arg;
+		*irq_handle = sunxi_crtc_vsync_handle;
+		*enalbed = hw_res->irq_enable;
+		return true;
+	}
 
-    sunxi_encoder = to_sunxi_encoder(connector->encoder);
-    if (sunxi_encoder) {
-        hw_res = sunxi_connector->hw_res;
-    } else {
-        hw_res = NULL;
-    }
-    if (hw_res && hw_res->irq_uesd) {
-        *irq = hw_res->irq_no;
-        *irq_arg = hw_res->irq_arg;
-        *irq_handle = sunxi_crtc_vsync_handle;
-        *enalbed = hw_res->irq_enable;
-        return true;
-    }
+	sunxi_encoder = to_sunxi_encoder(connector->encoder);
+	if (sunxi_encoder) {
+		hw_res = sunxi_connector->hw_res;
+	} else {
+		hw_res = NULL;
+	}
+	if (hw_res && hw_res->irq_uesd) {
+		*irq = hw_res->irq_no;
+		*irq_arg = hw_res->irq_arg;
+		*irq_handle = sunxi_crtc_vsync_handle;
+		*enalbed = hw_res->irq_enable;
+		return true;
+	}
 
-    sunxi_crtc = to_sunxi_crtc(sunxi_encoder->drm_encoder.crtc);
-    if (sunxi_crtc) {
-        hw_res = sunxi_connector->hw_res;
-    } else {
-        hw_res = NULL;
-    }
-    if (hw_res && hw_res->irq_uesd) {
-        *irq = hw_res->irq_no;
-        *irq_arg = hw_res->irq_arg;
-        *irq_handle = sunxi_crtc_vsync_handle;
-        *enalbed = hw_res->irq_enable;
-        return true;
-    }
+	sunxi_crtc = to_sunxi_crtc(sunxi_encoder->drm_encoder.crtc);
+	if (sunxi_crtc) {
+		hw_res = sunxi_connector->hw_res;
+	} else {
+		hw_res = NULL;
+	}
+	if (hw_res && hw_res->irq_uesd) {
+		*irq = hw_res->irq_no;
+		*irq_arg = hw_res->irq_arg;
+		*irq_handle = sunxi_crtc_vsync_handle;
+		*enalbed = hw_res->irq_enable;
+		return true;
+	}
 
-    *irq = 0;
-    *irq_arg = NULL;
-    *irq_handle = NULL;
-    return false;
+	*irq = 0;
+	*irq_arg = NULL;
+	*irq_handle = NULL;
+	return false;
 }
 
 
@@ -109,35 +109,35 @@ int sunxi_drm_get_res_info(disp_bsp_init_para *para,
         struct sunxi_hardware_res *hw_res, bool has_res[3])
 {
 
-    if (has_res[0]) {
-        hw_res->reg_base = para->reg_base[hw_res->res_id];
-    }
-    if (has_res[1]) {
-        hw_res->irq_no = para->irq_no[hw_res->res_id];
-    }
-    if (has_res[2]) {
-        hw_res->clk = para->mclk[hw_res->res_id];
-    }
-    return 0;
+	if (has_res[0]) {
+		hw_res->reg_base = para->reg_base[hw_res->res_id];
+	}
+	if (has_res[1]) {
+		hw_res->irq_no = para->irq_no[hw_res->res_id];
+	}
+	if (has_res[2]) {
+		hw_res->clk = para->mclk[hw_res->res_id];
+	}
+	return 0;
 }
 
 struct sunxi_hardware_res *sunxi_hwres_init(disp_mod_id id)
 {
-    struct sunxi_hardware_res *hw_res;
-    hw_res = kzalloc(sizeof(struct sunxi_hardware_res), GFP_KERNEL);  
-    if (!hw_res) {
-       DRM_ERROR("failed to alloc lcd sunxi_hardware_res.\n");
-       return NULL;
-    }
-    hw_res->res_id = id;
-    return hw_res;
+	struct sunxi_hardware_res *hw_res;
+	hw_res = kzalloc(sizeof(struct sunxi_hardware_res), GFP_KERNEL);  
+	if (!hw_res) {
+		DRM_ERROR("failed to alloc lcd sunxi_hardware_res.\n");
+		return NULL;
+	}
+	hw_res->res_id = id;
+	return hw_res;
 }
 
 void sunxi_hwres_destroy(struct sunxi_hardware_res *hw_res)
 {
-    sunxi_clk_disable(hw_res);
-    sunxi_irq_free(hw_res);
-    kfree(hw_res);
+	sunxi_clk_disable(hw_res);
+	sunxi_irq_free(hw_res);
+	kfree(hw_res);
 }
 
 /* same with display driver */
@@ -296,154 +296,177 @@ err_iomap:
 
 int sunxi_drm_init(struct drm_device *dev)
 {
-    int i, j, ret, max_crtc, max_enc, max_connector;
-    int possible_up = 0x00, fix_up = -1, asigned = 0x00;
-    int lcd_id = 0, hdmi_id = 0;
-    struct sunxi_panel *sunxi_panel;
-    struct sunxi_hardware_res *hw_res;
-    disp_bsp_init_para para;
-    disp_mod_id id;
-    enum disp_output_type disp_out_type;
+	int i, j, ret, max_crtc, max_enc, max_connector;
+	int possible_up = 0x00, fix_up = -1, asigned = 0x00;
+	int lcd_id = 0, hdmi_id = 0;
+	struct sunxi_panel *sunxi_panel;
+	struct sunxi_hardware_res *hw_res;
+	disp_bsp_init_para para;
+	disp_mod_id id;
+	enum disp_output_type disp_out_type;
+	struct resource *res_irq;
 
-    if (sunxi_display_init(&para)) {
-        goto err;
-    }
+	if (sunxi_display_init(&para)) {
+		goto err;
+	}
+	dev->vblank_disable_allowed = 1;
+	dev->irq_enabled = 1;
+	sunxi_drm_init_al(&para);
+	max_crtc = sunxi_drm_get_max_crtc();
+	max_enc = sunxi_drm_get_max_encoder();
+	max_connector = sunxi_drm_get_max_connector();
 
-    sunxi_drm_init_al(&para);
-    max_crtc = sunxi_drm_get_max_crtc();
-    max_enc = sunxi_drm_get_max_encoder();
-    max_connector = sunxi_drm_get_max_connector();
-
-    init_crtc_array(max_crtc);
-    for (i = 0, id = DISP_MOD_DE; i < max_crtc; i++) {
-        hw_res = sunxi_hwres_init(DISP_MOD_DE);
-        if (!hw_res) {
-            goto err;
-        }
-        ret = sunxi_drm_get_res_info(&para, hw_res, has_res[id]);
-        if (ret) {
-            sunxi_hwres_destroy(hw_res);
-            goto err;
-        }
-
-        ret = sunxi_drm_crtc_create(dev, i, hw_res);
-        if (ret) {
-            sunxi_hwres_destroy(hw_res);
-            goto err;
-        }
-	    DRM_DEBUG_KMS("[%d]:id[%d] reg_base[0x%lx] irq_id[%d]\n",__LINE__,
-            hw_res->res_id, hw_res->reg_base, hw_res->irq_no);
+	res_irq =  kzalloc(sizeof(struct resource), GFP_KERNEL);
+		if (res_irq == NULL) {
+		DRM_ERROR("fail to alloc res_irq for drm.\n");
 	}
 
-    possible_up = 0x03;
-    for (i = 0; i < max_enc; i++ ) {
+	init_crtc_array(max_crtc);
+	for (i = 0, id = DISP_MOD_DE; i < max_crtc; i++) {
+		hw_res = sunxi_hwres_init(DISP_MOD_DE);
+		if (!hw_res) {
+		goto err;
+		}
+		ret = sunxi_drm_get_res_info(&para, hw_res, has_res[id]);
+		if (ret) {
+			sunxi_hwres_destroy(hw_res);
+			goto err;
+		}
+
+		ret = sunxi_drm_crtc_create(dev, i, hw_res);
+		if (ret) {
+			sunxi_hwres_destroy(hw_res);
+			goto err;
+		}
+		DRM_DEBUG_KMS("[%d]:id[%d] reg_base[0x%lx] irq_id[%d]\n",__LINE__,
+		hw_res->res_id, hw_res->reg_base, hw_res->irq_no);
+	}
 #ifdef HAVE_DEVICE_COMMON_MODULE
-        hw_res = sunxi_hwres_init(DISP_MOD_DEVICE);
+	id = DISP_MOD_DEVICE;
 #else
-        hw_res = sunxi_hwres_init(DISP_MOD_LCD0 + i);
+	id = DISP_MOD_LCD0;
 #endif
-        if (!hw_res) {
-            goto err;
-        }
-        //debug
-        //possible_up = 1<<i;
-        fix_up = i;
-        ret = sunxi_drm_get_res_info(&para, hw_res, has_res[id]);
-        if (ret) {
-            sunxi_hwres_destroy(hw_res);
-            goto err;
-        }
-        ret = sunxi_drm_encoder_create(dev, possible_up, fix_up, i, hw_res);
-        if (ret) {
-            goto err;
-        }
-	    DRM_DEBUG_KMS("[%d]:id[%d] reg_base[0x%lx] irq_id[%d]\n",__LINE__, 
-            hw_res->res_id, hw_res->reg_base, hw_res->irq_no);
-    }
-    asigned = 0x00;
-    for (i = 0, id = DISP_MOD_DSI0, lcd_id = 0, hdmi_id =0;
-         (id < DISP_MOD_NUM) && (i < max_connector);
-         id++) {
-        hw_res = sunxi_hwres_init(id);
-        if (!hw_res) {
-            goto err;
-        }
-        fix_up = -1;
-        possible_up = 0;
-        disp_out_type = DISP_OUTPUT_TYPE_NONE;
-        switch (id ) {
-        case DISP_MOD_DSI0:
-        case DISP_MOD_DSI1:
-        case DISP_MOD_DSI2:
-        case DISP_MOD_LVDS:
-            sunxi_panel = sunxi_lcd_init(hw_res, i, lcd_id);
-            if (!sunxi_panel) {
-                sunxi_hwres_destroy(hw_res);
-                continue;
-            }
-            ret = sunxi_drm_get_res_info(&para, hw_res, has_res[id]);
-            if (ret) {
-                sunxi_hwres_destroy(hw_res);
-                goto err;
-            }
-            for (j = 0; j < max_enc; j++) {
-                if (sunxi_drm_encoder_support(j, DISP_OUTPUT_TYPE_LCD)) {
-                    possible_up |= 1<<j;
-                    if(!(asigned & (1 << j)) && fix_up == -1) {
-                        asigned |= 1 << j;
-                        fix_up = j;
-                    }
-                }
-            }
-            disp_out_type = DISP_OUTPUT_TYPE_LCD;
-            lcd_id++;
-            break;
-        case DISP_MOD_HDMI:
-            sunxi_panel = sunxi_hdmi_pan_init(hw_res, i,hdmi_id);
-            if (!sunxi_panel) {
-                sunxi_hwres_destroy(hw_res);
-                continue;
-            }
-            for (j = 0; j < max_enc; j++) {
-                if (sunxi_drm_encoder_support(j, DISP_OUTPUT_TYPE_HDMI)) {
-                    possible_up |= 1<<j;
-                    if(!(asigned & (1 << j)) && fix_up == -1) {
-                        asigned |= 1 << j;
-                        fix_up = j;
-                    }
-                }
-            }
-            disp_out_type = DISP_OUTPUT_TYPE_HDMI;
-            hdmi_id++;
-            break;
-        default:
-            DRM_ERROR("temple we don't support %d.\n", id);
-            sunxi_hwres_destroy(hw_res);
-            continue;
-        }
-	    DRM_DEBUG_KMS("[%d]:id[%d] reg_base[0x%lx] irq_id[%d]\n", __LINE__,
-            hw_res->res_id, hw_res->reg_base, hw_res->irq_no);
+	possible_up = 0x03;
+	for (i = 0; i < max_enc; i++ ) {
+#ifdef HAVE_DEVICE_COMMON_MODULE
+		hw_res = sunxi_hwres_init(DISP_MOD_DEVICE);
+#else
+		hw_res = sunxi_hwres_init(DISP_MOD_LCD0 + i);
+		id += i;;
+#endif
+		if (!hw_res) {
+			goto err;
+		}
 
-        ret = sunxi_drm_connector_create(dev, possible_up, fix_up, i, sunxi_panel, disp_out_type, hw_res);
-        if (ret) {
-            sunxi_lcd_destroy(sunxi_panel, hw_res);
-            sunxi_hwres_destroy(hw_res);
-            continue;
-        }
-        i++;
-    }
+		fix_up = i;
+		if (fix_up >= max_crtc)
+			fix_up = -1;
+		ret = sunxi_drm_get_res_info(&para, hw_res, has_res[id]);
+		if (ret) {
+			sunxi_hwres_destroy(hw_res);
+			goto err;
+		}
 
-    if (i == 0)
-        goto err;
-    if (sunxi_drm_rotate_init(dev->dev_private))
-        DRM_ERROR("rotate hw init err.\n");
+		ret = sunxi_drm_encoder_create(dev, possible_up, fix_up, i, hw_res);
+		if (ret) {
+			goto err;
+		}
+		DRM_DEBUG_KMS("[%d]:id[%d] reg_base[0x%lx] irq_id[%d]\n",__LINE__, 
+		hw_res->res_id, hw_res->reg_base, hw_res->irq_no);
+		if (res_irq && hw_res->irq_no && has_res[id][1]) {
+			/* for drm_wait_vblank */
+			res_irq->start = hw_res->irq_no;
+			res_irq->flags = IORESOURCE_IRQ;
+			res_irq->name = "drm_irq";
+			platform_device_add_resources(dev->platformdev, res_irq, 1);
+			kfree(res_irq);
+			res_irq = NULL;
+		}
+	}
+	asigned = 0x00;
+	for (i = 0, id = DISP_MOD_DSI0, lcd_id = 0, hdmi_id = 0;
+			(id < DISP_MOD_NUM) && (i < max_connector);
+			id++) {
+		hw_res = sunxi_hwres_init(id);
+		if (!hw_res) {
+			goto err;
+		}
+		fix_up = -1;
+		possible_up = 0;
+		disp_out_type = DISP_OUTPUT_TYPE_NONE;
+		switch (id) {
+		case DISP_MOD_DSI0:
+		case DISP_MOD_DSI1:
+		case DISP_MOD_DSI2:
+		case DISP_MOD_LVDS:
+			sunxi_panel = sunxi_lcd_init(hw_res, i, lcd_id);
+			if (!sunxi_panel) {
+			sunxi_hwres_destroy(hw_res);
+			continue;
+			}
+			ret = sunxi_drm_get_res_info(&para, hw_res, has_res[id]);
+			if (ret) {
+				sunxi_hwres_destroy(hw_res);
+				goto err;
+			}
+			for (j = 0; j < max_enc; j++) {
+				if (sunxi_drm_encoder_support(j, DISP_OUTPUT_TYPE_LCD)) {
+					possible_up |= 1<<j;
+					if(!(asigned & (1 << j)) && fix_up == -1) {
+						asigned |= 1 << j;
+						fix_up = j;
+					}
+				}
+			}
+			disp_out_type = DISP_OUTPUT_TYPE_LCD;
+			lcd_id++;
+			break;
+		case DISP_MOD_HDMI:
+			sunxi_panel = sunxi_hdmi_pan_init(hw_res, i, hdmi_id);
+			if (!sunxi_panel) {
+				sunxi_hwres_destroy(hw_res);
+				continue;
+			}
+			for (j = 0; j < max_enc; j++) {
+				if (sunxi_drm_encoder_support(j, DISP_OUTPUT_TYPE_HDMI)) {
+					possible_up |= 1<<j;
+					if (!(asigned & (1 << j)) && fix_up == -1) {
+						asigned |= 1 << j;
+						fix_up = j;
+					}
+				}
+			}
+			disp_out_type = DISP_OUTPUT_TYPE_HDMI;
+			hdmi_id++;
+			break;
+		default:
+			DRM_ERROR("temple we don't support %d.\n", id);
+			sunxi_hwres_destroy(hw_res);
+			continue;
+		}
+		DRM_DEBUG_KMS("[%d]:id[%d] reg_base[0x%lx] irq_id[%d]\n", __LINE__,
+		hw_res->res_id, hw_res->reg_base, hw_res->irq_no);
 
-    return 0;
+		ret = sunxi_drm_connector_create(dev, possible_up, fix_up, i, sunxi_panel, disp_out_type, hw_res);
+		if (ret) {
+		sunxi_lcd_destroy(sunxi_panel, hw_res);
+		sunxi_hwres_destroy(hw_res);
+		continue;
+		}
+		i++;
+	}
+
+	if (i == 0)
+		goto err;
+	if (sunxi_drm_rotate_init(dev->dev_private))
+		DRM_ERROR("rotate hw init err.\n");
+
+	return 0;
 err:
-    return -EINVAL;
+    	return -EINVAL;
 }
 
 void sunxi_drm_destroy(struct drm_device *dev)
 {
-    drm_mode_config_cleanup(dev);
+    	drm_mode_config_cleanup(dev);
 }

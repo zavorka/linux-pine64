@@ -71,6 +71,6 @@ int sunxi_drm_encoder_support(int encoder, unsigned int output_type);
 void sunxi_updata_crtc_freq(unsigned long rate);
 
 void sunxi_drm_updata_crtc(struct sunxi_drm_crtc *sunxi_crtc,
-        struct sunxi_drm_connector *connector);
+	struct sunxi_drm_connector *connector);
 
 #endif

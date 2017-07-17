@@ -14,48 +14,48 @@
 #include <linux/sunxi_tr.h>
 
 enum rotate_process{
-    ROTATE_IN_IDLE = 0,
-    ROTATE_IN_WORK,
-    ROTATE_IN_FINISH,
-    ROTAE_IN_BAD,
+	ROTATE_IN_IDLE = 0,
+	ROTATE_IN_WORK,
+	ROTATE_IN_FINISH,
+	ROTAE_IN_BAD,
 };
 
 enum {
-    ROTATE_ERROR = -1,
-    ROTATE_OK = 0,
-    ROTATE_BUSY,
-    ROTAE_NO_START,
+	ROTATE_ERROR = -1,
+	ROTATE_OK = 0,
+	ROTATE_BUSY,
+	ROTAE_NO_START,
 };
 
 #define ROTATE_DAEMON_HZ  100
 
 struct sunxi_rotate_private {
-    struct list_head rotate_work;
-    spinlock_t head_lock;
-    struct list_head qurey_head;
-    struct mutex qurey_mlock;
-    int query_cnt;
-    struct sunxi_rotate_task *current_task;
+	struct list_head rotate_work;
+	spinlock_t head_lock;
+	struct list_head qurey_head;
+	struct mutex qurey_mlock;
+	int query_cnt;
+	struct sunxi_rotate_task *current_task;
 
-    spinlock_t process_lock;
-    enum rotate_process active;
-    wait_queue_head_t task_wq;
-    struct delayed_work daemon_work;
-    struct clk *clk;
-    int irq;
-    struct mutex user_mlock;
-    struct idr user_idr;
-    int used_cnt;
+	spinlock_t process_lock;
+	enum rotate_process active;
+	wait_queue_head_t task_wq;
+	struct delayed_work daemon_work;
+	struct clk *clk;
+	int irq;
+	struct mutex user_mlock;
+	struct idr user_idr;
+	int used_cnt;
 };
 
 struct sunxi_rotate_task {
-    struct kref refcount;
-    struct list_head w_head;
-    struct list_head q_head;
-    tr_info info;
+	struct kref refcount;
+	struct list_head w_head;
+	struct list_head q_head;
+	tr_info info;
 	unsigned long timeout;
-    int status;//0 ok, -1 error, 1 busy, 2 not start
-    bool sleep_mode;
+	int status;//0 ok, -1 error, 1 busy, 2 not start
+	bool sleep_mode;
 };
 
 #define to_sunxi_rotate_q(x)	container_of(x, struct sunxi_rotate_task, q_head)

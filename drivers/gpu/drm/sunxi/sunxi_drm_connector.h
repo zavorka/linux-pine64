@@ -23,13 +23,13 @@ enum chain_bit_mask{
 
 struct sunxi_drm_connector {
 	struct drm_connector drm_connector;
-    int connector_id;
-    int dmps;
-    struct drm_property *brigt_linght_property; //0~15  0~7
-    struct sunxi_hardware_res *hw_res;
-    enum disp_output_type disp_out_type;
+	int connector_id;
+	int dmps;
+	struct drm_property *brigt_linght_property; //0~15  0~7
+	struct sunxi_hardware_res *hw_res;
+	enum disp_output_type disp_out_type;
 
-    struct sunxi_panel *panel;
+	struct sunxi_panel *panel;
 };
 
 #define to_sunxi_connector(x)	container_of(x, struct sunxi_drm_connector, drm_connector)
