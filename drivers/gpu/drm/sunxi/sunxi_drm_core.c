@@ -399,7 +399,7 @@ int sunxi_drm_init(struct drm_device *dev)
 		case DISP_MOD_DSI1:
 		case DISP_MOD_DSI2:
 		case DISP_MOD_LVDS:
-			sunxi_panel = sunxi_lcd_init(hw_res, i, lcd_id);
+			sunxi_panel = sunxi_lcd_init(dev, hw_res, i, lcd_id);
 			if (!sunxi_panel) {
 			sunxi_hwres_destroy(hw_res);
 			continue;

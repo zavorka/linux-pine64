@@ -38,6 +38,8 @@ static struct lcd_clk_info clk_tbl[] = {
 
 /* LCD panel control extern*/
 
+void edp_lcd_panel_init(u32 sel);
+
 static int sunxi_lcd_extern_backlight_enable(struct sunxi_lcd_private *sunxi_lcd)
 {
 	disp_gpio_set_t  gpio_info[1];
@@ -54,6 +56,10 @@ static int sunxi_lcd_extern_backlight_enable(struct sunxi_lcd_private *sunxi_lcd
 
 		//lcd_cfg->lcd_bl_gpio_hdl = sunxi_drm_sys_gpio_request(gpio_info);
 		sunxi_lcd->bl_enalbe = 1;
+	}
+
+	if (sunxi_lcd->backlight) {
+		sunxi_lcd->backlight->props.power = FB_BLANK_UNBLANK;
 	}
 
 	return 0;
@@ -76,6 +82,10 @@ static int sunxi_lcd_extern_backlight_disable(struct sunxi_lcd_private *sunxi_lc
 			sunxi_drm_sys_power_disable(lcd_cfg->lcd_bl_en_power);
 		}
 		sunxi_lcd->bl_enalbe = 0;
+	}
+
+	if (sunxi_lcd->backlight) {
+		sunxi_lcd->backlight->props.power = FB_BLANK_POWERDOWN;
 	}
 
 	return 0;
@@ -300,12 +310,11 @@ bool default_panel_close(struct sunxi_panel *panel)
 	return true;
 }
 
-void edp_lcd_panel_init(u32 sel);
-
 bool edp_panel_open(struct sunxi_panel *sunxi_panel)
 {
-    pr_info("SUNXIDRM edp_panel_open\n");
     struct sunxi_lcd_private *sunxi_lcd = sunxi_panel->private;
+
+    pr_info("SUNXIDRM edp_panel_open\n");
     gpio_direction_output(sunxi_lcd->lcd_cfg->gpio_hdl[0], 0);
     sunxi_lcd_extrn_power_on(sunxi_panel->private);
     sunxi_drm_delayed_ms(80);
@@ -339,8 +348,9 @@ bool edp_panel_open(struct sunxi_panel *sunxi_panel)
 
 bool edp_panel_close(struct sunxi_panel *panel)
 {
-    pr_info("SUNXIDRM edp_panel_close\n");
     struct sunxi_lcd_private *sunxi_lcd = panel->private;
+
+    pr_info("SUNXIDRM edp_panel_close\n");
     sunxi_chain_disable(panel->drm_connector, CHAIN_BIT_ENCODER);
     sunxi_drm_delayed_ms(200);
     gpio_direction_output(sunxi_lcd->lcd_cfg->gpio_hdl[0], 0);
@@ -369,8 +379,9 @@ bool edp_panel_close(struct sunxi_panel *panel)
 
 bool sunxi_lcd_edp_set_bright(struct sunxi_panel *sunxi_panel, unsigned int bright)
 {
-    pr_info("SUNXIDRM sunxi_lcd_edp_set_bright\n");
     struct sunxi_lcd_private *sunxi_lcd = sunxi_panel->private;
+
+    pr_info("SUNXIDRM sunxi_lcd_edp_set_bright\n");
     if (bright > 0) {
         sunxi_drm_sys_pwm_enable(sunxi_lcd->pwm_info);
     } else {
@@ -1033,7 +1044,50 @@ int sunxi_common_pwm_set_bl(struct sunxi_lcd_private *sunxi_lcd, unsigned int br
 	return 0;
 }
 
-int sunxi_lcd_panel_ops_init(struct sunxi_panel *sunxi_panel)
+static int sunxi_update_bl(struct backlight_device *bdev)
+{
+	struct sunxi_panel *sunxi_panel = bl_get_data(bdev);
+
+	if (!sunxi_panel || !sunxi_panel->panel_ops) {
+		return -ENOENT;
+	}
+
+	int brightness = bdev->props.brightness;
+
+	if (bdev->props.power != FB_BLANK_UNBLANK ||
+		bdev->props.state & (BL_CORE_SUSPENDED | BL_CORE_FBBLANK))
+		brightness = 0;
+
+	if (!sunxi_panel->panel_ops->bright_light(sunxi_panel, brightness)) {
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static int sunxi_get_brightness(struct backlight_device *bdev)
+{
+	struct sunxi_panel *sunxi_panel = bl_get_data(bdev);
+	struct sunxi_lcd_private *sunxi_lcd = sunxi_panel->private;
+	if (sunxi_lcd) {
+		return sunxi_lcd->lcd_cfg->backlight_bright;
+	} else {
+		return 0;
+	}
+}
+
+static int sunxi_check_fb(struct backlight_device *bdev, struct fb_info *info)
+{
+	return 1;
+}
+
+static struct backlight_ops sunxi_bl_ops = {
+	.options	= BL_CORE_SUSPENDRESUME,
+	.update_status	= sunxi_update_bl,
+	.get_brightness	= sunxi_get_brightness,
+	.check_fb	= sunxi_check_fb,
+};
+
+int sunxi_lcd_panel_ops_init(struct drm_device *dev, struct sunxi_panel *sunxi_panel)
 {
 	char primary_key[20];
 	int  ret;
@@ -1048,20 +1102,35 @@ int sunxi_lcd_panel_ops_init(struct sunxi_panel *sunxi_panel)
     if (!strcmp(drv_name, "default_lcd") || !strcmp(drv_name, "mb709_mipi")) {
         sunxi_panel->panel_ops = &default_panel;
         sunxi_panel->panel_ops->init(sunxi_panel);
-        return 0;
     } else if (!strcmp(drv_name, "anx9804_panel")) {
         sunxi_panel->panel_ops = &anx9804_panel;
         sunxi_panel->panel_ops->init(sunxi_panel);
-        return 0;
-    }
+    } else {
+		DRM_ERROR("failed to init sunxi_panel.\n");
+		return -EINVAL;
+	}
 
-	DRM_ERROR("failed to init sunxi_panel.\n");
-	return -EINVAL;
+	sprintf(drv_name, "lcd%d", sunxi_lcd->lcd_id);
+	sunxi_lcd->backlight = backlight_device_register(
+		drv_name, dev->dev, sunxi_panel, &sunxi_bl_ops, NULL);
+	if (IS_ERR(sunxi_lcd->backlight)) {
+		DRM_ERROR("unable to register backlight device: %ld\n", PTR_ERR(sunxi_lcd->backlight));
+		return -EINVAL;
+	}
+
+	sunxi_lcd->backlight->props.max_brightness = 255;
+	sunxi_lcd->backlight->props.brightness = sunxi_lcd->lcd_cfg->backlight_bright;
+	return 0;
 }
 
-void sunxi_lcd_panel_ops_destroy(struct panel_ops  *panel_ops)
+void sunxi_lcd_panel_ops_destroy(struct sunxi_panel *sunxi_panel)
 {
-	return;
+	struct sunxi_lcd_private *sunxi_lcd = sunxi_panel->private;
+
+	if (sunxi_lcd->backlight) {
+		backlight_device_unregister(sunxi_lcd->backlight);
+		sunxi_lcd->backlight = NULL;
+	}
 }
 
 bool sunxi_fix_power_enable(disp_lcd_cfg  *lcd_cfg)
@@ -1155,6 +1224,10 @@ bool sunxi_common_enable(void *data)
 	sunxi_gpio_request(lcd_cfg);
 	sunxi_lcd_pin_enalbe(sunxi_lcd);
 	panel_ops->open(sunxi_panel);
+
+	if (sunxi_lcd->backlight) {
+		backlight_update_status(sunxi_lcd->backlight);
+	}
 
 	panel_ops->bright_light(sunxi_panel, lcd_cfg->lcd_bright);
 	return true;
@@ -1458,7 +1531,7 @@ void sunxi_lcd_private_destroy(struct sunxi_lcd_private *sunxi_lcd_p)
 	kfree(sunxi_lcd_p);
 }
 
-struct sunxi_panel *sunxi_lcd_init(struct sunxi_hardware_res *hw_res, int panel_id, int lcd_id)
+struct sunxi_panel *sunxi_lcd_init(struct drm_device *dev, struct sunxi_hardware_res *hw_res, int panel_id, int lcd_id)
 {
 	char primary_key[20];
 	int value,ret;
@@ -1500,7 +1573,7 @@ struct sunxi_panel *sunxi_lcd_init(struct sunxi_hardware_res *hw_res, int panel_
 					goto err_pravate;
 				} 
 
-				ret = sunxi_lcd_panel_ops_init(sunxi_panel);
+				ret = sunxi_lcd_panel_ops_init(dev, sunxi_panel);
 				if (ret) {
 					DRM_ERROR("creat panel_ops fail.\n");
 					goto err_ops;
@@ -1516,7 +1589,6 @@ err_ops:
 err_pravate:
 	sunxi_lcd_private_destroy(sunxi_panel->private);
 err_panel:
-	if(sunxi_panel)
 	sunxi_panel_destroy(sunxi_panel);
 err_false:
 	return NULL;
@@ -1526,6 +1598,7 @@ void sunxi_lcd_destroy(struct sunxi_panel *sunxi_panel,
 	struct sunxi_hardware_res *hw_res)
 {
 	if(sunxi_panel) {
+		sunxi_lcd_panel_ops_destroy(sunxi_panel);
 		sunxi_lcd_hwres_ops_destroy(hw_res);
 		sunxi_lcd_private_destroy(sunxi_panel->private);
 	}

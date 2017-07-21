@@ -53,7 +53,7 @@ struct sunxi_hardware_res {
 	void *private;
 };
 
-struct sunxi_panel *sunxi_lcd_init(struct sunxi_hardware_res *hw_res, int panel_id, int lcd_id);
+struct sunxi_panel *sunxi_lcd_init(struct drm_device *dev, struct sunxi_hardware_res *hw_res, int panel_id, int lcd_id);
 
 int sunxi_drm_init(struct drm_device *dev);
 
