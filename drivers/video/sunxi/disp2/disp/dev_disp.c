@@ -35,7 +35,7 @@ static struct device *display_dev;
 
 static unsigned int g_disp = 0, g_enhance_mode = 0, g_cvbs_enhance_mode = 0;
 static u32 DISP_print = 0xffff;   //print cmd which eq DISP_print
-static bool g_pm_runtime_enable = 1; //when open the CONFIG_PM_RUNTIME,this bool can also control if use the PM_RUNTIME.
+static bool g_pm_runtime_enable = 0; //when open the CONFIG_PM_RUNTIME,this bool can also control if use the PM_RUNTIME.
 /* FIXME:
  * use this counter to record the pm_runtime_get/pm_runtime_put,
  * because surfaceflinger only call blank(off) when display device plug in,
