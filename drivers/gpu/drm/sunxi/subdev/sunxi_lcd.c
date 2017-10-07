@@ -54,7 +54,7 @@ static int sunxi_lcd_extern_backlight_enable(struct sunxi_lcd_private *sunxi_lcd
 		memcpy(gpio_info, &(lcd_cfg->lcd_bl_en), sizeof(disp_gpio_set_t));
 		DRM_DEBUG_KMS("[%d] %s", __LINE__, __func__);
 
-		//lcd_cfg->lcd_bl_gpio_hdl = sunxi_drm_sys_gpio_request(gpio_info);
+		lcd_cfg->lcd_bl_en_hdl = sunxi_drm_sys_gpio_request(gpio_info);
 		sunxi_lcd->bl_enalbe = 1;
 	}
 
@@ -71,10 +71,15 @@ static int sunxi_lcd_extern_backlight_disable(struct sunxi_lcd_private *sunxi_lc
 	disp_lcd_cfg  *lcd_cfg = sunxi_lcd->lcd_cfg;
 
 	if (lcd_cfg->lcd_bl_en_used && sunxi_lcd->bl_enalbe == 1) {
+		if (lcd_cfg->lcd_bl_en_hdl) {
+			sunxi_drm_sys_gpio_release(lcd_cfg->lcd_bl_en_hdl);
+		}
+
 		memcpy(gpio_info, &(lcd_cfg->lcd_bl_en), sizeof(disp_gpio_set_t));
 		gpio_info->data = (gpio_info->data==0)?1:0;
 		gpio_info->mul_sel = 7;
-		//sunxi_drm_sys_gpio_release(lcd_cfg->lcd_bl_gpio_hdl);
+		lcd_cfg->lcd_bl_en_hdl = sunxi_drm_sys_gpio_request(gpio_info);
+		sunxi_drm_sys_gpio_release(lcd_cfg->lcd_bl_en_hdl);
 		DRM_DEBUG_KMS("[%d] %s", __LINE__, __func__);
 
 		if (!((!strcmp(lcd_cfg->lcd_bl_en_power, "")) ||
