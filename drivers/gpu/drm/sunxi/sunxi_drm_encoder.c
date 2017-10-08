@@ -368,6 +368,7 @@ bool sunxi_tcon_dsi_enable(void *data)
 	hw_res = sunxi_encoder->hw_res;
 	lcd_private = (struct sunxi_lcd_private *)hw_res->private;
 
+	dsi_clk_enable(sunxi_encoder->enc_id, 1);
 	tcon0_open(sunxi_encoder->enc_id, lcd_private->panel);
 	dsi_open(sunxi_encoder->enc_id, lcd_private->panel);
 
@@ -383,6 +384,7 @@ bool sunxi_tcon_dsi_disable(void *data)
 	struct sunxi_hardware_res *hw_res;
 	hw_res = sunxi_encoder->hw_res;
 
+	dsi_clk_enable(sunxi_encoder->enc_id, 0);
 	dsi_close(sunxi_encoder->enc_id);
 	tcon0_close(sunxi_encoder->enc_id);
 	tcon_exit(sunxi_encoder->enc_id);
