@@ -341,8 +341,8 @@ bool mb709_mipi_panel_open(struct sunxi_panel *sunxi_panel)
     sunxi_lcd_extrn_power_on(sunxi_panel->private);
     sunxi_drm_delayed_ms(80);
 
-	dsi_io_open(sunxi_lcd->lcd_id, sunxi_lcd->panel);
-	sunxi_drm_delayed_ms(10);
+    dsi_io_open(sunxi_lcd->lcd_id, sunxi_lcd->panel);
+    sunxi_drm_delayed_ms(10);
 
     gpio_direction_output(sunxi_lcd->lcd_cfg->gpio_hdl[0], 1);
     sunxi_drm_delayed_ms(50);
@@ -1009,6 +1009,10 @@ static int sunxi_lcd_pin_enalbe(struct sunxi_lcd_private *sunxi_lcd)
 			sunxi_drm_sys_power_enable(lcd_cfg->lcd_pin_power[i]);
 		}
 	}
+
+	if (LCD_IF_DSI ==  sunxi_lcd->panel->lcd_if) {
+		dsi_io_open(sunxi_lcd->lcd_id, sunxi_lcd->panel);
+    }
 
 	sprintf(dev_name, "lcd%d", sunxi_lcd->lcd_id);
 	sunxi_drm_sys_pin_set_state(dev_name, DISP_PIN_STATE_ACTIVE);
