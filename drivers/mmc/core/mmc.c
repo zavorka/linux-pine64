@@ -872,12 +872,12 @@ static int mmc_select_hs400(struct mmc_card *card)
 
 	mmc_set_timing(card->host, MMC_TIMING_MMC_HS);
 	mmc_set_clock(host, 52000000);
-	err = sunxi_mmc_check_timing_switch_done(card,0);
-	if(err){
-		pr_err("%s: wait back to hs ready failed, err:%d\n",
-			mmc_hostname(host), err);	
-		return err;
-	}
+	// err = sunxi_mmc_check_timing_switch_done(card,0);
+	// if(err){
+	// 	pr_err("%s: wait back to hs ready failed, err:%d\n",
+	// 		mmc_hostname(host), err);	
+	// 	return err;
+	// }
 	
 
 	err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
@@ -903,12 +903,12 @@ static int mmc_select_hs400(struct mmc_card *card)
 	mmc_set_timing(host, MMC_TIMING_MMC_HS400);
 	mmc_set_clock(host, card->ext_csd.hs_max_dtr);
 	mmc_card_set_hs400(card);
-	err = sunxi_mmc_check_timing_switch_done(card,0);
-	if(err){
-		pr_err("%s: wait hs400 ready failed, err:%d\n",
-			mmc_hostname(host), err);	
-		return err;
-	}
+	// err = sunxi_mmc_check_timing_switch_done(card,0);
+	// if(err){
+	// 	pr_err("%s: wait hs400 ready failed, err:%d\n",
+	// 		mmc_hostname(host), err);	
+	// 	return err;
+	// }
 
 
 #ifdef CHECK_HSTIIMING
@@ -1244,21 +1244,19 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 				mmc_card_set_hs200(card);
 				mmc_set_timing(card->host,
 					       MMC_TIMING_MMC_HS200);
-				err = sunxi_mmc_check_timing_switch_done(card,0);
-				if(err){
-					pr_err("%s: wait hs200 ready failed, err:%d\n",
-						mmc_hostname(host), err);	
-					goto free_card;
-				}				
+				// err = sunxi_mmc_check_timing_switch_done(card,0);
+				// if (err) {
+				// 	pr_warn("%s: wait hs200 ready failed, err:%d\n",
+				// 		mmc_hostname(host), err);
+				// }
 			} else {
 				mmc_card_set_highspeed(card);
 				mmc_set_timing(card->host, MMC_TIMING_MMC_HS);
-				err = sunxi_mmc_check_timing_switch_done(card,0);
-				if(err){
-					pr_err("%s: wait hs ready failed, err:%d\n",
-						mmc_hostname(host), err);	
-					goto free_card;
-				}					
+				// err = sunxi_mmc_check_timing_switch_done(card,0);
+				// if (err) {
+				// 	pr_warn("%s: wait hs ready failed, err:%d\n",
+				// 		mmc_hostname(host), err);
+				// }
 			}
 		}
 	}
