@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2016 Allwinnertech Co.Ltd
  * Authors: Jet Cui 
+ *          David Edmundson
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -573,7 +574,8 @@ static int sunxi_plane_mode_set(struct disp_layer_config_data *cfg, struct drm_c
 	config->info.screen_win.width = crtc_w;
 	config->info.screen_win.height = crtc_h;
 	/* 3D mode set in property */
-	config->info.alpha_mode = 1;
+    /* Hack? Set alpha mask to per-pixel for cursor planes*/
+	config->info.alpha_mode = config->info.zorder > 0  ? 0 : 1;
 	config->info.alpha_value = 0xff;
 	/* screen crop set */
 	config->info.fb.crop.x = ((long long)src_x)<<32;
@@ -686,7 +688,16 @@ int sunxi_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 		if (!plane_ops->updata_reg(cfg)) {
 			return -EINVAL;
 		}
-	}
+	} else {
+        //the above will always fail as updata_reg is not defined.
+        //commit the crtc directly
+        struct sunxi_drm_crtc *sunxi_crtc = to_sunxi_crtc(crtc);
+        struct sunxi_hardware_ops *ops = sunxi_crtc->hw_res->ops;
+
+        DRM_DEBUG_KMS("[%d]  crtc_id:%d\n", __LINE__, sunxi_crtc->crtc_id);
+        /*commit the global cfg and plane cfgs to the reg or memory cache*/
+        ops->updata_reg(crtc);
+    }
 
 	return 0;
 }
