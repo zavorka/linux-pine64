@@ -109,7 +109,7 @@ s32 bsp_disp_get_print_level(void);
 #endif
 #endif
 
-#define DEFAULT_PRINT_LEVLE 0
+#define DEFAULT_PRINT_LEVEL 1
 #if defined(CONFIG_FPGA_V4_PLATFORM) || defined(CONFIG_FPGA_V7_PLATFORM) || defined(CONFIG_A67_FPGA)
 #define __FPGA_DEBUG__
 #endif

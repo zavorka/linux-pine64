@@ -19,7 +19,7 @@ s32 bsp_disp_init(disp_bsp_init_para * para)
 #endif
 	}
 
-	bsp_disp_set_print_level(DEFAULT_PRINT_LEVLE);
+	bsp_disp_set_print_level(DEFAULT_PRINT_LEVEL);
 	disp_init_al(para);
 	disp_init_lcd(para);
 #if defined(SUPPORT_HDMI)
