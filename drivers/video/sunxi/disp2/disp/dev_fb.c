@@ -776,48 +776,9 @@ static int sunxi_fb_setcmap(struct fb_cmap *cmap, struct fb_info *info)
 
 static int sunxi_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 {
-	long ret = 0;
-
-	switch (cmd) {
-#if 0
-	case FBIOGET_VBLANK:
-	{
-		struct fb_vblank vblank;
-		struct disp_video_timings tt;
-		u32 line = 0;
-		u32 sel;
-
-		sel = (g_fbi.fb_mode[info->node] == FB_MODE_SCREEN1)?1:0;
-		line = bsp_disp_get_cur_line(sel);
-		bsp_disp_get_timming(sel, &tt);
-
-		memset(&vblank, 0, sizeof(struct fb_vblank));
-		vblank.flags |= FB_VBLANK_HAVE_VBLANK;
-		vblank.flags |= FB_VBLANK_HAVE_VSYNC;
-		if (line <= (tt.ver_total_time-tt.y_res))	{
-			vblank.flags |= FB_VBLANK_VBLANKING;
-		}
-		if ((line > tt.ver_front_porch) && (line < (tt.ver_front_porch+tt.ver_sync_time)))	{
-			vblank.flags |= FB_VBLANK_VSYNCING;
-		}
-
-		if (copy_to_user((void __user *)arg, &vblank, sizeof(struct fb_vblank)))
-		ret = -EFAULT;
-
-		break;
-	}
-#endif
-
-	case FBIO_WAITFORVSYNC:
-	{
-		ret = fb_wait_for_vsync(info);
-		break;
-	}
-
-	default:
-		break;
-	}
-	return ret;
+	if (cmd == FBIO_WAITFORVSYNC)
+		return fb_wait_for_vsync(info);
+	return 0;
 }
 
 static struct fb_ops dispfb_ops =
